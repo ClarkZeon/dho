@@ -138,3 +138,48 @@ export type ShipSkillRow = {
   material1: string | null
   material2: string | null
 }
+
+export type QuestSkillReq = {
+  name: string
+  level: number | null
+}
+
+export type QuestRewardItem = {
+  name: string
+  qty: number | null
+}
+
+export type QuestChainItem = {
+  category?: string
+  name?: string
+  difficulty?: number
+  skills?: QuestSkillReq[]
+  places?: string
+  raw?: string
+}
+
+export type QuestDetail = {
+  id: number
+  slug: string
+  name: string
+  description: string | null
+  category: string | null
+  questType: string | null
+  difficulty: number | null
+  requestPlaces: string | null
+  destination: string | null
+  discoveryCategory: string | null
+  discoveryRank: number | null
+  discoveryName: string | null
+  skills: QuestSkillReq[]
+  rewardDucat: number | null
+  rewardAdvance: number | null
+  expDiscovery: number | null
+  expCard: number | null
+  expReport: number | null
+  fameReport: number | null
+  rewardItems: QuestRewardItem[]
+  chainQuests: QuestChainItem[]
+  walkthrough: string | null
+  progress: string | null
+}

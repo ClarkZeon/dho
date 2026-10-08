@@ -3,6 +3,7 @@ import type {
   BoardPost,
   BoardSummary,
   MessageItem,
+  QuestDetail,
   Session,
   ShipDetail,
   User,
@@ -225,6 +226,17 @@ export function fetchShip(token: string, slug: string) {
 
 export function importShipText(token: string, text: string) {
   return request<{ ship: ShipDetail }>('/api/ships/import-text', {
+    token,
+    body: { text },
+  })
+}
+
+export function fetchQuests(token: string) {
+  return request<{ quests: QuestDetail[] }>('/api/quests', { token })
+}
+
+export function importQuestText(token: string, text: string) {
+  return request<{ quest: QuestDetail }>('/api/quests/import-text', {
     token,
     body: { text },
   })

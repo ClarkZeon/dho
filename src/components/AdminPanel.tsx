@@ -2,14 +2,17 @@ import { useCallback, useEffect, useState, type FormEvent, type KeyboardEvent } 
 import {
   deleteAdminUser,
   fetchAdminUsers,
+  fetchQuests,
   fetchShips,
+  importQuestText,
   importShipText,
   updateAdminUserRole,
 } from '../lib/api'
-import type { AdminUser, ShipDetail, User } from '../types'
+import type { AdminUser, QuestDetail, ShipDetail, User } from '../types'
+import { QuestDetailView } from './QuestDetailView'
 import { ShipDetailView } from './ShipDetailView'
 
-type AdminNav = 'users' | 'ships'
+type AdminNav = 'users' | 'ships' | 'quests'
 
 type AdminPanelProps = {
   user: User
@@ -49,6 +52,15 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
   const [importNote, setImportNote] = useState('')
   const [detailShip, setDetailShip] = useState<ShipDetail | null>(null)
 
+  const [quests, setQuests] = useState<QuestDetail[]>([])
+  const [loadingQuests, setLoadingQuests] = useState(false)
+  const [questsError, setQuestsError] = useState('')
+  const [showQuestImport, setShowQuestImport] = useState(false)
+  const [questImportText, setQuestImportText] = useState('')
+  const [importingQuest, setImportingQuest] = useState(false)
+  const [questImportNote, setQuestImportNote] = useState('')
+  const [detailQuest, setDetailQuest] = useState<QuestDetail | null>(null)
+
   const loadUsers = useCallback(async () => {
     setLoadingUsers(true)
     setUsersError('')
@@ -79,24 +91,45 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
     }
   }, [token])
 
+  const loadQuests = useCallback(async () => {
+    setLoadingQuests(true)
+    setQuestsError('')
+    try {
+      const res = await fetchQuests(token)
+      setQuests(res.quests)
+    } catch (err) {
+      setQuestsError(
+        err instanceof Error ? err.message : '퀘스트 목록을 불러오지 못했습니다.',
+      )
+    } finally {
+      setLoadingQuests(false)
+    }
+  }, [token])
+
   useEffect(() => {
     if (nav === 'users') void loadUsers()
     if (nav === 'ships') void loadShips()
-  }, [nav, loadUsers, loadShips])
+    if (nav === 'quests') void loadQuests()
+  }, [nav, loadUsers, loadShips, loadQuests])
+
+  const detailOpen = Boolean(detailShip || detailQuest)
 
   useEffect(() => {
-    if (!detailShip) return
+    if (!detailOpen) return
     const prev = document.body.style.overflow
     document.body.style.overflow = 'hidden'
     function onKey(event: globalThis.KeyboardEvent) {
-      if (event.key === 'Escape') setDetailShip(null)
+      if (event.key === 'Escape') {
+        setDetailShip(null)
+        setDetailQuest(null)
+      }
     }
     window.addEventListener('keydown', onKey)
     return () => {
       document.body.style.overflow = prev
       window.removeEventListener('keydown', onKey)
     }
-  }, [detailShip])
+  }, [detailOpen])
 
   async function handleRoleChange(target: AdminUser, role: 'admin' | 'member') {
     if (target.role === role) return
@@ -156,6 +189,30 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
     }
   }
 
+  async function handleQuestImport(e: FormEvent) {
+    e.preventDefault()
+    if (!questImportText.trim()) {
+      setQuestImportNote('텍스트를 붙여넣어 주세요.')
+      return
+    }
+    setImportingQuest(true)
+    setQuestImportNote('')
+    try {
+      const res = await importQuestText(token, questImportText)
+      setQuestImportText('')
+      setShowQuestImport(false)
+      setQuestImportNote(`「${res.quest.name}」을(를) 등록했습니다.`)
+      onToast(`퀘스트 「${res.quest.name}」 등록 완료`)
+      await loadQuests()
+    } catch (err) {
+      setQuestImportNote(
+        err instanceof Error ? err.message : '등록에 실패했습니다.',
+      )
+    } finally {
+      setImportingQuest(false)
+    }
+  }
+
   const adminCount = users.filter((u) => u.role === 'admin').length
 
   return (
@@ -188,6 +245,14 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
             <span className="admin-nav-index">02</span>
             <span className="admin-nav-text">선박 리스트</span>
           </button>
+          <button
+            type="button"
+            className={nav === 'quests' ? 'active' : ''}
+            onClick={() => setNav('quests')}
+          >
+            <span className="admin-nav-index">03</span>
+            <span className="admin-nav-text">퀘스트 리스트</span>
+          </button>
         </nav>
 
         <div className="admin-sidebar-foot">
@@ -211,7 +276,10 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
             <div className="admin-page-head">
               <div>
                 <h1>회원 리스트</h1>
-                <p>역할 변경과 계정 삭제를 처리합니다.</p>
+                <p>
+                  역할 변경과 계정 삭제를 처리합니다. 마지막 관리자는 강등·삭제할 수
+                  없습니다.
+                </p>
               </div>
               <button
                 type="button"
@@ -249,6 +317,14 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
                       const isSelf = row.id === user.id
                       const isLastAdmin = row.role === 'admin' && adminCount <= 1
                       const busy = busyId === row.id
+                      // 마지막 admin 은 강등/삭제 불가. 본인이라도 다른 admin 이 있으면 변경 가능.
+                      const roleLocked = busy || isLastAdmin
+                      const deleteLocked = busy || isSelf || isLastAdmin
+                      const lockHint = isLastAdmin
+                        ? '마지막 관리자는 역할을 변경할 수 없습니다.'
+                        : isSelf
+                          ? '자신의 계정은 삭제할 수 없습니다.'
+                          : undefined
                       return (
                         <tr key={row.id}>
                           <td>{row.username}</td>
@@ -256,7 +332,8 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
                           <td>
                             <select
                               value={row.role}
-                              disabled={busy || isSelf || isLastAdmin}
+                              disabled={roleLocked}
+                              title={roleLocked ? lockHint : undefined}
                               onChange={(e) =>
                                 void handleRoleChange(
                                   row,
@@ -274,7 +351,8 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
                             <button
                               type="button"
                               className="admin-danger-btn"
-                              disabled={busy || isSelf || isLastAdmin}
+                              disabled={deleteLocked}
+                              title={deleteLocked ? lockHint : undefined}
                               onClick={() => void handleDelete(row)}
                             >
                               삭제
@@ -414,6 +492,138 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
             )}
           </section>
         )}
+
+        {nav === 'quests' && (
+          <section className="admin-section">
+            <div className="admin-page-head">
+              <div>
+                <h1>퀘스트 리스트</h1>
+                <p>등록된 퀘스트를 확인하고 텍스트로 추가합니다.</p>
+              </div>
+              <div className="admin-page-actions">
+                <button
+                  type="button"
+                  className="admin-btn"
+                  onClick={() => void loadQuests()}
+                  disabled={loadingQuests}
+                >
+                  새로고침
+                </button>
+                <button
+                  type="button"
+                  className="admin-btn admin-btn-primary"
+                  onClick={() => {
+                    setShowQuestImport((v) => !v)
+                    setQuestImportNote('')
+                  }}
+                >
+                  {showQuestImport ? '닫기' : '퀘스트 추가'}
+                </button>
+              </div>
+            </div>
+
+            {showQuestImport && (
+              <form className="admin-import-form" onSubmit={handleQuestImport}>
+                <label className="field">
+                  <span>퀘스트 텍스트</span>
+                  <textarea
+                    rows={14}
+                    value={questImportText}
+                    onChange={(e) => setQuestImportText(e.target.value)}
+                    placeholder="위키 등에서 복사한 퀘스트 정보를 붙여넣으세요."
+                    disabled={importingQuest}
+                  />
+                </label>
+                <div className="form-actions">
+                  <button
+                    type="submit"
+                    className="admin-btn admin-btn-primary"
+                    disabled={importingQuest}
+                  >
+                    {importingQuest ? '등록 중…' : '등록'}
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {questImportNote && (
+              <p
+                className={`form-note${
+                  /실패|못|오류|에러|중복/.test(questImportNote) ? ' error' : ''
+                }`}
+              >
+                {questImportNote}
+              </p>
+            )}
+
+            {questsError && (
+              <p className="form-note error" role="alert">
+                {questsError}
+              </p>
+            )}
+
+            {loadingQuests ? (
+              <p className="form-note">불러오는 중…</p>
+            ) : (
+              <div className="admin-table-wrap">
+                <table className="admin-table">
+                  <thead>
+                    <tr>
+                      <th>이름</th>
+                      <th>분류</th>
+                      <th>난이도</th>
+                      <th>의뢰 장소</th>
+                      <th>목적지</th>
+                      <th>발견물</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {quests.map((quest, index) => (
+                      <tr
+                        key={quest.id}
+                        className={`admin-row-clickable${index % 2 === 0 ? ' is-even' : ' is-odd'}`}
+                        tabIndex={0}
+                        onClick={() => setDetailQuest(quest)}
+                        onKeyDown={(event: KeyboardEvent<HTMLTableRowElement>) => {
+                          if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault()
+                            setDetailQuest(quest)
+                          }
+                        }}
+                      >
+                        <td>{quest.name}</td>
+                        <td>
+                          {quest.category
+                            ? `[${quest.category}] ${quest.questType || ''}`.trim()
+                            : '-'}
+                        </td>
+                        <td>{quest.difficulty ?? '-'}</td>
+                        <td>{quest.requestPlaces || '-'}</td>
+                        <td>{quest.destination || '-'}</td>
+                        <td>
+                          {[
+                            quest.discoveryCategory
+                              ? `[${quest.discoveryCategory}]`
+                              : null,
+                            quest.discoveryRank,
+                            quest.discoveryName,
+                          ]
+                            .filter((v) => v != null && v !== '')
+                            .join(' ') || '-'}
+                        </td>
+                      </tr>
+                    ))}
+                    {quests.length === 0 && (
+                      <tr>
+                        <td colSpan={6}>등록된 퀘스트가 없습니다.</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+        )}
       </div>
 
       {detailShip && (
@@ -442,6 +652,37 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
             </header>
             <div className="admin-modal-body">
               <ShipDetailView ship={detailShip} />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {detailQuest && (
+        <div
+          className="admin-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`${detailQuest.name} 상세`}
+        >
+          <button
+            type="button"
+            className="admin-modal-backdrop"
+            aria-label="닫기"
+            onClick={() => setDetailQuest(null)}
+          />
+          <div className="admin-modal-panel">
+            <header className="admin-modal-head">
+              <p>퀘스트 상세</p>
+              <button
+                type="button"
+                className="admin-btn"
+                onClick={() => setDetailQuest(null)}
+              >
+                닫기
+              </button>
+            </header>
+            <div className="admin-modal-body">
+              <QuestDetailView quest={detailQuest} />
             </div>
           </div>
         </div>

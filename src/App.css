@@ -2550,6 +2550,39 @@
   gap: 1rem;
 }
 
+.quest-detail-desc {
+  white-space: pre-wrap;
+  word-break: keep-all;
+}
+
+.quest-detail-plain {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.55;
+  color: var(--is-dark);
+  word-break: keep-all;
+}
+
+.quest-detail-list {
+  margin: 0;
+  padding-left: 1.15rem;
+  display: grid;
+  gap: 0.35rem;
+  font-size: 0.88rem;
+  line-height: 1.45;
+  color: var(--is-dark);
+}
+
+.quest-detail-pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: keep-all;
+  font: inherit;
+  font-size: 0.88rem;
+  line-height: 1.55;
+  color: var(--is-dark);
+}
+
 .admin-table select {
   border: 1px solid var(--is-grey-lighter);
   border-radius: 6px;

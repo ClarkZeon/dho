@@ -34,6 +34,12 @@ import {
 } from './shipStore.mjs'
 import { parseShipText } from './shipTextParse.mjs'
 import {
+  ensureQuestStore,
+  insertQuestFromParsed,
+  listQuests,
+} from './questStore.mjs'
+import { parseQuestText } from './questTextParse.mjs'
+import {
   createUser,
   deleteSessionByToken,
   getAuthUserByToken,
@@ -90,6 +96,7 @@ async function ensureStore() {
   await ensureBoardStore()
   await ensureMessageStore()
   await ensureShipStore()
+  await ensureQuestStore()
 }
 
 function requireAuthDb(res) {
@@ -755,6 +762,39 @@ export async function handleRequest(req, res) {
       } catch (err) {
         sendJson(res, 400, {
           error: err instanceof Error ? err.message : '선박 텍스트 파싱에 실패했습니다.',
+        })
+      }
+      return
+    }
+
+    if (req.method === 'GET' && pathname === '/api/quests') {
+      const authUser = await getAuthUser(req)
+      if (!authUser) {
+        sendJson(res, 401, { error: '로그인이 필요합니다.' })
+        return
+      }
+      const quests = await listQuests()
+      sendJson(res, 200, { quests })
+      return
+    }
+
+    if (req.method === 'POST' && pathname === '/api/quests/import-text') {
+      const authUser = await getAuthUser(req)
+      if (!authUser) {
+        sendJson(res, 401, { error: '로그인이 필요합니다.' })
+        return
+      }
+      if (!requireAdmin(authUser, res)) return
+      const body = await readBody(req)
+      const text = typeof body.text === 'string' ? body.text : ''
+      try {
+        const parsed = parseQuestText(text)
+        const quest = await insertQuestFromParsed(parsed)
+        sendJson(res, 201, { quest })
+      } catch (err) {
+        sendJson(res, 400, {
+          error:
+            err instanceof Error ? err.message : '퀘스트 텍스트 파싱에 실패했습니다.',
         })
       }
       return
