@@ -2,12 +2,13 @@ import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import {
   deleteAdminUser,
   fetchAdminUsers,
+  fetchShips,
   importShipText,
   updateAdminUserRole,
 } from '../lib/api'
-import type { AdminUser, User } from '../types'
+import type { AdminUser, ShipDetail, User } from '../types'
 
-type AdminTab = 'users' | 'ships'
+type AdminNav = 'users' | 'ships'
 
 type AdminPanelProps = {
   user: User
@@ -32,12 +33,16 @@ function formatDate(value: string | null | undefined) {
 }
 
 export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) {
-  const [tab, setTab] = useState<AdminTab>('users')
+  const [nav, setNav] = useState<AdminNav>('users')
   const [users, setUsers] = useState<AdminUser[]>([])
   const [loadingUsers, setLoadingUsers] = useState(true)
   const [usersError, setUsersError] = useState('')
   const [busyId, setBusyId] = useState<string | null>(null)
 
+  const [ships, setShips] = useState<ShipDetail[]>([])
+  const [loadingShips, setLoadingShips] = useState(false)
+  const [shipsError, setShipsError] = useState('')
+  const [showImport, setShowImport] = useState(false)
   const [importText, setImportText] = useState('')
   const [importing, setImporting] = useState(false)
   const [importNote, setImportNote] = useState('')
@@ -57,9 +62,25 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
     }
   }, [token])
 
+  const loadShips = useCallback(async () => {
+    setLoadingShips(true)
+    setShipsError('')
+    try {
+      const res = await fetchShips(token)
+      setShips(res.ships)
+    } catch (err) {
+      setShipsError(
+        err instanceof Error ? err.message : '선박 목록을 불러오지 못했습니다.',
+      )
+    } finally {
+      setLoadingShips(false)
+    }
+  }, [token])
+
   useEffect(() => {
-    if (tab === 'users') void loadUsers()
-  }, [tab, loadUsers])
+    if (nav === 'users') void loadUsers()
+    if (nav === 'ships') void loadShips()
+  }, [nav, loadUsers, loadShips])
 
   async function handleRoleChange(target: AdminUser, role: 'admin' | 'member') {
     if (target.role === role) return
@@ -108,8 +129,10 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
     try {
       const res = await importShipText(token, importText)
       setImportText('')
+      setShowImport(false)
       setImportNote(`「${res.ship.name}」을(를) 등록했습니다.`)
       onToast(`선박 「${res.ship.name}」 등록 완료`)
+      await loadShips()
     } catch (err) {
       setImportNote(err instanceof Error ? err.message : '등록에 실패했습니다.')
     } finally {
@@ -120,58 +143,56 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
   const adminCount = users.filter((u) => u.role === 'admin').length
 
   return (
-    <div className="admin-page">
-      <header className="admin-topbar">
-        <div>
-          <p className="admin-brand">
-            DHO <em>Light</em> · 관리자
+    <div className="admin-shell">
+      <aside className="admin-sidebar">
+        <div className="admin-sidebar-brand">
+          <p className="admin-sidebar-mark">
+            DHO <em>Light</em>
           </p>
-          <p className="admin-user">
-            {user.nickname} ({user.username})
-          </p>
+          <p className="admin-sidebar-sub">ADMIN</p>
         </div>
-        <div className="admin-topbar-actions">
-          <a className="messages-write-btn" href="/">
-            사이트로
-          </a>
-          <button type="button" className="messages-write-btn" onClick={onLogout}>
+
+        <nav className="admin-sidebar-nav" aria-label="관리 메뉴">
+          <p className="admin-sidebar-label">관리</p>
+          <button
+            type="button"
+            className={nav === 'users' ? 'active' : ''}
+            onClick={() => setNav('users')}
+          >
+            회원 리스트
+          </button>
+          <button
+            type="button"
+            className={nav === 'ships' ? 'active' : ''}
+            onClick={() => setNav('ships')}
+          >
+            선박 리스트
+          </button>
+        </nav>
+
+        <div className="admin-sidebar-foot">
+          <p className="admin-sidebar-who">
+            {user.nickname}
+            <span>{user.username}</span>
+          </p>
+          <a href="/">사이트로</a>
+          <button type="button" onClick={onLogout}>
             로그아웃
           </button>
         </div>
-      </header>
+      </aside>
 
-      <main className="admin-main">
-        <div className="messages-tabs" role="tablist">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={tab === 'users'}
-            className={tab === 'users' ? 'active' : ''}
-            onClick={() => setTab('users')}
-          >
-            회원
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={tab === 'ships'}
-            className={tab === 'ships' ? 'active' : ''}
-            onClick={() => setTab('ships')}
-          >
-            선박 등록
-          </button>
-        </div>
-
-        {tab === 'users' && (
+      <div className="admin-workspace">
+        {nav === 'users' && (
           <section className="admin-section">
-            <div className="messages-head">
+            <div className="admin-page-head">
               <div>
-                <h1>회원 관리</h1>
+                <h1>회원 리스트</h1>
                 <p>역할 변경과 계정 삭제를 처리합니다.</p>
               </div>
               <button
                 type="button"
-                className="messages-write-btn"
+                className="admin-btn"
                 onClick={() => void loadUsers()}
                 disabled={loadingUsers}
               >
@@ -246,69 +267,134 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
           </section>
         )}
 
-        {tab === 'ships' && (
+        {nav === 'ships' && (
           <section className="admin-section">
-            <div className="messages-head">
+            <div className="admin-page-head">
               <div>
-                <h1>선박 등록</h1>
-                <p>위키형 선박 텍스트를 붙여넣어 Neon에 등록합니다.</p>
+                <h1>선박 리스트</h1>
+                <p>등록된 선박을 확인하고 텍스트로 추가합니다.</p>
+              </div>
+              <div className="admin-page-actions">
+                <button
+                  type="button"
+                  className="admin-btn"
+                  onClick={() => void loadShips()}
+                  disabled={loadingShips}
+                >
+                  새로고침
+                </button>
+                <button
+                  type="button"
+                  className="admin-btn admin-btn-primary"
+                  onClick={() => {
+                    setShowImport((v) => !v)
+                    setImportNote('')
+                  }}
+                >
+                  {showImport ? '닫기' : '선박 추가'}
+                </button>
               </div>
             </div>
 
-            <form className="message-compose ship-import-form" onSubmit={handleImport}>
-              <label className="field">
-                <span>선박 텍스트</span>
-                <textarea
-                  rows={16}
-                  value={importText}
-                  onChange={(e) => setImportText(e.target.value)}
-                  placeholder="위키 등에서 복사한 선박 정보를 붙여넣으세요."
-                  disabled={importing}
-                />
-              </label>
-              <div className="form-actions">
-                <button
-                  type="submit"
-                  className="messages-write-btn"
-                  disabled={importing}
-                >
-                  {importing ? '등록 중…' : '등록'}
-                </button>
+            {showImport && (
+              <form
+                className="admin-import-form"
+                onSubmit={handleImport}
+              >
+                <label className="field">
+                  <span>선박 텍스트</span>
+                  <textarea
+                    rows={12}
+                    value={importText}
+                    onChange={(e) => setImportText(e.target.value)}
+                    placeholder="위키 등에서 복사한 선박 정보를 붙여넣으세요."
+                    disabled={importing}
+                  />
+                </label>
+                <div className="form-actions">
+                  <button
+                    type="submit"
+                    className="admin-btn admin-btn-primary"
+                    disabled={importing}
+                  >
+                    {importing ? '등록 중…' : '등록'}
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {importNote && (
+              <p
+                className={`form-note${
+                  /실패|못|오류|에러/.test(importNote) ? ' error' : ''
+                }`}
+              >
+                {importNote}
+              </p>
+            )}
+
+            {shipsError && (
+              <p className="form-note error" role="alert">
+                {shipsError}
+              </p>
+            )}
+
+            {loadingShips ? (
+              <p className="form-note">불러오는 중…</p>
+            ) : (
+              <div className="admin-table-wrap">
+                <table className="admin-table">
+                  <thead>
+                    <tr>
+                      <th>이름</th>
+                      <th>분류</th>
+                      <th>크기</th>
+                      <th>형태</th>
+                      <th>레벨</th>
+                      <th>획득</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {ships.map((ship) => (
+                      <tr key={ship.id}>
+                        <td>{ship.name}</td>
+                        <td>{ship.category || '-'}</td>
+                        <td>{ship.size || '-'}</td>
+                        <td>{ship.form || '-'}</td>
+                        <td>
+                          모{ship.adventureLv}/교{ship.tradeLv}/전{ship.battleLv}
+                        </td>
+                        <td>{ship.acquireType || ship.acquireMethod || '-'}</td>
+                      </tr>
+                    ))}
+                    {ships.length === 0 && (
+                      <tr>
+                        <td colSpan={6}>등록된 선박이 없습니다.</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
               </div>
-              {importNote && (
-                <p
-                  className={`form-note${
-                    /실패|못|오류|에러/.test(importNote) ? ' error' : ''
-                  }`}
-                >
-                  {importNote}
-                </p>
-              )}
-            </form>
+            )}
           </section>
         )}
-      </main>
+      </div>
     </div>
   )
 }
 
 export function AdminForbidden() {
   return (
-    <div className="admin-page admin-forbidden">
-      <header className="admin-topbar">
-        <p className="admin-brand">
-          DHO <em>Light</em> · 관리자
-        </p>
-      </header>
-      <main className="admin-main">
+    <div className="admin-shell admin-forbidden">
+      <div className="admin-workspace">
         <section className="admin-section">
           <h1>접근 권한이 없습니다</h1>
           <p>관리자만 `/admin`에 들어갈 수 있습니다.</p>
-          <a className="messages-write-btn" href="/">
+          <a className="admin-btn admin-btn-primary" href="/">
             메인으로
           </a>
         </section>
-      </main>
+      </div>
     </div>
   )
 }
