@@ -201,12 +201,14 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
       const res = await importQuestText(token, questImportText)
       setQuestImportText('')
       setShowQuestImport(false)
-      setQuestImportNote(`「${res.quest.name}」을(를) 등록했습니다.`)
-      onToast(`퀘스트 「${res.quest.name}」 등록 완료`)
+      setQuestImportNote(
+        `「${res.quest.name}」을(를) 저장했습니다. (동일 이름이면 내용이 갱신됩니다)`,
+      )
+      onToast(`퀘스트 「${res.quest.name}」 저장 완료`)
       await loadQuests()
     } catch (err) {
       setQuestImportNote(
-        err instanceof Error ? err.message : '등록에 실패했습니다.',
+        err instanceof Error ? err.message : '저장에 실패했습니다.',
       )
     } finally {
       setImportingQuest(false)
@@ -498,7 +500,10 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
             <div className="admin-page-head">
               <div>
                 <h1>퀘스트 리스트</h1>
-                <p>등록된 퀘스트를 확인하고 텍스트로 추가합니다.</p>
+                <p>
+                  위키 텍스트로 추가·갱신합니다. 같은 이름이면 공략·진행 포함 전체를
+                  덮어씁니다.
+                </p>
               </div>
               <div className="admin-page-actions">
                 <button
@@ -525,12 +530,13 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
             {showQuestImport && (
               <form className="admin-import-form" onSubmit={handleQuestImport}>
                 <label className="field">
-                  <span>퀘스트 텍스트</span>
+                  <span>퀘스트 텍스트 (분류~진행 전체)</span>
                   <textarea
-                    rows={14}
+                    className="quest-import-textarea"
+                    rows={22}
                     value={questImportText}
                     onChange={(e) => setQuestImportText(e.target.value)}
-                    placeholder="위키 등에서 복사한 퀘스트 정보를 붙여넣으세요."
+                    placeholder={`퀘스트이름\n소개 문단\n\n분류\t[모험] 일반\t난이도\t\n…\n공략\t1. …\n진행\t1. …\n결론 - …`}
                     disabled={importingQuest}
                   />
                 </label>
@@ -540,7 +546,7 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
                     className="admin-btn admin-btn-primary"
                     disabled={importingQuest}
                   >
-                    {importingQuest ? '등록 중…' : '등록'}
+                    {importingQuest ? '저장 중…' : '저장'}
                   </button>
                 </div>
               </form>

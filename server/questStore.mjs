@@ -74,19 +74,56 @@ export async function getQuestBySlug(slug) {
   return rows[0] ? decorateQuest(rows[0]) : null
 }
 
-/** 텍스트 파싱 결과로 퀘스트 신규 등록 (동일 이름 거부) */
-export async function insertQuestFromParsed(parsed) {
+async function findQuestIdByName(sql, name) {
+  const dup = await sql`
+    SELECT id, slug FROM quests
+    WHERE TRIM(BOTH FROM regexp_replace(name, '\\s+', ' ', 'g')) = ${name}
+    LIMIT 1
+  `
+  return dup[0]
+    ? { id: Number(dup[0].id), slug: String(dup[0].slug) }
+    : null
+}
+
+/** 텍스트 파싱 결과로 퀘스트 등록. 동일 이름이면 내용 갱신 */
+export async function upsertQuestFromParsed(parsed) {
   const sql = getSql()
   const name = normalizeQuestName(parsed.name)
   if (!name) throw new Error('퀘스트 이름이 없습니다.')
 
-  const dup = await sql`
-    SELECT id, name FROM quests
-    WHERE TRIM(BOTH FROM regexp_replace(name, '\\s+', ' ', 'g')) = ${name}
-    LIMIT 1
-  `
-  if (dup[0]) {
-    throw new Error(`중복 퀘스트가 존재합니다. (「${dup[0].name}」)`)
+  const existing = await findQuestIdByName(sql, name)
+  const skillsJson = JSON.stringify(parsed.skills || [])
+  const itemsJson = JSON.stringify(parsed.rewardItems || [])
+  const chainJson = JSON.stringify(parsed.chainQuests || [])
+
+  if (existing) {
+    await sql`
+      UPDATE quests SET
+        name = ${name},
+        description = ${parsed.description},
+        category = ${parsed.category},
+        quest_type = ${parsed.questType},
+        difficulty = ${parsed.difficulty},
+        request_places = ${parsed.requestPlaces},
+        destination = ${parsed.destination},
+        discovery_category = ${parsed.discoveryCategory},
+        discovery_rank = ${parsed.discoveryRank},
+        discovery_name = ${parsed.discoveryName},
+        skills = ${skillsJson},
+        reward_ducat = ${parsed.rewardDucat},
+        reward_advance = ${parsed.rewardAdvance},
+        exp_discovery = ${parsed.expDiscovery},
+        exp_card = ${parsed.expCard},
+        exp_report = ${parsed.expReport},
+        fame_report = ${parsed.fameReport},
+        reward_items = ${itemsJson},
+        chain_quests = ${chainJson},
+        walkthrough = ${parsed.walkthrough},
+        progress = ${parsed.progress},
+        enabled = TRUE
+      WHERE id = ${existing.id}
+    `
+    return getQuestBySlug(existing.slug)
   }
 
   let slug = parsed.slug
@@ -120,15 +157,20 @@ export async function insertQuestFromParsed(parsed) {
       ${parsed.category}, ${parsed.questType}, ${parsed.difficulty},
       ${parsed.requestPlaces}, ${parsed.destination},
       ${parsed.discoveryCategory}, ${parsed.discoveryRank}, ${parsed.discoveryName},
-      ${JSON.stringify(parsed.skills || [])},
+      ${skillsJson},
       ${parsed.rewardDucat}, ${parsed.rewardAdvance},
       ${parsed.expDiscovery}, ${parsed.expCard}, ${parsed.expReport}, ${parsed.fameReport},
-      ${JSON.stringify(parsed.rewardItems || [])},
-      ${JSON.stringify(parsed.chainQuests || [])},
+      ${itemsJson},
+      ${chainJson},
       ${parsed.walkthrough}, ${parsed.progress},
       TRUE, ${sortOrder}
     )
   `
 
   return getQuestBySlug(slug)
+}
+
+/** @deprecated use upsertQuestFromParsed */
+export async function insertQuestFromParsed(parsed) {
+  return upsertQuestFromParsed(parsed)
 }

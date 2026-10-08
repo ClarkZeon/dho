@@ -35,11 +35,11 @@ export function QuestDetailView({ quest }: QuestDetailViewProps) {
 
   const walkthroughSteps = (quest.walkthrough || '')
     .split('\n')
-    .map((line) => line.trim())
-    .filter(Boolean)
+    .map((line) => line.trimEnd())
+    .filter((line) => line.trim().length > 0)
 
   const progressBlocks = (quest.progress || '')
-    .split(/\n(?=\d+\.\s|결론)/)
+    .split(/\n(?=\d+\.\s+|결론\s*[-–—])/)
     .map((block) => block.trim())
     .filter(Boolean)
 

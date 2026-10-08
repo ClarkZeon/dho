@@ -2379,6 +2379,13 @@
   gap: 0.4rem;
 }
 
+.quest-import-textarea {
+  min-height: 22rem;
+  font-family: var(--font-sans);
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+
 .admin-btn {
   border: 1px solid var(--is-blue-lighter);
   border-radius: 7px;

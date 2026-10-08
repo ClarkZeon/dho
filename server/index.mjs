@@ -35,8 +35,8 @@ import {
 import { parseShipText } from './shipTextParse.mjs'
 import {
   ensureQuestStore,
-  insertQuestFromParsed,
   listQuests,
+  upsertQuestFromParsed,
 } from './questStore.mjs'
 import { parseQuestText } from './questTextParse.mjs'
 import {
@@ -790,7 +790,7 @@ export async function handleRequest(req, res) {
       const text = typeof body.text === 'string' ? body.text : ''
       try {
         const parsed = parseQuestText(text)
-        const quest = await insertQuestFromParsed(parsed)
+        const quest = await upsertQuestFromParsed(parsed)
         sendJson(res, 201, { quest })
       } catch (err) {
         sendJson(res, 400, {
