@@ -1,8 +1,18 @@
-import type { QuestDetail } from '../types'
+import { splitChainAndLinked } from '../lib/questChain'
+import type { QuestChainItem, QuestDetail } from '../types'
 
 function formatNum(n: number | null | undefined) {
   if (n == null) return '-'
   return n.toLocaleString('ko-KR')
+}
+
+function dropMapSource(text: string) {
+  return text
+    .split('\n')
+    .map((line) => line.replace(/지도\s*출처\s*[:：]?\s*.*$/, '').trimEnd())
+    .filter((line) => line.trim().length > 0 && !/지도\s*출처/.test(line))
+    .join('\n')
+    .trim()
 }
 
 function DifficultyStars({ value }: { value: number | null }) {
@@ -24,7 +34,68 @@ type QuestDetailViewProps = {
   quest: QuestDetail
 }
 
+function QuestRelatedList({
+  items,
+  currentName,
+  numbered,
+}: {
+  items: QuestChainItem[]
+  currentName: string
+  numbered: boolean
+}) {
+  const Tag = numbered ? 'ol' : 'ul'
+  return (
+    <Tag className={`quest-chain${numbered ? '' : ' is-linked'}`}>
+      {items.map((item, idx) => {
+        const isCurrent =
+          item.name &&
+          item.name.replace(/\s+/g, ' ') === currentName.replace(/\s+/g, ' ')
+        return (
+          <li
+            key={`${item.name || item.raw || idx}-${idx}`}
+            className={isCurrent ? 'is-current' : undefined}
+          >
+            {numbered ? (
+              <span className="quest-chain-idx">{idx + 1}</span>
+            ) : null}
+            <div>
+              <strong>
+                {item.name || item.raw || '퀘스트'}
+                {isCurrent ? ' (현재)' : ''}
+              </strong>
+              <p>
+                {[
+                  item.category,
+                  item.difficulty != null ? `난이도 ${item.difficulty}` : null,
+                  item.places,
+                ]
+                  .filter(Boolean)
+                  .join(' · ')}
+              </p>
+              {item.skills && item.skills.length > 0 && (
+                <p className="quest-chain-skills">
+                  {item.skills
+                    .map((s) =>
+                      s.level != null ? `${s.name} ${s.level}` : s.name,
+                    )
+                    .join(', ')}
+                </p>
+              )}
+            </div>
+          </li>
+        )
+      })}
+    </Tag>
+  )
+}
+
 export function QuestDetailView({ quest }: QuestDetailViewProps) {
+  const split = splitChainAndLinked(quest.chainQuests)
+  const chainQuests = split.chainQuests
+  const linkedQuests = [
+    ...split.linkedQuests,
+    ...(quest.linkedQuests || []),
+  ]
   const discovery = [
     quest.discoveryCategory ? `[${quest.discoveryCategory}]` : null,
     quest.discoveryRank != null ? `${quest.discoveryRank}성` : null,
@@ -33,12 +104,12 @@ export function QuestDetailView({ quest }: QuestDetailViewProps) {
     .filter(Boolean)
     .join(' ')
 
-  const walkthroughSteps = (quest.walkthrough || '')
+  const description = dropMapSource(quest.description || '')
+  const walkthroughSteps = dropMapSource(quest.walkthrough || '')
     .split('\n')
-    .map((line) => line.trimEnd())
     .filter((line) => line.trim().length > 0)
 
-  const progressBlocks = (quest.progress || '')
+  const progressBlocks = dropMapSource(quest.progress || '')
     .split(/\n(?=\d+\.\s+|결론\s*[-–—])/)
     .map((block) => block.trim())
     .filter(Boolean)
@@ -55,7 +126,7 @@ export function QuestDetailView({ quest }: QuestDetailViewProps) {
           <DifficultyStars value={quest.difficulty} />
         </div>
         <h2>{quest.name}</h2>
-        {quest.description && <p>{quest.description}</p>}
+        {description ? <p>{description}</p> : null}
       </header>
 
       <section className="quest-detail-section">
@@ -75,15 +146,6 @@ export function QuestDetailView({ quest }: QuestDetailViewProps) {
           </div>
         </div>
       </section>
-
-      {quest.mapUrl && (
-        <section className="quest-detail-section">
-          <h3>지도</h3>
-          <div className="quest-map-figure">
-            <img src={quest.mapUrl} alt={`${quest.name} 지도`} />
-          </div>
-        </section>
-      )}
 
       <section className="quest-detail-section">
         <h3>필요 스킬</h3>
@@ -156,48 +218,25 @@ export function QuestDetailView({ quest }: QuestDetailViewProps) {
         </div>
       </section>
 
-      {quest.chainQuests.length > 0 && (
+      {chainQuests.length > 0 && (
         <section className="quest-detail-section">
           <h3>연속 퀘스트</h3>
-          <ol className="quest-chain">
-            {quest.chainQuests.map((item, idx) => {
-              const isCurrent =
-                item.name &&
-                item.name.replace(/\s+/g, ' ') === quest.name.replace(/\s+/g, ' ')
-              return (
-                <li
-                  key={`${item.name || item.raw || idx}-${idx}`}
-                  className={isCurrent ? 'is-current' : undefined}
-                >
-                  <span className="quest-chain-idx">{idx + 1}</span>
-                  <div>
-                    <strong>
-                      {item.name || item.raw || '퀘스트'}
-                      {isCurrent ? ' (현재)' : ''}
-                    </strong>
-                    <p>
-                      {[
-                        item.category,
-                        item.difficulty != null ? `난이도 ${item.difficulty}` : null,
-                        item.places,
-                      ]
-                        .filter(Boolean)
-                        .join(' · ')}
-                    </p>
-                    {item.skills && item.skills.length > 0 && (
-                      <p className="quest-chain-skills">
-                        {item.skills
-                          .map((s) =>
-                            s.level != null ? `${s.name} ${s.level}` : s.name,
-                          )
-                          .join(', ')}
-                      </p>
-                    )}
-                  </div>
-                </li>
-              )
-            })}
-          </ol>
+          <QuestRelatedList
+            items={chainQuests}
+            currentName={quest.name}
+            numbered
+          />
+        </section>
+      )}
+
+      {linkedQuests.length > 0 && (
+        <section className="quest-detail-section">
+          <h3>연결 지도/퀘스트</h3>
+          <QuestRelatedList
+            items={linkedQuests}
+            currentName={quest.name}
+            numbered={false}
+          />
         </section>
       )}
 

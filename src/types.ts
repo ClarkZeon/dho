@@ -180,7 +180,7 @@ export type QuestDetail = {
   fameReport: number | null
   rewardItems: QuestRewardItem[]
   chainQuests: QuestChainItem[]
+  linkedQuests: QuestChainItem[]
   walkthrough: string | null
   progress: string | null
-  mapUrl: string | null
 }

@@ -1,9 +1,9 @@
 import { getSql, hasDatabaseUrl, runSqlFile } from './db.mjs'
+import { splitChainAndLinked, stripWikiMapNoise } from './questTextParse.mjs'
 
 export async function ensureQuestStore() {
   if (!hasDatabaseUrl()) throw new Error('DATABASE_URL 이 없습니다.')
   await runSqlFile('sql/008_quests.sql')
-  await runSqlFile('sql/009_quest_map.sql')
 }
 
 function normalizeQuestName(name) {
@@ -30,7 +30,10 @@ function decorateQuest(row) {
     id: Number(row.id),
     slug: String(row.slug),
     name: String(row.name),
-    description: row.description == null ? null : String(row.description),
+    description:
+      row.description == null
+        ? null
+        : stripWikiMapNoise(String(row.description)) || null,
     category: row.category == null ? null : String(row.category),
     questType: row.quest_type == null ? null : String(row.quest_type),
     difficulty: row.difficulty == null ? null : Number(row.difficulty),
@@ -53,10 +56,15 @@ function decorateQuest(row) {
     expReport: row.exp_report == null ? null : Number(row.exp_report),
     fameReport: row.fame_report == null ? null : Number(row.fame_report),
     rewardItems: asJsonArray(row.reward_items),
-    chainQuests: asJsonArray(row.chain_quests),
-    walkthrough: row.walkthrough == null ? null : String(row.walkthrough),
-    progress: row.progress == null ? null : String(row.progress),
-    mapUrl: row.map_url == null || row.map_url === '' ? null : String(row.map_url),
+    ...splitChainAndLinked(asJsonArray(row.chain_quests)),
+    walkthrough:
+      row.walkthrough == null
+        ? null
+        : stripWikiMapNoise(String(row.walkthrough)) || null,
+    progress:
+      row.progress == null
+        ? null
+        : stripWikiMapNoise(String(row.progress)) || null,
   }
 }
 
@@ -87,9 +95,9 @@ export async function getQuestById(id) {
 }
 
 /**
- * 난이도·지도 등 부분 갱신
+ * 난이도 부분 갱신
  * @param {number} id
- * @param {{ difficulty?: number | null, mapUrl?: string | null }} patch
+ * @param {{ difficulty?: number | null }} patch
  */
 export async function updateQuestFields(id, patch) {
   const sql = getSql()
@@ -112,30 +120,8 @@ export async function updateQuestFields(id, patch) {
     }
   }
 
-  let mapUrl = current.mapUrl
-  if ('mapUrl' in patch) {
-    if (patch.mapUrl == null || patch.mapUrl === '') {
-      mapUrl = null
-    } else {
-      const url = String(patch.mapUrl).trim()
-      if (url.length > 2_500_000) {
-        throw new Error('지도 이미지가 너무 큽니다. (약 1.5MB 이하)')
-      }
-      const ok =
-        /^https?:\/\//i.test(url) ||
-        /^data:image\/(png|jpe?g|gif|webp);base64,/i.test(url)
-      if (!ok) {
-        throw new Error('지도는 http(s) URL 또는 이미지 파일이어야 합니다.')
-      }
-      mapUrl = url
-    }
-  }
-
   await sql`
-    UPDATE quests SET
-      difficulty = ${difficulty},
-      map_url = ${mapUrl}
-    WHERE id = ${questId}
+    UPDATE quests SET difficulty = ${difficulty} WHERE id = ${questId}
   `
   return getQuestById(questId)
 }
@@ -160,7 +146,13 @@ export async function upsertQuestFromParsed(parsed) {
   const existing = await findQuestIdByName(sql, name)
   const skillsJson = JSON.stringify(parsed.skills || [])
   const itemsJson = JSON.stringify(parsed.rewardItems || [])
-  const chainJson = JSON.stringify(parsed.chainQuests || [])
+  const chainJson = JSON.stringify([
+    ...(parsed.chainQuests || []),
+    ...(parsed.linkedQuests || []).map((item) => ({
+      ...item,
+      relation: 'linked',
+    })),
+  ])
 
   if (existing) {
     await sql`

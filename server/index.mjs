@@ -829,11 +829,7 @@ export async function handleRequest(req, res) {
             ? null
             : body.difficulty
       }
-      if ('mapUrl' in body) {
-        patch.mapUrl =
-          body.mapUrl === null || body.mapUrl === '' ? null : body.mapUrl
-      }
-      if (!('difficulty' in patch) && !('mapUrl' in patch)) {
+      if (!('difficulty' in patch)) {
         sendJson(res, 400, { error: '변경할 필드가 없습니다.' })
         return
       }

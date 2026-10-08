@@ -62,10 +62,6 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
   const [questImportNote, setQuestImportNote] = useState('')
   const [detailQuest, setDetailQuest] = useState<QuestDetail | null>(null)
   const [busyQuestId, setBusyQuestId] = useState<number | null>(null)
-  const [mapQuest, setMapQuest] = useState<QuestDetail | null>(null)
-  const [mapUrlDraft, setMapUrlDraft] = useState('')
-  const [mapSaving, setMapSaving] = useState(false)
-  const [mapNote, setMapNote] = useState('')
 
   const loadUsers = useCallback(async () => {
     setLoadingUsers(true)
@@ -118,7 +114,7 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
     if (nav === 'quests') void loadQuests()
   }, [nav, loadUsers, loadShips, loadQuests])
 
-  const detailOpen = Boolean(detailShip || detailQuest || mapQuest)
+  const detailOpen = Boolean(detailShip || detailQuest)
 
   useEffect(() => {
     if (!detailOpen) return
@@ -126,12 +122,6 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
     document.body.style.overflow = 'hidden'
     function onKey(event: globalThis.KeyboardEvent) {
       if (event.key === 'Escape') {
-        if (mapQuest) {
-          setMapQuest(null)
-          setMapUrlDraft('')
-          setMapNote('')
-          return
-        }
         setDetailShip(null)
         setDetailQuest(null)
       }
@@ -141,7 +131,7 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
       document.body.style.overflow = prev
       window.removeEventListener('keydown', onKey)
     }
-  }, [detailOpen, mapQuest])
+  }, [detailOpen])
 
   async function handleRoleChange(target: AdminUser, role: 'admin' | 'member') {
     if (target.role === role) return
@@ -230,7 +220,6 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
   function applyQuestUpdate(quest: QuestDetail) {
     setQuests((prev) => prev.map((q) => (q.id === quest.id ? quest : q)))
     setDetailQuest((prev) => (prev?.id === quest.id ? quest : prev))
-    setMapQuest((prev) => (prev?.id === quest.id ? quest : prev))
   }
 
   async function handleDifficultyChange(
@@ -251,76 +240,6 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
       onToast(err instanceof Error ? err.message : '난이도 저장에 실패했습니다.')
     } finally {
       setBusyQuestId(null)
-    }
-  }
-
-  function openMapEditor(quest: QuestDetail) {
-    setMapQuest(quest)
-    setMapUrlDraft(quest.mapUrl || '')
-    setMapNote('')
-  }
-
-  function closeMapEditor() {
-    setMapQuest(null)
-    setMapUrlDraft('')
-    setMapNote('')
-    setMapSaving(false)
-  }
-
-  async function handleMapFile(file: File | null) {
-    if (!file) return
-    if (!file.type.startsWith('image/')) {
-      setMapNote('이미지 파일만 올릴 수 있습니다.')
-      return
-    }
-    if (file.size > 1_400_000) {
-      setMapNote('이미지는 약 1.4MB 이하로 올려 주세요.')
-      return
-    }
-    const reader = new FileReader()
-    reader.onload = () => {
-      const result = typeof reader.result === 'string' ? reader.result : ''
-      setMapUrlDraft(result)
-      setMapNote('이미지를 읽었습니다. 저장을 눌러 주세요.')
-    }
-    reader.onerror = () => setMapNote('이미지를 읽지 못했습니다.')
-    reader.readAsDataURL(file)
-  }
-
-  async function handleMapSave(e: FormEvent) {
-    e.preventDefault()
-    if (!mapQuest) return
-    setMapSaving(true)
-    setMapNote('')
-    try {
-      const res = await updateQuest(token, mapQuest.id, {
-        mapUrl: mapUrlDraft.trim() || null,
-      })
-      applyQuestUpdate(res.quest)
-      onToast(
-        res.quest.mapUrl
-          ? `「${res.quest.name}」 지도 저장`
-          : `「${res.quest.name}」 지도 삭제`,
-      )
-      closeMapEditor()
-    } catch (err) {
-      setMapNote(err instanceof Error ? err.message : '지도 저장에 실패했습니다.')
-      setMapSaving(false)
-    }
-  }
-
-  async function handleMapClear() {
-    if (!mapQuest) return
-    setMapSaving(true)
-    setMapNote('')
-    try {
-      const res = await updateQuest(token, mapQuest.id, { mapUrl: null })
-      applyQuestUpdate(res.quest)
-      onToast(`「${res.quest.name}」 지도 삭제`)
-      closeMapEditor()
-    } catch (err) {
-      setMapNote(err instanceof Error ? err.message : '지도 삭제에 실패했습니다.')
-      setMapSaving(false)
     }
   }
 
@@ -687,7 +606,6 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
                       <th>이름</th>
                       <th>분류</th>
                       <th>난이도</th>
-                      <th>지도</th>
                       <th>의뢰 장소</th>
                       <th>목적지</th>
                       <th>발견물</th>
@@ -735,20 +653,6 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
                             ))}
                           </select>
                         </td>
-                        <td
-                          className="admin-cell-control"
-                          onClick={(e) => e.stopPropagation()}
-                          onKeyDown={(e) => e.stopPropagation()}
-                        >
-                          <button
-                            type="button"
-                            className={`admin-btn quest-map-btn${quest.mapUrl ? ' is-set' : ''}`}
-                            disabled={busyQuestId === quest.id}
-                            onClick={() => openMapEditor(quest)}
-                          >
-                            {quest.mapUrl ? '지도 수정' : '지도 등록'}
-                          </button>
-                        </td>
                         <td>{quest.requestPlaces || '-'}</td>
                         <td>{quest.destination || '-'}</td>
                         <td>
@@ -766,7 +670,7 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
                     ))}
                     {quests.length === 0 && (
                       <tr>
-                        <td colSpan={7}>등록된 퀘스트가 없습니다.</td>
+                        <td colSpan={6}>등록된 퀘스트가 없습니다.</td>
                       </tr>
                     )}
                   </tbody>
@@ -839,100 +743,6 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
         </div>
       )}
 
-      {mapQuest && (
-        <div
-          className="admin-modal"
-          role="dialog"
-          aria-modal="true"
-          aria-label={`${mapQuest.name} 지도 등록`}
-        >
-          <button
-            type="button"
-            className="admin-modal-backdrop"
-            aria-label="닫기"
-            onClick={closeMapEditor}
-          />
-          <div className="admin-modal-panel admin-modal-panel-sm">
-            <header className="admin-modal-head">
-              <p>지도 등록 · {mapQuest.name}</p>
-              <button
-                type="button"
-                className="admin-btn"
-                onClick={closeMapEditor}
-              >
-                닫기
-              </button>
-            </header>
-            <div className="admin-modal-body">
-              <form className="quest-map-form" onSubmit={handleMapSave}>
-                <label className="field">
-                  <span>이미지 URL</span>
-                  <input
-                    type="url"
-                    value={
-                      mapUrlDraft.startsWith('data:') ? '' : mapUrlDraft
-                    }
-                    placeholder="https://… 또는 아래 파일 업로드"
-                    disabled={mapSaving}
-                    onChange={(e) => {
-                      setMapUrlDraft(e.target.value)
-                      setMapNote('')
-                    }}
-                  />
-                </label>
-                <label className="field">
-                  <span>이미지 파일</span>
-                  <input
-                    type="file"
-                    accept="image/png,image/jpeg,image/gif,image/webp"
-                    disabled={mapSaving}
-                    onChange={(e) =>
-                      void handleMapFile(e.target.files?.[0] ?? null)
-                    }
-                  />
-                </label>
-                {mapUrlDraft ? (
-                  <div className="quest-map-preview">
-                    <img src={mapUrlDraft} alt={`${mapQuest.name} 지도 미리보기`} />
-                  </div>
-                ) : (
-                  <p className="quest-muted">등록된 지도가 없습니다.</p>
-                )}
-                {mapNote && (
-                  <p
-                    className={`form-note${
-                      /실패|못|오류|에러|큽니다|이하/.test(mapNote)
-                        ? ' error'
-                        : ''
-                    }`}
-                  >
-                    {mapNote}
-                  </p>
-                )}
-                <div className="form-actions quest-map-actions">
-                  <button
-                    type="submit"
-                    className="admin-btn admin-btn-primary"
-                    disabled={mapSaving}
-                  >
-                    {mapSaving ? '저장 중…' : '저장'}
-                  </button>
-                  {mapQuest.mapUrl && (
-                    <button
-                      type="button"
-                      className="admin-danger-btn"
-                      disabled={mapSaving}
-                      onClick={() => void handleMapClear()}
-                    >
-                      지도 삭제
-                    </button>
-                  )}
-                </div>
-              </form>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

@@ -50,21 +50,123 @@ function parseItemList(text) {
     })
 }
 
+const QUEST_TAG_RE = /[\[［]퀘스트[\]］]/
+const LINKED_HEADING_RE = /연결\s*지도/
+
 function parseChainLine(line) {
+  // "1. 모험 | …" 번호·[퀘스트] 접두 제거
+  const cleaned = String(line || '')
+    .trim()
+    .replace(/^\d+\.\s*/, '')
+    .replace(/^[\[［]퀘스트[\]］]\s*/, '')
   // 모험 | 아프리카의 거목 (5 생태 조사 1, 생물학 3, 스와힐리어 1) - 아덴, …
-  const m = line.match(
-    /^(.+?)\s*\|\s*(.+?)\s*\((\d+)\s+(.+?)\)\s*-\s*(.+)$/,
+  // 난이도 앞에 ⭐/★ 가 붙는 위키 표기 허용
+  const m = cleaned.match(
+    /^(.+?)\s*\|\s*(.+?)\s*\([⭐★*]?\s*(\d+)\s+(.+?)\)\s*-\s*(.+)$/,
   )
   if (!m) {
-    return { raw: line.trim() }
+    return { raw: cleaned }
   }
   return {
-    category: m[1].trim(),
+    category: m[1].replace(QUEST_TAG_RE, '').trim(),
     name: m[2].trim(),
     difficulty: Number(m[3]),
     skills: parseSkillList(m[4]),
     places: m[5].trim(),
   }
+}
+
+function looksLikeChainEntry(line) {
+  return /\|/.test(line) && /\([⭐★*]?\s*\d+/.test(line)
+}
+
+function isMapSourceLine(line) {
+  return /지도\s*출처/.test(String(line || '').trim())
+}
+
+/** 위키 지도 위젯 출처 문구 제거 (지도 기능 없음) */
+export function stripWikiMapNoise(text) {
+  if (text == null || text === '') return text == null ? null : ''
+  return String(text)
+    .split('\n')
+    .map((line) => line.replace(/지도\s*출처\s*[:：]?\s*.*$/, '').trimEnd())
+    .filter((line) => !isMapSourceLine(line))
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
+function itemText(item) {
+  return [item?.raw, item?.name, item?.category].filter(Boolean).join(' ')
+}
+
+function isLinkedHeadingItem(item) {
+  const text = itemText(item)
+  if (!LINKED_HEADING_RE.test(text)) return false
+  if (item?.difficulty != null && item?.name && !LINKED_HEADING_RE.test(String(item.name))) {
+    return false
+  }
+  return (
+    !item?.name ||
+    LINKED_HEADING_RE.test(String(item.name)) ||
+    LINKED_HEADING_RE.test(String(item.raw || ''))
+  )
+}
+
+function isLinkedQuestItem(item) {
+  if (!item || typeof item !== 'object') return false
+  if (item.relation === 'linked') return true
+  return QUEST_TAG_RE.test(itemText(item))
+}
+
+function stripLinkedMeta(item) {
+  const next = { ...item }
+  delete next.relation
+  if (typeof next.category === 'string') {
+    next.category = next.category.replace(QUEST_TAG_RE, '').trim() || undefined
+  }
+  return next
+}
+
+/**
+ * 이미 저장된 연속 퀘스트 배열에서 연결 지도/퀘스트를 분리
+ * @param {unknown} items
+ */
+export function splitChainAndLinked(items) {
+  const chainQuests = []
+  const linkedQuests = []
+  let inLinked = false
+  for (const item of Array.isArray(items) ? items : []) {
+    if (isLinkedHeadingItem(item)) {
+      inLinked = true
+      continue
+    }
+    if (isLinkedQuestItem(item)) {
+      inLinked = true
+      linkedQuests.push(stripLinkedMeta(item))
+      continue
+    }
+    if (inLinked) {
+      linkedQuests.push(stripLinkedMeta(item))
+      continue
+    }
+    chainQuests.push(item)
+  }
+  return { chainQuests, linkedQuests }
+}
+
+function isLinkedSectionStart(line) {
+  const t = String(line || '').trim()
+  return LINKED_HEADING_RE.test(t) || QUEST_TAG_RE.test(t)
+}
+
+function lineAfterLinkedHeading(line) {
+  const t = String(line || '').trim()
+  const cut = t.replace(/^.*?연결\s*지도[^\t|]*[\t:：]?\s*/, '').trim()
+  if (cut && cut !== t && (looksLikeChainEntry(cut) || QUEST_TAG_RE.test(cut))) {
+    return cut
+  }
+  return ''
 }
 
 /**
@@ -98,6 +200,7 @@ export function parseQuestText(text) {
     const line = lines[i].trim()
     if (!line) continue
     if (/^분류/.test(line)) break
+    if (isMapSourceLine(line)) continue
     description = description ? `${description}\n${line}` : line
   }
 
@@ -121,6 +224,10 @@ export function parseQuestText(text) {
   let rewardItems = []
   /** @type {Array<Record<string, unknown>>} */
   let chainQuests = []
+  /** @type {Array<Record<string, unknown>>} */
+  let linkedQuests = []
+  /** 번호(1. 2. …) 있는 연속 퀘스트를 본 적 있는지 — 이후 번호 없는 줄은 연결 지도로 본다 */
+  let chainSawNumbered = false
   /** @type {string[]} */
   const walkthroughLines = []
   /** @type {string[]} */
@@ -128,7 +235,7 @@ export function parseQuestText(text) {
 
   let mode = 'meta'
   for (let i = 0; i < lines.length; i++) {
-    const line = lines[i].trim()
+    const line = lines[i].replace(/^[\uFEFF\u200B\u200C\u200D]+/, '').trim()
     if (!line) {
       if (mode === 'walkthrough' || mode === 'progress') {
         if (mode === 'walkthrough') walkthroughLines.push('')
@@ -136,6 +243,8 @@ export function parseQuestText(text) {
       }
       continue
     }
+
+    if (isMapSourceLine(line)) continue
 
     if (/^분류/.test(line)) {
       const cols = splitTabs(line)
@@ -188,6 +297,11 @@ export function parseQuestText(text) {
     }
     if (/^연속\s*퀘스트/.test(line)) {
       mode = 'chain'
+      const rest = line.replace(/^연속\s*퀘스트\s*[\t:：]?\s*/, '').trim()
+      if (rest && looksLikeChainEntry(rest)) {
+        if (/^\d+\.\s*/.test(rest)) chainSawNumbered = true
+        chainQuests.push(parseChainLine(rest))
+      }
       continue
     }
     if (/^공략/.test(line)) {
@@ -235,14 +349,40 @@ export function parseQuestText(text) {
       continue
     }
 
-    if (mode === 'chain') {
-      if (/^공략|^진행/.test(line)) {
+    if (mode === 'linked') {
+      if (/^공략/.test(line) || /^진행/.test(line)) {
         i -= 1
         mode = 'meta'
         continue
       }
+      const rest = lineAfterLinkedHeading(line) || line
+      if (looksLikeChainEntry(rest) || QUEST_TAG_RE.test(rest)) {
+        linkedQuests.push(parseChainLine(rest))
+      }
+      continue
+    }
+
+    if (mode === 'chain') {
+      if (isLinkedSectionStart(line)) {
+        mode = 'linked'
+        const rest = lineAfterLinkedHeading(line) || line
+        if (looksLikeChainEntry(rest) || QUEST_TAG_RE.test(rest)) {
+          linkedQuests.push(parseChainLine(rest))
+        }
+        continue
+      }
+      const numbered = /^\d+\.\s*/.test(line)
+      if (numbered) chainSawNumbered = true
+      // 번호 목록 뒤에 오는 번호 없는 항목 = 연결 지도 퀘스트
+      if (!numbered && chainSawNumbered && looksLikeChainEntry(line)) {
+        mode = 'linked'
+        linkedQuests.push(parseChainLine(line))
+        continue
+      }
+      if (!looksLikeChainEntry(line) && !numbered) {
+        continue
+      }
       chainQuests.push(parseChainLine(line))
-      // 연속 퀘스트 첫 줄에서 난이도 보완
       if (difficulty == null && chainQuests[0]?.difficulty != null) {
         const first = chainQuests[0]
         if (
@@ -292,7 +432,7 @@ export function parseQuestText(text) {
   return {
     name,
     slug: slugify(name),
-    description: description || null,
+    description: stripWikiMapNoise(description) || null,
     category,
     questType,
     difficulty,
@@ -310,15 +450,16 @@ export function parseQuestText(text) {
     fameReport,
     rewardItems,
     chainQuests,
-    walkthrough: cleanWalkthrough(walkthroughLines.join('\n')) || null,
-    progress: progressLines.join('\n').trim() || null,
+    linkedQuests,
+    walkthrough:
+      stripWikiMapNoise(cleanWalkthrough(walkthroughLines.join('\n'))) || null,
+    progress: stripWikiMapNoise(progressLines.join('\n')) || null,
   }
 }
 
 function cleanWalkthrough(text) {
   return String(text || '')
     .replace(/\n×\n[\d,\s]+(?:\n\+)?(?:\n-)?/g, '\n')
-    .replace(/\n지도\s*출처\s*[:：].*$/gm, '')
     .replace(/\n{3,}/g, '\n\n')
     .trim()
 }
