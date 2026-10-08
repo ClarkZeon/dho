@@ -1084,6 +1084,8 @@
 
 .app-shell {
   min-height: 100dvh;
+  max-width: 100%;
+  overflow-x: hidden;
   background: var(--is-light);
 }
 
@@ -2133,9 +2135,11 @@
 
 /* Admin shell — DHO Light theme */
 .admin-shell {
-  min-height: 100vh;
+  min-height: 100dvh;
+  max-width: 100%;
   display: grid;
   grid-template-columns: 216px minmax(0, 1fr);
+  overflow-x: hidden;
   background:
     radial-gradient(ellipse 70% 40% at 100% 0%, rgba(28, 109, 201, 0.06), transparent 55%),
     var(--is-light);
@@ -2334,6 +2338,8 @@
 
 .admin-workspace {
   min-width: 0;
+  max-width: 100%;
+  overflow-x: hidden;
   padding: 1.2rem 1.35rem 1.75rem;
 }
 
@@ -2498,7 +2504,12 @@
   z-index: 80;
   display: grid;
   place-items: center;
-  padding: 1rem;
+  padding: max(0.5rem, env(safe-area-inset-top)) max(0.5rem, env(safe-area-inset-right))
+    max(0.5rem, env(safe-area-inset-bottom)) max(0.5rem, env(safe-area-inset-left));
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 .admin-modal-backdrop {
@@ -2516,7 +2527,9 @@
   display: flex;
   flex-direction: column;
   width: min(960px, 100%);
-  max-height: min(90vh, 920px);
+  max-width: 100%;
+  min-width: 0;
+  max-height: min(92dvh, 920px);
   border-radius: 12px;
   background: var(--is-light);
   border: 1px solid var(--is-grey-lighter);
@@ -2529,6 +2542,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
+  flex-shrink: 0;
   padding: 0.75rem 1rem;
   background: var(--is-white);
   border-bottom: 1px solid var(--is-grey-lighter);
@@ -2544,7 +2558,11 @@
 }
 
 .admin-modal-body {
-  overflow: auto;
+  min-width: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
   padding: 1rem 1.1rem 1.35rem;
 }
 
@@ -2555,6 +2573,34 @@
 .admin-modal-body .ship-detail-view {
   display: grid;
   gap: 1rem;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.admin-modal-body .ship-info-grid {
+  grid-template-columns: 1fr;
+}
+
+.admin-modal-body .ship-skill-table {
+  min-width: 0;
+}
+
+.admin-modal-body .ship-skill-table-wrap {
+  max-width: 100%;
+}
+
+.admin-modal-body .quest-detail {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.admin-modal-body .quest-detail-hero-top {
+  align-items: flex-start;
+}
+
+.admin-modal-body .quest-stars {
+  flex-wrap: wrap;
+  max-width: 100%;
 }
 
 /* Quest detail */
@@ -2894,6 +2940,33 @@
   .quest-kv-grid,
   .quest-reward-grid {
     grid-template-columns: 1fr;
+  }
+
+  .admin-modal {
+    padding: 0;
+    place-items: stretch;
+  }
+
+  .admin-modal-panel {
+    width: 100%;
+    max-width: 100%;
+    max-height: 100dvh;
+    height: 100dvh;
+    border-radius: 0;
+    border: 0;
+  }
+
+  .admin-modal-body {
+    padding: 0.85rem 0.85rem max(1rem, env(safe-area-inset-bottom));
+  }
+
+  .admin-modal-head {
+    padding-top: max(0.75rem, env(safe-area-inset-top));
+  }
+
+  .admin-table th,
+  .admin-table td {
+    white-space: normal;
   }
 }
 

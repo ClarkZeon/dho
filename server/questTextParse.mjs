@@ -262,6 +262,16 @@ export function parseQuestText(text) {
         mode = 'meta'
         continue
       }
+      // 위키 지도 위젯/출처 잡음 제거
+      if (
+        line === '×' ||
+        line === '+' ||
+        line === '-' ||
+        /^지도\s*출처/.test(line) ||
+        /^[\d,\s]+$/.test(line)
+      ) {
+        continue
+      }
       walkthroughLines.push(line)
       continue
     }
@@ -300,9 +310,17 @@ export function parseQuestText(text) {
     fameReport,
     rewardItems,
     chainQuests,
-    walkthrough: walkthroughLines.join('\n').trim() || null,
+    walkthrough: cleanWalkthrough(walkthroughLines.join('\n')) || null,
     progress: progressLines.join('\n').trim() || null,
   }
+}
+
+function cleanWalkthrough(text) {
+  return String(text || '')
+    .replace(/\n×\n[\d,\s]+(?:\n\+)?(?:\n-)?/g, '\n')
+    .replace(/\n지도\s*출처\s*[:：].*$/gm, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
 }
 
 function normalizeLoose(s) {
