@@ -1,7 +1,7 @@
 import { handleRequest } from '../server/index.mjs'
 
 /**
- * Vercel Serverless — /api/* 전부 기존 Node API 핸들러로 전달
+ * Vercel Serverless — 모든 /api/* 요청을 여기로 rewrite 해서 처리
  * @param {import('http').IncomingMessage} req
  * @param {import('http').ServerResponse} res
  */
