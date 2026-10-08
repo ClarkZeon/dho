@@ -350,6 +350,14 @@ export function Dashboard({ user, token, onLogout, onToast }: DashboardProps) {
             boardId={view.boardId}
             initialPostId={view.postId}
             onToast={onToast}
+            onClearPostId={() => {
+              const next = { name: 'board' as const, boardId: view.boardId }
+              setView(next)
+              const nextHash = viewToHash(next)
+              if (window.location.hash !== nextHash) {
+                window.history.replaceState(null, '', nextHash)
+              }
+            }}
           />
         )}
 

@@ -1,170 +1,367 @@
-import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises'
+import { readFile } from 'node:fs/promises'
 import path from 'node:path'
-import { BUNDLED_DATA_DIR, getWritableDataDir } from './paths.mjs'
+import { BUNDLED_DATA_DIR } from './paths.mjs'
+import { getSql, hasDatabaseUrl, runSqlFile } from './db.mjs'
 
 const BUNDLED_SHIPS_FILE = path.join(BUNDLED_DATA_DIR, 'ships-db.json')
-const CURRENT_DB_VERSION = 2
 
-function shipsDbFile() {
-  return path.join(getWritableDataDir(), 'ships-db.json')
-}
+/**
+ * @param {Record<string, unknown>} ship
+ * @param {Array<Record<string, unknown>>} sizes
+ * @param {Array<Record<string, unknown>>} forms
+ * @param {Array<Record<string, unknown>>} materials
+ * @param {Array<Record<string, unknown>>} skillRows
+ */
+function decorateShipRow(ship, sizes, forms, materials, skillRows) {
+  const size = sizes.find((s) => Number(s.id) === Number(ship.size_id))
+  const form = forms.find((f) => Number(f.id) === Number(ship.form_id))
+  const material = materials.find(
+    (m) => Number(m.id) === Number(ship.material_id),
+  )
+  const skills = skillRows
+    .filter((r) => Number(r.ship_id) === Number(ship.id))
+    .sort((a, b) => Number(a.sort_order) - Number(b.sort_order))
+    .map((row) => ({
+      id: Number(row.skill_id),
+      name: String(row.skill_name || ''),
+      sail: row.sail == null ? null : String(row.sail),
+      gunPort: row.gun_port == null ? null : String(row.gun_port),
+      material1: row.material1 == null ? null : String(row.material1),
+      material2: row.material2 == null ? null : String(row.material2),
+    }))
 
-async function readDb() {
-  return JSON.parse(await readFile(shipsDbFile(), 'utf8'))
-}
-
-async function writeDb(db) {
-  await writeFile(shipsDbFile(), `${JSON.stringify(db, null, 2)}\n`, 'utf8')
-}
-
-function byId(list, id) {
-  return list.find((item) => item.id === id)
-}
-
-function decorateSkills(db, ship) {
-  // 신규: ship.skills[{ skillId, sail, gunPort, material1, material2 }]
-  if (Array.isArray(ship.skills) && ship.skills.length > 0) {
-    return ship.skills.map((row, index) => {
-      const master = byId(db.skills, row.skillId)
-      return {
-        id: row.skillId ?? index + 1,
-        name: master?.name ?? row.name ?? `스킬 ${index + 1}`,
-        sail: row.sail ?? null,
-        gunPort: row.gunPort ?? null,
-        material1: row.material1 ?? null,
-        material2: row.material2 ?? null,
-      }
-    })
-  }
-
-  // 구버전: skillIds: number[]
-  return (ship.skillIds || [])
-    .map((id) => {
-      const master = byId(db.skills, id)
-      if (!master) return null
-      return {
-        id: master.id,
-        name: master.name,
-        sail: null,
-        gunPort: null,
-        material1: null,
-        material2: null,
-      }
-    })
-    .filter(Boolean)
-}
-
-function decorateShip(db, ship) {
-  const size = byId(db.sizes, ship.sizeId)
-  const form = byId(db.forms, ship.formId)
-  const material = byId(db.materials, ship.materialId)
-  const skills = decorateSkills(db, ship)
+  const sailVertical = Number(ship.sail_vertical) || 0
+  const sailHorizontal = Number(ship.sail_horizontal) || 0
+  const cabin = Number(ship.cabin) || 0
+  const guns = Number(ship.guns) || 0
+  const warehouse = Number(ship.warehouse) || 0
 
   return {
-    id: ship.id,
-    slug: ship.slug,
-    name: ship.name,
-    category: ship.category,
-    description: ship.description,
-    size: size?.name ?? null,
-    sizeCode: size?.code ?? null,
-    form: form?.name ?? null,
-    formCode: form?.code ?? null,
-    material: material?.name ?? null,
-    adventureLv: ship.adventureLv,
-    tradeLv: ship.tradeLv,
-    battleLv: ship.battleLv,
-    acquireMethod: ship.acquireMethod,
-    enhanceCount: ship.enhanceCount,
-    durability: ship.durability,
-    sailVertical: ship.sailVertical,
-    sailHorizontal: ship.sailHorizontal,
-    oar: ship.oar,
-    turn: ship.turn,
-    wave: ship.wave,
-    armor: ship.armor,
-    cabin: ship.cabin,
-    crewRequired: ship.crewRequired,
-    guns: ship.guns,
-    warehouse: ship.warehouse,
+    id: Number(ship.id),
+    slug: String(ship.slug),
+    name: String(ship.name),
+    category: ship.category == null ? null : String(ship.category),
+    description: ship.description == null ? null : String(ship.description),
+    size: size ? String(size.name) : null,
+    sizeCode: size ? String(size.code) : null,
+    form: form ? String(form.name) : null,
+    formCode: form ? String(form.code) : null,
+    material: material ? String(material.name) : null,
+    adventureLv: Number(ship.adventure_lv) || 0,
+    tradeLv: Number(ship.trade_lv) || 0,
+    battleLv: Number(ship.battle_lv) || 0,
+    acquireMethod:
+      ship.acquire_method == null ? null : String(ship.acquire_method),
+    enhanceCount:
+      ship.enhance_count == null ? null : Number(ship.enhance_count),
+    durability: Number(ship.durability) || 0,
+    sailVertical,
+    sailHorizontal,
+    oar: Number(ship.oar) || 0,
+    turn: Number(ship.turn_stat) || 0,
+    wave: Number(ship.wave_resist) || 0,
+    armor: Number(ship.armor) || 0,
+    cabin,
+    crewRequired: Number(ship.crew_required) || 0,
+    guns,
+    warehouse,
     caps: {
-      durability: ship.capDurability,
-      sailVertical: ship.capSailVertical,
-      sailHorizontal: ship.capSailHorizontal,
-      oar: ship.capOar,
-      turn: ship.capTurn,
-      wave: ship.capWave,
-      armor: ship.capArmor,
-      cabin: ship.capCabin,
-      guns: ship.capGuns,
-      warehouse: ship.capWarehouse,
+      durability: ship.cap_durability == null ? null : Number(ship.cap_durability),
+      sailVertical:
+        ship.cap_sail_vertical == null ? null : Number(ship.cap_sail_vertical),
+      sailHorizontal:
+        ship.cap_sail_horizontal == null
+          ? null
+          : Number(ship.cap_sail_horizontal),
+      oar: ship.cap_oar == null ? null : Number(ship.cap_oar),
+      turn: ship.cap_turn == null ? null : Number(ship.cap_turn),
+      wave: ship.cap_wave == null ? null : Number(ship.cap_wave),
+      armor: ship.cap_armor == null ? null : Number(ship.cap_armor),
+      cabin: ship.cap_cabin == null ? null : Number(ship.cap_cabin),
+      guns: ship.cap_guns == null ? null : Number(ship.cap_guns),
+      warehouse: ship.cap_warehouse == null ? null : Number(ship.cap_warehouse),
     },
     parts: {
-      auxSail: ship.partAuxSail,
-      figurehead: ship.partFigurehead,
-      emblem: ship.partEmblem,
-      special: ship.partSpecial,
-      extraArmor: ship.partExtraArmor,
-      broadside: ship.partBroadside,
-      bow: ship.partBow,
-      stern: ship.partStern,
+      auxSail: Number(ship.part_aux_sail) || 0,
+      figurehead: Number(ship.part_figurehead) || 0,
+      emblem: Number(ship.part_emblem) || 0,
+      special: Number(ship.part_special) || 0,
+      extraArmor: Number(ship.part_extra_armor) || 0,
+      broadside: Number(ship.part_broadside) || 0,
+      bow: Number(ship.part_bow) || 0,
+      stern: Number(ship.part_stern) || 0,
     },
     skills,
-    sailTotal: ship.sailVertical + ship.sailHorizontal,
-    loadTotal: ship.cabin + ship.guns + ship.warehouse,
+    sailTotal: sailVertical + sailHorizontal,
+    loadTotal: cabin + guns + warehouse,
   }
 }
 
-export async function ensureShipStore() {
-  const dir = getWritableDataDir()
-  await mkdir(dir, { recursive: true })
-  const target = shipsDbFile()
+async function seedShipsFromBundle() {
+  const sql = getSql()
+  const raw = await readFile(BUNDLED_SHIPS_FILE, 'utf8')
+  const db = JSON.parse(raw)
 
-  let needsSeed = false
-  try {
-    const current = JSON.parse(await readFile(target, 'utf8'))
-    if (current.version !== CURRENT_DB_VERSION) needsSeed = true
-  } catch {
-    needsSeed = true
+  for (const size of db.sizes || []) {
+    await sql`
+      INSERT INTO ship_sizes (id, code, name, sort_order, enabled)
+      VALUES (
+        ${size.id}, ${size.code}, ${size.name}, ${size.sortOrder ?? 0},
+        ${size.enabled !== false}
+      )
+      ON CONFLICT (id) DO UPDATE SET
+        code = EXCLUDED.code,
+        name = EXCLUDED.name,
+        sort_order = EXCLUDED.sort_order,
+        enabled = EXCLUDED.enabled
+    `
   }
 
-  if (needsSeed) {
-    try {
-      await copyFile(BUNDLED_SHIPS_FILE, target)
-    } catch {
-      await writeDb({
-        version: CURRENT_DB_VERSION,
-        sizes: [],
-        forms: [],
-        materials: [],
-        skills: [],
-        ships: [],
-      })
+  for (const form of db.forms || []) {
+    await sql`
+      INSERT INTO ship_forms (id, code, name, sort_order, enabled)
+      VALUES (
+        ${form.id}, ${form.code}, ${form.name}, ${form.sortOrder ?? 0},
+        ${form.enabled !== false}
+      )
+      ON CONFLICT (id) DO UPDATE SET
+        code = EXCLUDED.code,
+        name = EXCLUDED.name,
+        sort_order = EXCLUDED.sort_order,
+        enabled = EXCLUDED.enabled
+    `
+  }
+
+  for (const material of db.materials || []) {
+    await sql`
+      INSERT INTO ship_materials (id, code, name, sort_order, enabled)
+      VALUES (
+        ${material.id}, ${material.code}, ${material.name},
+        ${material.sortOrder ?? 0}, ${material.enabled !== false}
+      )
+      ON CONFLICT (id) DO UPDATE SET
+        code = EXCLUDED.code,
+        name = EXCLUDED.name,
+        sort_order = EXCLUDED.sort_order,
+        enabled = EXCLUDED.enabled
+    `
+  }
+
+  for (const skill of db.skills || []) {
+    await sql`
+      INSERT INTO ship_skills (id, name, description)
+      VALUES (${skill.id}, ${skill.name}, ${skill.description ?? null})
+      ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name
+    `
+  }
+
+  for (const [index, ship] of (db.ships || []).entries()) {
+    await sql`
+      INSERT INTO ships (
+        id, slug, name, category, description, size_id, form_id, material_id,
+        adventure_lv, trade_lv, battle_lv, acquire_method, enhance_count,
+        durability, sail_vertical, sail_horizontal, oar, turn_stat, wave_resist,
+        armor, cabin, crew_required, guns, warehouse,
+        cap_durability, cap_sail_vertical, cap_sail_horizontal, cap_oar,
+        cap_turn, cap_wave, cap_armor, cap_cabin, cap_guns, cap_warehouse,
+        part_aux_sail, part_figurehead, part_emblem, part_special,
+        part_extra_armor, part_broadside, part_bow, part_stern,
+        enabled, sort_order
+      ) VALUES (
+        ${ship.id}, ${ship.slug}, ${ship.name}, ${ship.category ?? null},
+        ${ship.description ?? null}, ${ship.sizeId}, ${ship.formId},
+        ${ship.materialId ?? null}, ${ship.adventureLv ?? 0},
+        ${ship.tradeLv ?? 0}, ${ship.battleLv ?? 0},
+        ${ship.acquireMethod ?? null}, ${ship.enhanceCount ?? null},
+        ${ship.durability ?? 0}, ${ship.sailVertical ?? 0},
+        ${ship.sailHorizontal ?? 0}, ${ship.oar ?? 0}, ${ship.turn ?? 0},
+        ${ship.wave ?? 0}, ${ship.armor ?? 0}, ${ship.cabin ?? 0},
+        ${ship.crewRequired ?? 0}, ${ship.guns ?? 0}, ${ship.warehouse ?? 0},
+        ${ship.capDurability ?? null}, ${ship.capSailVertical ?? null},
+        ${ship.capSailHorizontal ?? null}, ${ship.capOar ?? null},
+        ${ship.capTurn ?? null}, ${ship.capWave ?? null},
+        ${ship.capArmor ?? null}, ${ship.capCabin ?? null},
+        ${ship.capGuns ?? null}, ${ship.capWarehouse ?? null},
+        ${ship.partAuxSail ?? 0}, ${ship.partFigurehead ?? 0},
+        ${ship.partEmblem ?? 0}, ${ship.partSpecial ?? 0},
+        ${ship.partExtraArmor ?? 0}, ${ship.partBroadside ?? 0},
+        ${ship.partBow ?? 0}, ${ship.partStern ?? 0},
+        ${ship.enabled !== false}, ${ship.sortOrder ?? index}
+      )
+      ON CONFLICT (id) DO UPDATE SET
+        slug = EXCLUDED.slug,
+        name = EXCLUDED.name,
+        category = EXCLUDED.category,
+        description = EXCLUDED.description,
+        size_id = EXCLUDED.size_id,
+        form_id = EXCLUDED.form_id,
+        material_id = EXCLUDED.material_id,
+        adventure_lv = EXCLUDED.adventure_lv,
+        trade_lv = EXCLUDED.trade_lv,
+        battle_lv = EXCLUDED.battle_lv,
+        acquire_method = EXCLUDED.acquire_method,
+        enhance_count = EXCLUDED.enhance_count,
+        durability = EXCLUDED.durability,
+        sail_vertical = EXCLUDED.sail_vertical,
+        sail_horizontal = EXCLUDED.sail_horizontal,
+        oar = EXCLUDED.oar,
+        turn_stat = EXCLUDED.turn_stat,
+        wave_resist = EXCLUDED.wave_resist,
+        armor = EXCLUDED.armor,
+        cabin = EXCLUDED.cabin,
+        crew_required = EXCLUDED.crew_required,
+        guns = EXCLUDED.guns,
+        warehouse = EXCLUDED.warehouse,
+        cap_durability = EXCLUDED.cap_durability,
+        cap_sail_vertical = EXCLUDED.cap_sail_vertical,
+        cap_sail_horizontal = EXCLUDED.cap_sail_horizontal,
+        cap_oar = EXCLUDED.cap_oar,
+        cap_turn = EXCLUDED.cap_turn,
+        cap_wave = EXCLUDED.cap_wave,
+        cap_armor = EXCLUDED.cap_armor,
+        cap_cabin = EXCLUDED.cap_cabin,
+        cap_guns = EXCLUDED.cap_guns,
+        cap_warehouse = EXCLUDED.cap_warehouse,
+        part_aux_sail = EXCLUDED.part_aux_sail,
+        part_figurehead = EXCLUDED.part_figurehead,
+        part_emblem = EXCLUDED.part_emblem,
+        part_special = EXCLUDED.part_special,
+        part_extra_armor = EXCLUDED.part_extra_armor,
+        part_broadside = EXCLUDED.part_broadside,
+        part_bow = EXCLUDED.part_bow,
+        part_stern = EXCLUDED.part_stern,
+        enabled = EXCLUDED.enabled,
+        sort_order = EXCLUDED.sort_order
+    `
+
+    await sql`DELETE FROM ship_skill_links WHERE ship_id = ${ship.id}`
+
+    const skillRows = Array.isArray(ship.skills) ? ship.skills : []
+    for (const [sortOrder, row] of skillRows.entries()) {
+      const skillId = row.skillId ?? row.id
+      if (!skillId) continue
+      await sql`
+        INSERT INTO ship_skill_links (
+          ship_id, skill_id, sort_order, sail, gun_port, material1, material2
+        ) VALUES (
+          ${ship.id}, ${skillId}, ${sortOrder},
+          ${row.sail ?? null}, ${row.gunPort ?? null},
+          ${row.material1 ?? null}, ${row.material2 ?? null}
+        )
+        ON CONFLICT (ship_id, skill_id) DO UPDATE SET
+          sort_order = EXCLUDED.sort_order,
+          sail = EXCLUDED.sail,
+          gun_port = EXCLUDED.gun_port,
+          material1 = EXCLUDED.material1,
+          material2 = EXCLUDED.material2
+      `
     }
   }
 }
 
-export async function listShipLookups() {
-  const db = await readDb()
-  return {
-    sizes: db.sizes.filter((x) => x.enabled !== false).sort((a, b) => a.sortOrder - b.sortOrder),
-    forms: db.forms.filter((x) => x.enabled !== false).sort((a, b) => a.sortOrder - b.sortOrder),
-    materials: db.materials
-      .filter((x) => x.enabled !== false)
-      .sort((a, b) => a.sortOrder - b.sortOrder),
+export async function ensureShipStore() {
+  if (!hasDatabaseUrl()) throw new Error('DATABASE_URL 이 없습니다.')
+  await runSqlFile('sql/006_ships.sql')
+  const sql = getSql()
+  const rows = await sql`SELECT COUNT(*)::int AS n FROM ships`
+  if (Number(rows[0]?.n || 0) === 0) {
+    await seedShipsFromBundle()
   }
 }
 
+async function loadLookups() {
+  const sql = getSql()
+  const [sizes, forms, materials] = await Promise.all([
+    sql`SELECT id, code, name, sort_order, enabled FROM ship_sizes ORDER BY sort_order`,
+    sql`SELECT id, code, name, sort_order, enabled FROM ship_forms ORDER BY sort_order`,
+    sql`SELECT id, code, name, sort_order, enabled FROM ship_materials ORDER BY sort_order`,
+  ])
+  return { sizes, forms, materials }
+}
+
+export async function listShipLookups() {
+  const { sizes, forms, materials } = await loadLookups()
+  return {
+    sizes: sizes
+      .filter((x) => x.enabled !== false)
+      .map((x) => ({
+        id: Number(x.id),
+        code: String(x.code),
+        name: String(x.name),
+        sortOrder: Number(x.sort_order) || 0,
+        enabled: true,
+      })),
+    forms: forms
+      .filter((x) => x.enabled !== false)
+      .map((x) => ({
+        id: Number(x.id),
+        code: String(x.code),
+        name: String(x.name),
+        sortOrder: Number(x.sort_order) || 0,
+        enabled: true,
+      })),
+    materials: materials
+      .filter((x) => x.enabled !== false)
+      .map((x) => ({
+        id: Number(x.id),
+        code: String(x.code),
+        name: String(x.name),
+        sortOrder: Number(x.sort_order) || 0,
+        enabled: true,
+      })),
+  }
+}
+
+async function loadSkillLinks() {
+  const sql = getSql()
+  return sql`
+    SELECT l.ship_id, l.skill_id, l.sort_order, l.sail, l.gun_port,
+           l.material1, l.material2, s.name AS skill_name
+    FROM ship_skill_links l
+    JOIN ship_skills s ON s.id = l.skill_id
+    ORDER BY l.ship_id, l.sort_order
+  `
+}
+
 export async function listShips() {
-  const db = await readDb()
-  return db.ships
-    .filter((s) => s.enabled !== false)
-    .sort((a, b) => a.sortOrder - b.sortOrder || a.id - b.id)
-    .map((s) => decorateShip(db, s))
+  const sql = getSql()
+  const [ships, lookups, skillRows] = await Promise.all([
+    sql`SELECT * FROM ships WHERE enabled = TRUE ORDER BY sort_order, id`,
+    loadLookups(),
+    loadSkillLinks(),
+  ])
+  return ships.map((ship) =>
+    decorateShipRow(
+      ship,
+      lookups.sizes,
+      lookups.forms,
+      lookups.materials,
+      skillRows,
+    ),
+  )
 }
 
 export async function getShipBySlug(slug) {
-  const db = await readDb()
-  const ship = db.ships.find((s) => s.slug === slug && s.enabled !== false)
-  return ship ? decorateShip(db, ship) : null
+  const sql = getSql()
+  const rows = await sql`
+    SELECT * FROM ships WHERE slug = ${slug} AND enabled = TRUE LIMIT 1
+  `
+  if (!rows[0]) return null
+  const [lookups, skillRows] = await Promise.all([
+    loadLookups(),
+    loadSkillLinks(),
+  ])
+  return decorateShipRow(
+    rows[0],
+    lookups.sizes,
+    lookups.forms,
+    lookups.materials,
+    skillRows,
+  )
+}
+
+/** 번들 JSON으로 강제 재시드 (마이그레이션용) */
+export async function reseedShipsFromBundle() {
+  await runSqlFile('sql/006_ships.sql')
+  await seedShipsFromBundle()
 }

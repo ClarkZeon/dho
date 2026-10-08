@@ -1,24 +1,7 @@
 import { randomBytes } from 'node:crypto'
-import { readFile, writeFile } from 'node:fs/promises'
-import path from 'node:path'
-import { getWritableDataDir } from './paths.mjs'
-
-function dataDir() {
-  return getWritableDataDir()
-}
-
-export function boardsFile() {
-  return path.join(dataDir(), 'boards.json')
-}
-
-export function postsFile() {
-  return path.join(dataDir(), 'posts.json')
-}
+import { getSql, hasDatabaseUrl, runSqlFile } from './db.mjs'
 
 /**
- * 공통 게시판 정의 (추후 MySQL boards 테이블)
- * writeRole: admin | member | none
- *
  * @typedef {{
  *   id: string,
  *   title: string,
@@ -29,7 +12,6 @@ export function postsFile() {
  *   enabled: boolean
  * }} Board
  *
- * 공통 게시글 (추후 MySQL posts 테이블 — board_id로 구분)
  * @typedef {{
  *   id: string,
  *   boardId: string,
@@ -73,84 +55,177 @@ const DEFAULT_BOARDS = [
   },
 ]
 
+/** 시드 게시글 ID 고정 — 인스턴스마다 랜덤 ID가 바뀌지 않게 */
+const SEED_POSTS = [
+  {
+    id: 'seed-notice-open',
+    boardId: 'notice',
+    authorId: 'system',
+    title: 'DHO Light 오픈 안내',
+    body: 'DHO Light에 오신 것을 환영합니다.\n\n공지·자유·공략 게시판과 쪽지·선박 도구를 이용할 수 있습니다.',
+    isPinned: true,
+  },
+  {
+    id: 'seed-notice-features',
+    boardId: 'notice',
+    authorId: 'system',
+    title: '쪽지·레벨 기능 안내',
+    body: '로그인 후 쪽지함과 레벨(일일 XP)을 이용할 수 있습니다.\n자세한 규칙은 docs 폴더의 문서를 참고해 주세요.',
+    isPinned: false,
+  },
+]
+
 function nowIso() {
   return new Date().toISOString()
 }
 
-async function readJson(file, fallback) {
-  try {
-    return JSON.parse(await readFile(file, 'utf8'))
-  } catch {
-    return fallback
+/** @param {Record<string, unknown>} row */
+function rowToBoard(row) {
+  return {
+    id: String(row.id),
+    title: String(row.title),
+    description: String(row.description || ''),
+    writeRole:
+      row.write_role === 'admin' || row.write_role === 'none'
+        ? row.write_role
+        : 'member',
+    previewCount: Number(row.preview_count) || 5,
+    sortOrder: Number(row.sort_order) || 0,
+    enabled: row.enabled !== false,
   }
 }
 
-async function writeJson(file, data) {
-  await writeFile(file, `${JSON.stringify(data, null, 2)}\n`, 'utf8')
+/** @param {Record<string, unknown>} row */
+function rowToPost(row) {
+  return {
+    id: String(row.id),
+    boardId: String(row.board_id),
+    authorId: String(row.author_id),
+    title: String(row.title),
+    body: String(row.body),
+    isPinned: Boolean(row.is_pinned),
+    isDeleted: Boolean(row.is_deleted),
+    createdAt: new Date(/** @type {string|Date} */ (row.created_at)).toISOString(),
+    updatedAt: new Date(/** @type {string|Date} */ (row.updated_at)).toISOString(),
+  }
 }
 
 export async function ensureBoardStore() {
-  let boards = await readJson(boardsFile(), null)
-  if (!Array.isArray(boards) || boards.length === 0) {
-    boards = DEFAULT_BOARDS
-    await writeJson(boardsFile(), boards)
-  } else if (boards.some((b) => b.id === 'ship')) {
-    // 선박은 게시판이 아니라 독립 대메뉴로 분리
-    boards = boards.filter((b) => b.id !== 'ship')
-    await writeJson(boardsFile(), boards)
+  if (!hasDatabaseUrl()) {
+    throw new Error('DATABASE_URL 이 없습니다.')
+  }
+  await runSqlFile('sql/005_boards_messages.sql')
+  const sql = getSql()
+
+  for (const board of DEFAULT_BOARDS) {
+    await sql`
+      INSERT INTO boards (
+        id, title, description, write_role, preview_count, sort_order, enabled
+      ) VALUES (
+        ${board.id}, ${board.title}, ${board.description}, ${board.writeRole},
+        ${board.previewCount}, ${board.sortOrder}, ${board.enabled}
+      )
+      ON CONFLICT (id) DO UPDATE SET
+        title = EXCLUDED.title,
+        description = EXCLUDED.description,
+        write_role = EXCLUDED.write_role,
+        preview_count = EXCLUDED.preview_count,
+        sort_order = EXCLUDED.sort_order,
+        enabled = EXCLUDED.enabled
+    `
   }
 
-  let posts = await readJson(postsFile(), null)
-  if (!Array.isArray(posts)) {
-    posts = []
-  }
+  // 예전 ship 게시판 제거
+  await sql`DELETE FROM boards WHERE id = 'ship'`
 
-  if (posts.length === 0) {
+  const countRows = await sql`SELECT COUNT(*)::int AS n FROM posts`
+  const count = Number(countRows[0]?.n || 0)
+  if (count === 0) {
     const createdAt = nowIso()
-    posts = [
-      {
-        id: randomBytes(8).toString('hex'),
-        boardId: 'notice',
-        authorId: 'system',
-        title: 'DHO Light 오픈 안내',
-        body: 'DHO Light에 오신 것을 환영합니다.\n\n공지사항은 공통 게시글 테이블(posts)을 사용하며, 자유·공략 등 다른 게시판도 동일한 구조로 확장할 수 있습니다.',
-        isPinned: true,
-        isDeleted: false,
-        createdAt,
-        updatedAt: createdAt,
-      },
-      {
-        id: randomBytes(8).toString('hex'),
-        boardId: 'notice',
-        authorId: 'system',
-        title: '쪽지·레벨 기능 안내',
-        body: '로그인 후 쪽지함과 레벨(일일 XP)을 이용할 수 있습니다.\n자세한 규칙은 docs 폴더의 문서를 참고해 주세요.',
-        isPinned: false,
-        isDeleted: false,
-        createdAt,
-        updatedAt: createdAt,
-      },
-    ]
-    await writeJson(postsFile(), posts)
+    for (const post of SEED_POSTS) {
+      await sql`
+        INSERT INTO posts (
+          id, board_id, author_id, title, body, is_pinned, is_deleted,
+          created_at, updated_at
+        ) VALUES (
+          ${post.id}, ${post.boardId}, ${post.authorId}, ${post.title},
+          ${post.body}, ${post.isPinned}, FALSE, ${createdAt}, ${createdAt}
+        )
+        ON CONFLICT (id) DO NOTHING
+      `
+    }
   }
 }
 
 /** @returns {Promise<Board[]>} */
 export async function loadBoards() {
-  const boards = await readJson(boardsFile(), DEFAULT_BOARDS)
-  return boards
-    .filter((b) => b.enabled !== false)
-    .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
+  const sql = getSql()
+  const rows = await sql`
+    SELECT id, title, description, write_role, preview_count, sort_order, enabled
+    FROM boards
+    WHERE enabled = TRUE
+    ORDER BY sort_order ASC
+  `
+  return rows.map(rowToBoard)
 }
 
 /** @returns {Promise<Post[]>} */
 export async function loadPosts() {
-  return readJson(postsFile(), [])
+  const sql = getSql()
+  const rows = await sql`
+    SELECT id, board_id, author_id, title, body, is_pinned, is_deleted,
+           created_at, updated_at
+    FROM posts
+    ORDER BY created_at DESC
+  `
+  return rows.map(rowToPost)
 }
 
-/** @param {Post[]} posts */
-export async function savePosts(posts) {
-  await writeJson(postsFile(), posts)
+/** @param {string} boardId */
+export async function listPostsForBoard(boardId) {
+  const sql = getSql()
+  const rows = await sql`
+    SELECT id, board_id, author_id, title, body, is_pinned, is_deleted,
+           created_at, updated_at
+    FROM posts
+    WHERE board_id = ${boardId} AND is_deleted = FALSE
+    ORDER BY is_pinned DESC, created_at DESC
+  `
+  return rows.map(rowToPost)
+}
+
+/** @param {string} boardId @param {string} postId */
+export async function getPost(boardId, postId) {
+  const sql = getSql()
+  const rows = await sql`
+    SELECT id, board_id, author_id, title, body, is_pinned, is_deleted,
+           created_at, updated_at
+    FROM posts
+    WHERE id = ${postId} AND board_id = ${boardId} AND is_deleted = FALSE
+    LIMIT 1
+  `
+  return rows[0] ? rowToPost(rows[0]) : null
+}
+
+/** @param {Post} post */
+export async function insertPost(post) {
+  const sql = getSql()
+  await sql`
+    INSERT INTO posts (
+      id, board_id, author_id, title, body, is_pinned, is_deleted,
+      created_at, updated_at
+    ) VALUES (
+      ${post.id}, ${post.boardId}, ${post.authorId}, ${post.title},
+      ${post.body}, ${post.isPinned}, ${post.isDeleted},
+      ${post.createdAt}, ${post.updatedAt}
+    )
+  `
+  return post
+}
+
+/** @deprecated 전체 rewrite 대신 insertPost 사용 */
+export async function savePosts(_posts) {
+  throw new Error('savePosts is removed; use insertPost')
 }
 
 export function canWriteBoard(board, user) {

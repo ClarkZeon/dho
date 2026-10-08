@@ -1,7 +1,4 @@
-import { readFile } from 'node:fs/promises'
-import path from 'node:path'
-import { fileURLToPath } from 'node:url'
-import { getSql, hasDatabaseUrl } from './db.mjs'
+import { getSql, hasDatabaseUrl, runSqlFile } from './db.mjs'
 
 /**
  * @typedef {{
@@ -17,8 +14,6 @@ import { getSql, hasDatabaseUrl } from './db.mjs'
  *   createdAt: string
  * }} User
  */
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 /** @param {Record<string, unknown>} row */
 function rowToUser(row) {
@@ -55,20 +50,7 @@ export async function ensureUserStore() {
       'DATABASE_URL 이 없습니다. Vercel Neon을 연결하거나 .env 에 DATABASE_URL 을 설정하세요.',
     )
   }
-
-  const sql = getSql()
-  const schemaPath = path.join(__dirname, 'sql', '004_users_sessions.sql')
-  const schema = await readFile(schemaPath, 'utf8')
-  // neon() 은 멀티 스테이트먼트를 한 번에 못 돌릴 수 있어 분리 실행
-  const statements = schema
-    .split(';')
-    .map((s) => s.replace(/--[^\n]*/g, '').trim())
-    .filter(Boolean)
-
-  for (const statement of statements) {
-    await sql.query(statement, [])
-  }
-
+  await runSqlFile('sql/004_users_sessions.sql')
   await ensureAdminBootstrap()
 }
 

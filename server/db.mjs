@@ -1,5 +1,10 @@
+import { readFile } from 'node:fs/promises'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { neon } from '@neondatabase/serverless'
 import 'dotenv/config'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 let sql = null
 
@@ -27,4 +32,18 @@ export function getSql() {
 
 export function hasDatabaseUrl() {
   return Boolean(getDatabaseUrl())
+}
+
+/** SQL 파일을 스테이트먼트 단위로 실행 */
+export async function runSqlFile(relativePathFromServer) {
+  const full = path.join(__dirname, relativePathFromServer)
+  const schema = await readFile(full, 'utf8')
+  const statements = schema
+    .split(';')
+    .map((s) => s.replace(/--[^\n]*/g, '').trim())
+    .filter(Boolean)
+  const client = getSql()
+  for (const statement of statements) {
+    await client.query(statement, [])
+  }
 }

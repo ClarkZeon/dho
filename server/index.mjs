@@ -1,21 +1,30 @@
 import 'dotenv/config'
 import { createServer } from 'node:http'
 import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto'
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
-import path from 'node:path'
 import {
   canWriteBoard,
   createPost,
   decoratePost,
   ensureBoardStore,
+  getPost,
+  insertPost,
+  listPostsForBoard,
   loadBoards,
   loadPosts,
-  savePosts,
   validatePostBody,
   validatePostTitle,
 } from './boardStore.mjs'
 import { hasDatabaseUrl } from './db.mjs'
-import { getWritableDataDir } from './paths.mjs'
+import {
+  countUnread,
+  ensureMessageStore,
+  getMessageById,
+  insertMessage,
+  listInbox,
+  listSent,
+  listThread,
+  markMessageRead,
+} from './messageStore.mjs'
 import {
   ensureShipStore,
   getShipBySlug,
@@ -37,10 +46,6 @@ import {
 
 const PORT = Number(process.env.API_PORT || 17778)
 const DAILY_LOGIN_XP = 20
-
-function messagesFile() {
-  return path.join(getWritableDataDir(), 'messages.json')
-}
 
 /**
  * @typedef {{
@@ -71,26 +76,16 @@ function messagesFile() {
  * }} Message
  */
 
-async function ensureFile(file, fallback) {
-  try {
-    await readFile(file, 'utf8')
-  } catch {
-    await writeFile(file, fallback, 'utf8')
-  }
-}
-
 async function ensureStore() {
-  await mkdir(getWritableDataDir(), { recursive: true })
-  await ensureFile(messagesFile(), '[]\n')
-  await ensureBoardStore()
-  await ensureShipStore()
-  if (hasDatabaseUrl()) {
-    await ensureUserStore()
-  } else {
-    console.warn(
-      '[dho] DATABASE_URL 없음 — 인증은 Neon 연결 후 동작합니다. (.env.example 참고)',
+  if (!hasDatabaseUrl()) {
+    throw new Error(
+      'DATABASE_URL 이 없습니다. Vercel Neon을 연결하거나 .env 에 DATABASE_URL 을 설정하세요.',
     )
   }
+  await ensureUserStore()
+  await ensureBoardStore()
+  await ensureMessageStore()
+  await ensureShipStore()
 }
 
 function requireAuthDb(res) {
@@ -146,24 +141,6 @@ function sameUtcDay(a, b) {
     a.getUTCMonth() === b.getUTCMonth() &&
     a.getUTCDate() === b.getUTCDate()
   )
-}
-
-async function readJson(file) {
-  return JSON.parse(await readFile(file, 'utf8'))
-}
-
-async function writeJson(file, data) {
-  await writeFile(file, `${JSON.stringify(data, null, 2)}\n`, 'utf8')
-}
-
-/** @returns {Promise<Message[]>} */
-async function loadMessages() {
-  return readJson(messagesFile())
-}
-
-/** @param {Message[]} messages */
-async function saveMessages(messages) {
-  await writeJson(messagesFile(), messages)
 }
 
 function hashPassword(password, salt = randomBytes(16).toString('hex')) {
@@ -483,11 +460,7 @@ export async function handleRequest(req, res) {
         return
       }
 
-      const messages = await loadMessages()
-      const count = messages.filter(
-        (m) => m.toUserId === authUser.id && !m.readAt,
-      ).length
-      sendJson(res, 200, { count })
+      sendJson(res, 200, { count: await countUnread(authUser.id) })
       return
     }
 
@@ -499,11 +472,9 @@ export async function handleRequest(req, res) {
       }
 
       const users = await listUsers()
-      const messages = await loadMessages()
-      const inbox = messages
-        .filter((m) => m.toUserId === authUser.id)
-        .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-        .map((m) => decorateMessage(m, users, authUser.id))
+      const inbox = (await listInbox(authUser.id)).map((m) =>
+        decorateMessage(m, users, authUser.id),
+      )
 
       sendJson(res, 200, { messages: inbox })
       return
@@ -517,11 +488,9 @@ export async function handleRequest(req, res) {
       }
 
       const users = await listUsers()
-      const messages = await loadMessages()
-      const sent = messages
-        .filter((m) => m.fromUserId === authUser.id)
-        .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-        .map((m) => decorateMessage(m, users, authUser.id))
+      const sent = (await listSent(authUser.id)).map((m) =>
+        decorateMessage(m, users, authUser.id),
+      )
 
       sendJson(res, 200, { messages: sent })
       return
@@ -537,31 +506,29 @@ export async function handleRequest(req, res) {
 
       const messageId = messageMatch[1]
       const users = await listUsers()
-      const messages = await loadMessages()
-      const index = messages.findIndex((m) => m.id === messageId)
-      if (index < 0) {
+      const message = await getMessageById(messageId)
+      if (!message) {
         sendJson(res, 404, { error: '쪽지를 찾을 수 없습니다.' })
         return
       }
 
-      const message = messages[index]
       if (message.fromUserId !== authUser.id && message.toUserId !== authUser.id) {
         sendJson(res, 403, { error: '쪽지를 볼 권한이 없습니다.' })
         return
       }
 
       if (message.toUserId === authUser.id && !message.readAt) {
-        messages[index] = { ...message, readAt: new Date().toISOString() }
-        await saveMessages(messages)
+        const readAt = new Date().toISOString()
+        await markMessageRead(message.id, readAt)
+        message.readAt = readAt
       }
 
-      const thread = messages
-        .filter((m) => m.threadId === message.threadId)
-        .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
-        .map((m) => decorateMessage(m, users, authUser.id))
+      const thread = (await listThread(message.threadId)).map((m) =>
+        decorateMessage(m, users, authUser.id),
+      )
 
       sendJson(res, 200, {
-        message: decorateMessage(messages[index], users, authUser.id),
+        message: decorateMessage(message, users, authUser.id),
         thread,
       })
       return
@@ -606,9 +573,7 @@ export async function handleRequest(req, res) {
         createdAt: new Date().toISOString(),
       }
 
-      const messages = await loadMessages()
-      messages.push(message)
-      await saveMessages(messages)
+      await insertMessage(message)
 
       sendJson(res, 201, {
         message: decorateMessage(message, users, authUser.id),
@@ -633,8 +598,7 @@ export async function handleRequest(req, res) {
 
       const parentId = replyMatch[1]
       const users = await listUsers()
-      const messages = await loadMessages()
-      const parent = messages.find((m) => m.id === parentId)
+      const parent = await getMessageById(parentId)
       if (!parent) {
         sendJson(res, 404, { error: '원본 쪽지를 찾을 수 없습니다.' })
         return
@@ -669,8 +633,7 @@ export async function handleRequest(req, res) {
         createdAt: new Date().toISOString(),
       }
 
-      messages.push(reply)
-      await saveMessages(messages)
+      await insertMessage(reply)
 
       sendJson(res, 201, {
         message: decorateMessage(reply, users, authUser.id),
@@ -775,12 +738,7 @@ export async function handleRequest(req, res) {
         const limit = Math.min(50, Math.max(1, Number(url.searchParams.get('limit') || 20)))
         const offset = Math.max(0, Number(url.searchParams.get('offset') || 0))
         const users = await listUsers()
-        const posts = (await loadPosts())
-          .filter((p) => p.boardId === boardId && !p.isDeleted)
-          .sort((a, b) => {
-            if (a.isPinned !== b.isPinned) return a.isPinned ? -1 : 1
-            return b.createdAt.localeCompare(a.createdAt)
-          })
+        const posts = await listPostsForBoard(boardId)
 
         sendJson(res, 200, {
           board: {
@@ -823,9 +781,7 @@ export async function handleRequest(req, res) {
           body: body.body,
           isPinned: Boolean(body.isPinned) && authUser.role === 'admin',
         })
-        const posts = await loadPosts()
-        posts.push(post)
-        await savePosts(posts)
+        await insertPost(post)
 
         sendJson(res, 201, { post: decoratePost(post, users) })
         return
@@ -849,9 +805,7 @@ export async function handleRequest(req, res) {
       }
 
       const users = await listUsers()
-      const post = (await loadPosts()).find(
-        (p) => p.id === postId && p.boardId === boardId && !p.isDeleted,
-      )
+      const post = await getPost(boardId, postId)
       if (!post) {
         sendJson(res, 404, { error: '게시글을 찾을 수 없습니다.' })
         return

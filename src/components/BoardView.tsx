@@ -12,6 +12,8 @@ type BoardViewProps = {
   boardId: string
   initialPostId?: string
   onToast: (message: string) => void
+  /** 상세 URL의 글이 없을 때 목록 해시로 되돌림 */
+  onClearPostId?: () => void
 }
 
 type Mode = 'list' | 'detail' | 'write'
@@ -28,6 +30,7 @@ export function BoardView({
   boardId,
   initialPostId,
   onToast,
+  onClearPostId,
 }: BoardViewProps) {
   const [mode, setMode] = useState<Mode>('list')
   const [board, setBoard] = useState<BoardSummary | null>(null)
@@ -39,7 +42,7 @@ export function BoardView({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  async function openDetail(postId: string) {
+  async function openDetail(postId: string, fallback?: BoardPost | null) {
     setLoading(true)
     setError('')
     try {
@@ -48,33 +51,58 @@ export function BoardView({
       setSelected(res.post)
       setMode('detail')
     } catch (err) {
+      if (fallback) {
+        setSelected(fallback)
+        setMode('detail')
+        return
+      }
+      setMode('list')
+      setSelected(null)
+      onClearPostId?.()
       setError(err instanceof Error ? err.message : '게시글을 열지 못했습니다.')
     } finally {
       setLoading(false)
     }
   }
 
-  async function loadList() {
-    setLoading(true)
-    setError('')
-    try {
-      const res = await fetchBoardPosts(token, boardId)
-      setBoard(res.board)
-      setPosts(res.posts)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : '게시글을 불러오지 못했습니다.')
-    } finally {
-      setLoading(false)
-    }
-  }
-
   useEffect(() => {
+    let alive = true
     ;(async () => {
-      await loadList()
-      if (initialPostId) {
-        await openDetail(initialPostId)
+      setLoading(true)
+      setError('')
+      try {
+        const res = await fetchBoardPosts(token, boardId)
+        if (!alive) return
+        setBoard(res.board)
+        setPosts(res.posts)
+
+        if (!initialPostId) {
+          setMode('list')
+          setSelected(null)
+          return
+        }
+
+        const local = res.posts.find((p) => p.id === initialPostId) || null
+        if (!local) {
+          setMode('list')
+          setSelected(null)
+          onClearPostId?.()
+          return
+        }
+
+        await openDetail(initialPostId, local)
+      } catch (err) {
+        if (!alive) return
+        setError(
+          err instanceof Error ? err.message : '게시글을 불러오지 못했습니다.',
+        )
+      } finally {
+        if (alive) setLoading(false)
       }
     })()
+    return () => {
+      alive = false
+    }
   }, [token, boardId, initialPostId])
 
   async function handleWrite(event: FormEvent<HTMLFormElement>) {
@@ -91,7 +119,9 @@ export function BoardView({
       setTitle('')
       setBody('')
       setIsPinned(false)
-      await loadList()
+      const list = await fetchBoardPosts(token, boardId)
+      setBoard(list.board)
+      setPosts(list.posts)
       setSelected(res.post)
       setMode('detail')
     } catch (err) {
@@ -167,6 +197,8 @@ export function BoardView({
               onClick={() => {
                 setMode('list')
                 setSelected(null)
+                setError('')
+                onClearPostId?.()
               }}
             >
               ← 목록으로
