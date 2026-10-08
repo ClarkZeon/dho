@@ -2464,8 +2464,90 @@
   border-bottom: 0;
 }
 
-.admin-table tbody tr:hover td {
-  background: rgba(28, 109, 201, 0.04);
+.admin-table tbody tr.is-even td {
+  background: var(--is-white);
+}
+
+.admin-table tbody tr.is-odd td {
+  background: #f0f5fa;
+}
+
+.admin-table tbody tr.admin-row-clickable {
+  cursor: pointer;
+}
+
+.admin-table tbody tr.admin-row-clickable:hover td {
+  background: rgba(28, 109, 201, 0.1);
+}
+
+.admin-table tbody tr.admin-row-clickable:focus-visible {
+  outline: 2px solid var(--is-blue-lighter);
+  outline-offset: -2px;
+}
+
+.admin-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+}
+
+.admin-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  padding: 0;
+  background: rgba(14, 42, 74, 0.45);
+  cursor: pointer;
+}
+
+.admin-modal-panel {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  width: min(960px, 100%);
+  max-height: min(90vh, 920px);
+  border-radius: 12px;
+  background: var(--is-light);
+  border: 1px solid var(--is-grey-lighter);
+  box-shadow: 0 18px 48px rgba(14, 42, 74, 0.22);
+  overflow: hidden;
+}
+
+.admin-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  background: var(--is-white);
+  border-bottom: 1px solid var(--is-grey-lighter);
+}
+
+.admin-modal-head p {
+  margin: 0;
+  font-size: 0.84rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: var(--is-blue);
+  text-transform: uppercase;
+}
+
+.admin-modal-body {
+  overflow: auto;
+  padding: 1rem 1.1rem 1.35rem;
+}
+
+.admin-modal-body .ship-info-hero {
+  margin-top: 0;
+}
+
+.admin-modal-body .ship-detail-view {
+  display: grid;
+  gap: 1rem;
 }
 
 .admin-table select {

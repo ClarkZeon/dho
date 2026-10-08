@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useState, type FormEvent, type KeyboardEvent } from 'react'
 import {
   deleteAdminUser,
   fetchAdminUsers,
@@ -7,6 +7,7 @@ import {
   updateAdminUserRole,
 } from '../lib/api'
 import type { AdminUser, ShipDetail, User } from '../types'
+import { ShipDetailView } from './ShipDetailView'
 
 type AdminNav = 'users' | 'ships'
 
@@ -46,6 +47,7 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
   const [importText, setImportText] = useState('')
   const [importing, setImporting] = useState(false)
   const [importNote, setImportNote] = useState('')
+  const [detailShip, setDetailShip] = useState<ShipDetail | null>(null)
 
   const loadUsers = useCallback(async () => {
     setLoadingUsers(true)
@@ -81,6 +83,20 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
     if (nav === 'users') void loadUsers()
     if (nav === 'ships') void loadShips()
   }, [nav, loadUsers, loadShips])
+
+  useEffect(() => {
+    if (!detailShip) return
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    function onKey(event: globalThis.KeyboardEvent) {
+      if (event.key === 'Escape') setDetailShip(null)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => {
+      document.body.style.overflow = prev
+      window.removeEventListener('keydown', onKey)
+    }
+  }, [detailShip])
 
   async function handleRoleChange(target: AdminUser, role: 'admin' | 'member') {
     if (target.role === role) return
@@ -333,7 +349,7 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
             {importNote && (
               <p
                 className={`form-note${
-                  /실패|못|오류|에러/.test(importNote) ? ' error' : ''
+                  /실패|못|오류|에러|중복/.test(importNote) ? ' error' : ''
                 }`}
               >
                 {importNote}
@@ -363,8 +379,19 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
                     </tr>
                   </thead>
                   <tbody>
-                    {ships.map((ship) => (
-                      <tr key={ship.id}>
+                    {ships.map((ship, index) => (
+                      <tr
+                        key={ship.id}
+                        className={`admin-row-clickable${index % 2 === 0 ? ' is-even' : ' is-odd'}`}
+                        tabIndex={0}
+                        onClick={() => setDetailShip(ship)}
+                        onKeyDown={(event: KeyboardEvent<HTMLTableRowElement>) => {
+                          if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault()
+                            setDetailShip(ship)
+                          }
+                        }}
+                      >
                         <td>{ship.name}</td>
                         <td>{ship.category || '-'}</td>
                         <td>{ship.size || '-'}</td>
@@ -388,6 +415,37 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
           </section>
         )}
       </div>
+
+      {detailShip && (
+        <div
+          className="admin-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`${detailShip.name} 상세`}
+        >
+          <button
+            type="button"
+            className="admin-modal-backdrop"
+            aria-label="닫기"
+            onClick={() => setDetailShip(null)}
+          />
+          <div className="admin-modal-panel">
+            <header className="admin-modal-head">
+              <p>선박 상세</p>
+              <button
+                type="button"
+                className="admin-btn"
+                onClick={() => setDetailShip(null)}
+              >
+                닫기
+              </button>
+            </header>
+            <div className="admin-modal-body">
+              <ShipDetailView ship={detailShip} />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

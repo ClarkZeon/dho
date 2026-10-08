@@ -102,6 +102,7 @@ export function parseShipText(text) {
     nameIdx = i
     break
   }
+  name = name.trim().replace(/\s+/g, ' ')
   if (!name) throw new Error('선박 이름을 찾지 못했습니다.')
 
   for (let i = nameIdx + 1; i < lines.length; i++) {
