@@ -242,6 +242,21 @@ export function importQuestText(token: string, text: string) {
   })
 }
 
+export function updateQuest(
+  token: string,
+  questId: number,
+  patch: { difficulty?: number | null; mapUrl?: string | null },
+) {
+  return request<{ quest: QuestDetail }>(
+    `/api/quests/${encodeURIComponent(String(questId))}`,
+    {
+      method: 'PATCH',
+      token,
+      body: patch,
+    },
+  )
+}
+
 export function fetchAdminUsers(token: string) {
   return request<{ users: AdminUser[] }>('/api/admin/users', { token })
 }

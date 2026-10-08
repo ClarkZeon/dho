@@ -182,4 +182,5 @@ export type QuestDetail = {
   chainQuests: QuestChainItem[]
   walkthrough: string | null
   progress: string | null
+  mapUrl: string | null
 }

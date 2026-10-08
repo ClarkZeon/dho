@@ -35,7 +35,9 @@ import {
 import { parseShipText } from './shipTextParse.mjs'
 import {
   ensureQuestStore,
+  getQuestById,
   listQuests,
+  updateQuestFields,
   upsertQuestFromParsed,
 } from './questStore.mjs'
 import { parseQuestText } from './questTextParse.mjs'
@@ -796,6 +798,52 @@ export async function handleRequest(req, res) {
         sendJson(res, 400, {
           error:
             err instanceof Error ? err.message : '퀘스트 텍스트 파싱에 실패했습니다.',
+        })
+      }
+      return
+    }
+
+    const questMatch = pathname.match(/^\/api\/quests\/([^/]+)$/)
+    if (questMatch && req.method === 'PATCH') {
+      const authUser = await getAuthUser(req)
+      if (!authUser) {
+        sendJson(res, 401, { error: '로그인이 필요합니다.' })
+        return
+      }
+      if (!requireAdmin(authUser, res)) return
+      const questId = Number(decodeURIComponent(questMatch[1]))
+      if (!Number.isFinite(questId)) {
+        sendJson(res, 400, { error: '잘못된 퀘스트 ID입니다.' })
+        return
+      }
+      const existing = await getQuestById(questId)
+      if (!existing) {
+        sendJson(res, 404, { error: '퀘스트를 찾을 수 없습니다.' })
+        return
+      }
+      const body = await readBody(req)
+      const patch = {}
+      if ('difficulty' in body) {
+        patch.difficulty =
+          body.difficulty === null || body.difficulty === ''
+            ? null
+            : body.difficulty
+      }
+      if ('mapUrl' in body) {
+        patch.mapUrl =
+          body.mapUrl === null || body.mapUrl === '' ? null : body.mapUrl
+      }
+      if (!('difficulty' in patch) && !('mapUrl' in patch)) {
+        sendJson(res, 400, { error: '변경할 필드가 없습니다.' })
+        return
+      }
+      try {
+        const quest = await updateQuestFields(questId, patch)
+        sendJson(res, 200, { quest })
+      } catch (err) {
+        sendJson(res, 400, {
+          error:
+            err instanceof Error ? err.message : '퀘스트 수정에 실패했습니다.',
         })
       }
       return

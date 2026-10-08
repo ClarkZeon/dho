@@ -3,6 +3,7 @@ import { getSql, hasDatabaseUrl, runSqlFile } from './db.mjs'
 export async function ensureQuestStore() {
   if (!hasDatabaseUrl()) throw new Error('DATABASE_URL 이 없습니다.')
   await runSqlFile('sql/008_quests.sql')
+  await runSqlFile('sql/009_quest_map.sql')
 }
 
 function normalizeQuestName(name) {
@@ -55,6 +56,7 @@ function decorateQuest(row) {
     chainQuests: asJsonArray(row.chain_quests),
     walkthrough: row.walkthrough == null ? null : String(row.walkthrough),
     progress: row.progress == null ? null : String(row.progress),
+    mapUrl: row.map_url == null || row.map_url === '' ? null : String(row.map_url),
   }
 }
 
@@ -72,6 +74,70 @@ export async function getQuestBySlug(slug) {
     SELECT * FROM quests WHERE slug = ${slug} AND enabled = TRUE LIMIT 1
   `
   return rows[0] ? decorateQuest(rows[0]) : null
+}
+
+export async function getQuestById(id) {
+  const sql = getSql()
+  const questId = Number(id)
+  if (!Number.isFinite(questId)) return null
+  const rows = await sql`
+    SELECT * FROM quests WHERE id = ${questId} AND enabled = TRUE LIMIT 1
+  `
+  return rows[0] ? decorateQuest(rows[0]) : null
+}
+
+/**
+ * 난이도·지도 등 부분 갱신
+ * @param {number} id
+ * @param {{ difficulty?: number | null, mapUrl?: string | null }} patch
+ */
+export async function updateQuestFields(id, patch) {
+  const sql = getSql()
+  const questId = Number(id)
+  if (!Number.isFinite(questId)) throw new Error('잘못된 퀘스트 ID입니다.')
+
+  const current = await getQuestById(questId)
+  if (!current) throw new Error('퀘스트를 찾을 수 없습니다.')
+
+  let difficulty = current.difficulty
+  if ('difficulty' in patch) {
+    if (patch.difficulty == null || patch.difficulty === '') {
+      difficulty = null
+    } else {
+      const n = Number(patch.difficulty)
+      if (!Number.isInteger(n) || n < 0 || n > 10) {
+        throw new Error('난이도는 0~10 정수여야 합니다.')
+      }
+      difficulty = n
+    }
+  }
+
+  let mapUrl = current.mapUrl
+  if ('mapUrl' in patch) {
+    if (patch.mapUrl == null || patch.mapUrl === '') {
+      mapUrl = null
+    } else {
+      const url = String(patch.mapUrl).trim()
+      if (url.length > 2_500_000) {
+        throw new Error('지도 이미지가 너무 큽니다. (약 1.5MB 이하)')
+      }
+      const ok =
+        /^https?:\/\//i.test(url) ||
+        /^data:image\/(png|jpe?g|gif|webp);base64,/i.test(url)
+      if (!ok) {
+        throw new Error('지도는 http(s) URL 또는 이미지 파일이어야 합니다.')
+      }
+      mapUrl = url
+    }
+  }
+
+  await sql`
+    UPDATE quests SET
+      difficulty = ${difficulty},
+      map_url = ${mapUrl}
+    WHERE id = ${questId}
+  `
+  return getQuestById(questId)
 }
 
 async function findQuestIdByName(sql, name) {

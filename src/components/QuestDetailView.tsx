@@ -76,6 +76,15 @@ export function QuestDetailView({ quest }: QuestDetailViewProps) {
         </div>
       </section>
 
+      {quest.mapUrl && (
+        <section className="quest-detail-section">
+          <h3>지도</h3>
+          <div className="quest-map-figure">
+            <img src={quest.mapUrl} alt={`${quest.name} 지도`} />
+          </div>
+        </section>
+      )}
+
       <section className="quest-detail-section">
         <h3>필요 스킬</h3>
         {quest.skills.length ? (
