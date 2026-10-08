@@ -1,5 +1,5 @@
 {
-  "version": 3,
+  "version": 5,
   "sizes": [
     { "id": 1, "code": "small1", "name": "소형1", "sortOrder": 10, "enabled": true },
     { "id": 2, "code": "small2", "name": "소형2", "sortOrder": 20, "enabled": true },
@@ -19,7 +19,21 @@
     { "id": 3, "code": "red_pine", "name": "붉은 소나무", "sortOrder": 30, "enabled": true },
     { "id": 4, "code": "england_admiral", "name": "잉글랜드 제독 재료", "sortOrder": 40, "enabled": true },
     { "id": 5, "code": "field_admiral", "name": "야전용 제독 재료", "sortOrder": 50, "enabled": true },
-    { "id": 6, "code": "teak", "name": "티크", "sortOrder": 60, "enabled": true }
+    { "id": 6, "code": "teak", "name": "티크", "sortOrder": 60, "enabled": true },
+    {
+      "id": 7,
+      "code": "white_moon_admiral",
+      "name": "하얀 달 특수 도장 제독 재료",
+      "sortOrder": 70,
+      "enabled": true
+    },
+    {
+      "id": 8,
+      "code": "special_doro_white_moon",
+      "name": "특별 주문 도로 목재(하얀 달)",
+      "sortOrder": 80,
+      "enabled": true
+    }
   ],
   "skills": [
     { "id": 1, "name": "강화포문" },
@@ -40,7 +54,18 @@
     { "id": 16, "name": "예항 보조" },
     { "id": 17, "name": "위장창고" },
     { "id": 18, "name": "침투방지망" },
-    { "id": 19, "name": "투망" }
+    { "id": 19, "name": "투망" },
+    { "id": 20, "name": "강화키" },
+    { "id": 21, "name": "양호실" },
+    { "id": 22, "name": "원양 선실" },
+    { "id": 23, "name": "표류물 탐색" },
+    { "id": 24, "name": "강화창고" },
+    { "id": 25, "name": "고급사치품 보관고" },
+    { "id": 26, "name": "공장제품 보관고" },
+    { "id": 27, "name": "내진창고" },
+    { "id": 28, "name": "노 젓기보조" },
+    { "id": 29, "name": "백병전 요격" },
+    { "id": 30, "name": "조타강화" }
   ],
   "ships": [
     {
@@ -282,6 +307,260 @@
       ],
       "enabled": true,
       "sortOrder": 20
+    },
+    {
+      "id": 3,
+      "slug": "gloria",
+      "name": "글로리아",
+      "category": "모험용",
+      "description": "하얀 달 특수 도장으로 마감된 고속 항해용 대형 범선.",
+      "sizeId": 6,
+      "formId": 1,
+      "materialId": 7,
+      "adventureLv": 30,
+      "tradeLv": 10,
+      "battleLv": 10,
+      "acquireType": "아이템 사용",
+      "acquireMethod": "글로리아 교환권",
+      "enhanceCount": 9,
+      "buildDays": null,
+      "durability": 1329,
+      "sailVertical": 380,
+      "sailHorizontal": 380,
+      "oar": 0,
+      "turn": 18,
+      "wave": 15,
+      "armor": 55,
+      "cabin": 200,
+      "crewRequired": 60,
+      "guns": 90,
+      "warehouse": 700,
+      "capDurability": 280,
+      "capSailVertical": 150,
+      "capSailHorizontal": 150,
+      "capOar": 0,
+      "capTurn": 25,
+      "capWave": 25,
+      "capArmor": 25,
+      "capCabin": 50,
+      "capGuns": 50,
+      "capWarehouse": 50,
+      "partAuxSail": 3,
+      "partFigurehead": 1,
+      "partEmblem": 1,
+      "partSpecial": 2,
+      "partExtraArmor": 3,
+      "partBroadside": 4,
+      "partBow": 1,
+      "partStern": 1,
+      "skills": [
+        {
+          "skillId": 20,
+          "sail": null,
+          "gunPort": null,
+          "material1": "특수 타륜",
+          "material2": "제독실"
+        },
+        {
+          "skillId": 11,
+          "sail": null,
+          "gunPort": null,
+          "material1": "기능성 할야드",
+          "material2": "마스트 톱"
+        },
+        {
+          "skillId": 13,
+          "sail": null,
+          "gunPort": "개량형 대형 포문",
+          "material1": null,
+          "material2": "사령탑"
+        },
+        {
+          "skillId": 3,
+          "sail": "대 개프세일",
+          "gunPort": null,
+          "material1": "오물방지 도장",
+          "material2": null
+        },
+        {
+          "skillId": 14,
+          "sail": null,
+          "gunPort": null,
+          "material1": "대형 마스트",
+          "material2": "수리 도구 세트"
+        },
+        {
+          "skillId": 15,
+          "sail": null,
+          "gunPort": null,
+          "material1": "철재 가공",
+          "material2": "해체 도구 세트"
+        },
+        {
+          "skillId": 21,
+          "sail": null,
+          "gunPort": null,
+          "material1": "의무실",
+          "material2": "제독실"
+        },
+        {
+          "skillId": 16,
+          "sail": null,
+          "gunPort": null,
+          "material1": "정박용 그물",
+          "material2": "이동용 그물"
+        },
+        {
+          "skillId": 22,
+          "sail": null,
+          "gunPort": null,
+          "material1": "원양 선실",
+          "material2": "특수 선창"
+        },
+        {
+          "skillId": 17,
+          "sail": null,
+          "gunPort": null,
+          "material1": "금고",
+          "material2": "특수 선창"
+        },
+        {
+          "skillId": 23,
+          "sail": null,
+          "gunPort": null,
+          "material1": "탐색용 보트",
+          "material2": "특수 선창"
+        }
+      ],
+      "enabled": true,
+      "sortOrder": 30
+    },
+    {
+      "id": 4,
+      "slug": "moonlight-longship",
+      "name": "월광 랑스킵",
+      "category": "교역용",
+      "description": "달빛과도 같은 맑은 빛을 띄며 높은 항행, 운반성능을 가진 수송용 롱쉽.",
+      "sizeId": 6,
+      "formId": 2,
+      "materialId": 8,
+      "adventureLv": 15,
+      "tradeLv": 30,
+      "battleLv": 15,
+      "acquireType": "아이템 사용",
+      "acquireMethod": "특별 주문 도로 선박 교환권 6",
+      "enhanceCount": 8,
+      "buildDays": null,
+      "durability": 932,
+      "sailVertical": 230,
+      "sailHorizontal": 304,
+      "oar": 100,
+      "turn": 14,
+      "wave": 13,
+      "armor": 40,
+      "cabin": 80,
+      "crewRequired": 40,
+      "guns": 20,
+      "warehouse": 1100,
+      "capDurability": 260,
+      "capSailVertical": 150,
+      "capSailHorizontal": 150,
+      "capOar": 25,
+      "capTurn": 24,
+      "capWave": 25,
+      "capArmor": 25,
+      "capCabin": 50,
+      "capGuns": 50,
+      "capWarehouse": 50,
+      "partAuxSail": 1,
+      "partFigurehead": 1,
+      "partEmblem": 1,
+      "partSpecial": 2,
+      "partExtraArmor": 3,
+      "partBroadside": 4,
+      "partBow": 1,
+      "partStern": 1,
+      "skills": [
+        {
+          "skillId": 24,
+          "sail": null,
+          "gunPort": null,
+          "material1": "금고",
+          "material2": "특수 선창"
+        },
+        {
+          "skillId": 25,
+          "sail": null,
+          "gunPort": null,
+          "material1": "금고",
+          "material2": "제독실"
+        },
+        {
+          "skillId": 11,
+          "sail": null,
+          "gunPort": null,
+          "material1": "기능성 돛줄",
+          "material2": "마스트 톱"
+        },
+        {
+          "skillId": 26,
+          "sail": null,
+          "gunPort": null,
+          "material1": "금고",
+          "material2": "공작실"
+        },
+        {
+          "skillId": 13,
+          "sail": null,
+          "gunPort": "개량 대형 포문",
+          "material1": null,
+          "material2": "사령탑"
+        },
+        {
+          "skillId": 27,
+          "sail": null,
+          "gunPort": null,
+          "material1": "해체도구 셋트",
+          "material2": "특수 선창"
+        },
+        {
+          "skillId": 15,
+          "sail": null,
+          "gunPort": null,
+          "material1": "철재 가공",
+          "material2": "해체도구 셋트"
+        },
+        {
+          "skillId": 28,
+          "sail": null,
+          "gunPort": null,
+          "material1": "기능성 돛줄",
+          "material2": "특수 주문 경량 노"
+        },
+        {
+          "skillId": 29,
+          "sail": null,
+          "gunPort": null,
+          "material1": "제독실",
+          "material2": "선미회랑"
+        },
+        {
+          "skillId": 21,
+          "sail": null,
+          "gunPort": null,
+          "material1": "진찰실",
+          "material2": "오물방지 도장"
+        },
+        {
+          "skillId": 30,
+          "sail": null,
+          "gunPort": null,
+          "material1": "목재 가공",
+          "material2": "기능성 돛줄"
+        }
+      ],
+      "enabled": true,
+      "sortOrder": 40
     }
   ]
 }

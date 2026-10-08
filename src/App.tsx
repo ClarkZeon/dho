@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useState,
+  type FormEvent,
+  type ReactNode,
+} from 'react'
+import { AdminForbidden, AdminPanel } from './components/AdminPanel'
 import { Dashboard } from './components/Dashboard'
 import { Toast } from './components/Toast'
 import {
@@ -15,6 +22,11 @@ import type { Session, User } from './types'
 import './App.css'
 
 type Mode = 'login' | 'signup'
+
+function isAdminPath() {
+  const path = window.location.pathname.replace(/\/+$/, '') || '/'
+  return path === '/admin'
+}
 
 function normalizeUser(
   user: Partial<User> & Pick<User, 'id' | 'username' | 'nickname' | 'createdAt'>,
@@ -173,16 +185,32 @@ function App() {
     return null
   }
 
-  return (
-    <>
-      {session ? (
-        <Dashboard
+  const adminRoute = isAdminPath()
+
+  let body: ReactNode
+  if (session && adminRoute) {
+    body =
+      session.user.role === 'admin' ? (
+        <AdminPanel
           user={session.user}
           token={session.token}
           onLogout={logout}
           onToast={showToast}
         />
       ) : (
+        <AdminForbidden />
+      )
+  } else if (session) {
+    body = (
+      <Dashboard
+        user={session.user}
+        token={session.token}
+        onLogout={logout}
+        onToast={showToast}
+      />
+    )
+  } else {
+    body = (
         <div className="login-page">
           <div className="login-atmosphere" aria-hidden="true">
             <div className="horizon" />
@@ -195,7 +223,9 @@ function App() {
             <span className="topbar-mark">
               DHO <em>Light</em>
             </span>
-            <span className="topbar-meta">빛 · 희망</span>
+            <span className="topbar-meta">
+              {adminRoute ? '관리자 로그인' : '빛 · 희망'}
+            </span>
           </header>
 
           <main className="login-stage">
@@ -206,8 +236,14 @@ function App() {
                 <span>온라인</span>
               </h1>
               <p className="brand-lead">
-                <span>선박 수치와 가속도 계산을</span>
-                <span>어디서나 바로 다루는 보조 앱</span>
+                {adminRoute ? (
+                  <span>관리자 계정으로 로그인해 주세요</span>
+                ) : (
+                  <>
+                    <span>선박 수치와 가속도 계산을</span>
+                    <span>어디서나 바로 다루는 보조 앱</span>
+                  </>
+                )}
               </p>
             </section>
 
@@ -368,7 +404,12 @@ function App() {
             </form>
           </main>
         </div>
-      )}
+    )
+  }
+
+  return (
+    <>
+      {body}
       <Toast message={toast} onClose={clearToast} />
     </>
   )

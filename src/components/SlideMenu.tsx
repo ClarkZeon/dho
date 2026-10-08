@@ -124,6 +124,11 @@ export function SlideMenu({
             <span>쪽지함</span>
             {unread > 0 && <span className="topbar-badge">{unread}</span>}
           </button>
+          {user.role === 'admin' && (
+            <a className="slide-menu-link" href="/admin">
+              관리자
+            </a>
+          )}
 
           <p className="slide-menu-label">커뮤니티</p>
           <div className={`slide-menu-group ${boardsOpen ? 'is-open' : ''}`}>

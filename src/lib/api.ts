@@ -1,4 +1,5 @@
 import type {
+  AdminUser,
   BoardPost,
   BoardSummary,
   MessageItem,
@@ -219,5 +220,41 @@ export function fetchShip(token: string, slug: string) {
   return request<{ ship: ShipDetail }>(
     `/api/ships/${encodeURIComponent(slug)}`,
     { token },
+  )
+}
+
+export function importShipText(token: string, text: string) {
+  return request<{ ship: ShipDetail }>('/api/ships/import-text', {
+    token,
+    body: { text },
+  })
+}
+
+export function fetchAdminUsers(token: string) {
+  return request<{ users: AdminUser[] }>('/api/admin/users', { token })
+}
+
+export function updateAdminUserRole(
+  token: string,
+  userId: string,
+  role: 'admin' | 'member',
+) {
+  return request<{ user: AdminUser }>(
+    `/api/admin/users/${encodeURIComponent(userId)}`,
+    {
+      method: 'PATCH',
+      token,
+      body: { role },
+    },
+  )
+}
+
+export function deleteAdminUser(token: string, userId: string) {
+  return request<{ ok: boolean }>(
+    `/api/admin/users/${encodeURIComponent(userId)}`,
+    {
+      method: 'DELETE',
+      token,
+    },
   )
 }

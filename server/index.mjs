@@ -30,7 +30,9 @@ import {
   getShipBySlug,
   listShipLookups,
   listShips,
+  upsertShipFromParsed,
 } from './shipStore.mjs'
+import { parseShipText } from './shipTextParse.mjs'
 import {
   createUser,
   deleteSessionByToken,
@@ -39,6 +41,8 @@ import {
   getUserByUsername,
   listUsers,
   createSession,
+  deleteUser,
+  getUserById,
   searchUsers,
   updateUser,
   ensureUserStore,
@@ -160,7 +164,7 @@ function sendJson(res, status, body) {
   res.writeHead(status, {
     'Content-Type': 'application/json; charset=utf-8',
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET,POST,PATCH,OPTIONS',
+    'Access-Control-Allow-Methods': 'GET,POST,PATCH,DELETE,OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
   })
   res.end(payload)
@@ -185,7 +189,21 @@ function publicUser(user) {
     xp,
     xpToNext: xpNeeded(level),
     createdAt: user.createdAt,
+    lastLoginAt: user.lastLoginAt ?? null,
   }
+}
+
+/** @param {import('./userStore.mjs').User | { role?: string }} authUser */
+function requireAdmin(authUser, res) {
+  if (!authUser) {
+    sendJson(res, 401, { error: '로그인이 필요합니다.' })
+    return false
+  }
+  if (authUser.role !== 'admin') {
+    sendJson(res, 403, { error: '관리자만 접근할 수 있습니다.' })
+    return false
+  }
+  return true
 }
 
 function getBearerToken(req) {
@@ -453,6 +471,65 @@ export async function handleRequest(req, res) {
       return
     }
 
+    if (req.method === 'GET' && pathname === '/api/admin/users') {
+      const authUser = await getAuthUser(req)
+      if (!requireAdmin(authUser, res)) return
+      const users = await listUsers()
+      sendJson(res, 200, {
+        users: users.map((u) => publicUser(u)),
+      })
+      return
+    }
+
+    const adminUserMatch = pathname.match(/^\/api\/admin\/users\/([^/]+)$/)
+    if (adminUserMatch && (req.method === 'PATCH' || req.method === 'DELETE')) {
+      const authUser = await getAuthUser(req)
+      if (!requireAdmin(authUser, res)) return
+
+      const targetId = decodeURIComponent(adminUserMatch[1])
+      const target = await getUserById(targetId)
+      if (!target) {
+        sendJson(res, 404, { error: '사용자를 찾을 수 없습니다.' })
+        return
+      }
+
+      const allUsers = await listUsers()
+      const adminCount = allUsers.filter((u) => u.role === 'admin').length
+
+      if (req.method === 'PATCH') {
+        const body = await readBody(req)
+        const nextRole = body.role === 'admin' ? 'admin' : body.role === 'member' ? 'member' : null
+        if (!nextRole) {
+          sendJson(res, 400, { error: '역할은 admin 또는 member 여야 합니다.' })
+          return
+        }
+        if (target.id === authUser.id && nextRole !== 'admin') {
+          sendJson(res, 400, { error: '자신의 관리자 권한은 해제할 수 없습니다.' })
+          return
+        }
+        if (target.role === 'admin' && nextRole === 'member' && adminCount <= 1) {
+          sendJson(res, 400, { error: '마지막 관리자의 역할은 변경할 수 없습니다.' })
+          return
+        }
+        target.role = nextRole
+        await updateUser(target)
+        sendJson(res, 200, { user: publicUser(target) })
+        return
+      }
+
+      if (target.id === authUser.id) {
+        sendJson(res, 400, { error: '자신의 계정은 삭제할 수 없습니다.' })
+        return
+      }
+      if (target.role === 'admin' && adminCount <= 1) {
+        sendJson(res, 400, { error: '마지막 관리자는 삭제할 수 없습니다.' })
+        return
+      }
+      await deleteUser(target.id)
+      sendJson(res, 200, { ok: true })
+      return
+    }
+
     if (req.method === 'GET' && pathname === '/api/messages/unread-count') {
       const authUser = await getAuthUser(req)
       if (!authUser) {
@@ -659,6 +736,27 @@ export async function handleRequest(req, res) {
         return
       }
       sendJson(res, 200, await listShipLookups())
+      return
+    }
+
+    if (req.method === 'POST' && pathname === '/api/ships/import-text') {
+      const authUser = await getAuthUser(req)
+      if (!authUser) {
+        sendJson(res, 401, { error: '로그인이 필요합니다.' })
+        return
+      }
+      if (!requireAdmin(authUser, res)) return
+      const body = await readBody(req)
+      const text = typeof body.text === 'string' ? body.text : ''
+      try {
+        const parsed = parseShipText(text)
+        const ship = await upsertShipFromParsed(parsed)
+        sendJson(res, 201, { ship })
+      } catch (err) {
+        sendJson(res, 400, {
+          error: err instanceof Error ? err.message : '선박 텍스트 파싱에 실패했습니다.',
+        })
+      }
       return
     }
 

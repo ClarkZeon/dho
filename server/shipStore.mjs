@@ -371,3 +371,206 @@ export async function reseedShipsFromBundle() {
   await runSqlFile('sql/007_ship_acquire.sql')
   await seedShipsFromBundle()
 }
+
+/**
+ * @param {string} name
+ * @param {Array<{ id: unknown, name: unknown }>} rows
+ */
+function findLookupIdByName(name, rows) {
+  if (!name) return null
+  const needle = String(name).replace(/\s+/g, '').toLowerCase()
+  const hit = rows.find(
+    (row) => String(row.name).replace(/\s+/g, '').toLowerCase() === needle,
+  )
+  return hit ? Number(hit.id) : null
+}
+
+/**
+ * @param {string} name
+ */
+async function ensureMaterialId(name) {
+  if (!name) return null
+  const sql = getSql()
+  const existing = await sql`
+    SELECT id FROM ship_materials WHERE name = ${name} LIMIT 1
+  `
+  if (existing[0]) return Number(existing[0].id)
+  const maxRows = await sql`SELECT COALESCE(MAX(id), 0) AS max_id FROM ship_materials`
+  const id = Number(maxRows[0].max_id) + 1
+  const code = `mat-${id}`
+  await sql`
+    INSERT INTO ship_materials (id, code, name, sort_order, enabled)
+    VALUES (${id}, ${code}, ${name}, ${id}, TRUE)
+  `
+  return id
+}
+
+/**
+ * @param {string} name
+ */
+async function ensureSkillId(name) {
+  const sql = getSql()
+  const existing = await sql`
+    SELECT id FROM ship_skills WHERE name = ${name} LIMIT 1
+  `
+  if (existing[0]) return Number(existing[0].id)
+  const maxRows = await sql`SELECT COALESCE(MAX(id), 0) AS max_id FROM ship_skills`
+  const id = Number(maxRows[0].max_id) + 1
+  await sql`
+    INSERT INTO ship_skills (id, name, description)
+    VALUES (${id}, ${name}, NULL)
+  `
+  return id
+}
+
+/** 텍스트 파싱 결과로 선박 upsert */
+export async function upsertShipFromParsed(parsed) {
+  const sql = getSql()
+  const { sizes, forms } = await loadLookups()
+
+  let sizeId = findLookupIdByName(parsed.sizeName, sizes)
+  let formId = findLookupIdByName(parsed.formName, forms)
+  if (!sizeId && sizes[0]) sizeId = Number(sizes[0].id)
+  if (!formId && forms[0]) formId = Number(forms[0].id)
+  if (!sizeId || !formId) {
+    throw new Error('선박 크기/형태 룩업이 없습니다. 시드를 먼저 적용하세요.')
+  }
+
+  const materialId = await ensureMaterialId(parsed.materialName)
+
+  let slug = parsed.slug
+  const bySlug = await sql`SELECT id FROM ships WHERE slug = ${slug} LIMIT 1`
+  const byName = await sql`SELECT id, slug FROM ships WHERE name = ${parsed.name} LIMIT 1`
+  let shipId = bySlug[0]
+    ? Number(bySlug[0].id)
+    : byName[0]
+      ? Number(byName[0].id)
+      : null
+
+  if (byName[0] && !bySlug[0]) {
+    slug = String(byName[0].slug)
+  }
+
+  if (!shipId) {
+    const maxRows = await sql`SELECT COALESCE(MAX(id), 0) AS max_id FROM ships`
+    shipId = Number(maxRows[0].max_id) + 1
+    // slug 충돌 시 접미사
+    let attempt = slug
+    let n = 2
+    while (true) {
+      const clash = await sql`SELECT id FROM ships WHERE slug = ${attempt} LIMIT 1`
+      if (!clash[0]) {
+        slug = attempt
+        break
+      }
+      attempt = `${parsed.slug}-${n++}`
+    }
+  }
+
+  const sortRows = await sql`SELECT COALESCE(MAX(sort_order), 0) AS max_sort FROM ships`
+  const sortOrder = shipId
+    ? (
+        await sql`SELECT sort_order FROM ships WHERE id = ${shipId} LIMIT 1`
+      )[0]?.sort_order ?? Number(sortRows[0].max_sort) + 1
+    : Number(sortRows[0].max_sort) + 1
+
+  await sql`
+    INSERT INTO ships (
+      id, slug, name, category, description, size_id, form_id, material_id,
+      adventure_lv, trade_lv, battle_lv, acquire_type, acquire_method,
+      enhance_count, build_days,
+      durability, sail_vertical, sail_horizontal, oar, turn_stat, wave_resist,
+      armor, cabin, crew_required, guns, warehouse,
+      cap_durability, cap_sail_vertical, cap_sail_horizontal, cap_oar,
+      cap_turn, cap_wave, cap_armor, cap_cabin, cap_guns, cap_warehouse,
+      part_aux_sail, part_figurehead, part_emblem, part_special,
+      part_extra_armor, part_broadside, part_bow, part_stern,
+      enabled, sort_order
+    ) VALUES (
+      ${shipId}, ${slug}, ${parsed.name}, ${parsed.category},
+      ${parsed.description}, ${sizeId}, ${formId}, ${materialId},
+      ${parsed.adventureLv}, ${parsed.tradeLv}, ${parsed.battleLv},
+      ${parsed.acquireType}, ${parsed.acquireMethod},
+      ${parsed.enhanceCount}, ${parsed.buildDays},
+      ${parsed.durability}, ${parsed.sailVertical}, ${parsed.sailHorizontal},
+      ${parsed.oar}, ${parsed.turn}, ${parsed.wave}, ${parsed.armor},
+      ${parsed.cabin}, ${parsed.crewRequired}, ${parsed.guns}, ${parsed.warehouse},
+      ${parsed.caps.durability}, ${parsed.caps.sailVertical},
+      ${parsed.caps.sailHorizontal}, ${parsed.caps.oar},
+      ${parsed.caps.turn}, ${parsed.caps.wave}, ${parsed.caps.armor},
+      ${parsed.caps.cabin}, ${parsed.caps.guns}, ${parsed.caps.warehouse},
+      ${parsed.parts.auxSail}, ${parsed.parts.figurehead},
+      ${parsed.parts.emblem}, ${parsed.parts.special},
+      ${parsed.parts.extraArmor}, ${parsed.parts.broadside},
+      ${parsed.parts.bow}, ${parsed.parts.stern},
+      TRUE, ${sortOrder}
+    )
+    ON CONFLICT (id) DO UPDATE SET
+      slug = EXCLUDED.slug,
+      name = EXCLUDED.name,
+      category = EXCLUDED.category,
+      description = EXCLUDED.description,
+      size_id = EXCLUDED.size_id,
+      form_id = EXCLUDED.form_id,
+      material_id = EXCLUDED.material_id,
+      adventure_lv = EXCLUDED.adventure_lv,
+      trade_lv = EXCLUDED.trade_lv,
+      battle_lv = EXCLUDED.battle_lv,
+      acquire_type = EXCLUDED.acquire_type,
+      acquire_method = EXCLUDED.acquire_method,
+      enhance_count = EXCLUDED.enhance_count,
+      build_days = EXCLUDED.build_days,
+      durability = EXCLUDED.durability,
+      sail_vertical = EXCLUDED.sail_vertical,
+      sail_horizontal = EXCLUDED.sail_horizontal,
+      oar = EXCLUDED.oar,
+      turn_stat = EXCLUDED.turn_stat,
+      wave_resist = EXCLUDED.wave_resist,
+      armor = EXCLUDED.armor,
+      cabin = EXCLUDED.cabin,
+      crew_required = EXCLUDED.crew_required,
+      guns = EXCLUDED.guns,
+      warehouse = EXCLUDED.warehouse,
+      cap_durability = EXCLUDED.cap_durability,
+      cap_sail_vertical = EXCLUDED.cap_sail_vertical,
+      cap_sail_horizontal = EXCLUDED.cap_sail_horizontal,
+      cap_oar = EXCLUDED.cap_oar,
+      cap_turn = EXCLUDED.cap_turn,
+      cap_wave = EXCLUDED.cap_wave,
+      cap_armor = EXCLUDED.cap_armor,
+      cap_cabin = EXCLUDED.cap_cabin,
+      cap_guns = EXCLUDED.cap_guns,
+      cap_warehouse = EXCLUDED.cap_warehouse,
+      part_aux_sail = EXCLUDED.part_aux_sail,
+      part_figurehead = EXCLUDED.part_figurehead,
+      part_emblem = EXCLUDED.part_emblem,
+      part_special = EXCLUDED.part_special,
+      part_extra_armor = EXCLUDED.part_extra_armor,
+      part_broadside = EXCLUDED.part_broadside,
+      part_bow = EXCLUDED.part_bow,
+      part_stern = EXCLUDED.part_stern,
+      enabled = TRUE
+  `
+
+  await sql`DELETE FROM ship_skill_links WHERE ship_id = ${shipId}`
+  for (const [sortIdx, skill] of (parsed.skills || []).entries()) {
+    if (!skill?.name) continue
+    const skillId = await ensureSkillId(skill.name)
+    await sql`
+      INSERT INTO ship_skill_links (
+        ship_id, skill_id, sort_order, sail, gun_port, material1, material2
+      ) VALUES (
+        ${shipId}, ${skillId}, ${sortIdx},
+        ${skill.sail}, ${skill.gunPort}, ${skill.material1}, ${skill.material2}
+      )
+      ON CONFLICT (ship_id, skill_id) DO UPDATE SET
+        sort_order = EXCLUDED.sort_order,
+        sail = EXCLUDED.sail,
+        gun_port = EXCLUDED.gun_port,
+        material1 = EXCLUDED.material1,
+        material2 = EXCLUDED.material2
+    `
+  }
+
+  return getShipBySlug(slug)
+}

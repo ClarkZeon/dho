@@ -7,6 +7,19 @@ export type User = {
   xp: number
   xpToNext: number
   createdAt: string
+  lastLoginAt?: string | null
+}
+
+export type AdminUser = {
+  id: string
+  username: string
+  nickname: string
+  role: 'admin' | 'member'
+  level: number
+  xp: number
+  xpToNext: number
+  createdAt: string
+  lastLoginAt: string | null
 }
 
 export type Session = {

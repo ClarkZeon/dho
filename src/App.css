@@ -260,6 +260,7 @@
 }
 
 .slide-menu-nav > button,
+.slide-menu-nav > a.slide-menu-link,
 .slide-menu-parent,
 .slide-menu-sub > button {
   display: flex;
@@ -279,9 +280,15 @@
 }
 
 .slide-menu-nav > button:hover,
+.slide-menu-nav > a.slide-menu-link:hover,
 .slide-menu-parent:hover,
 .slide-menu-sub > button:hover {
   background: var(--is-light);
+}
+
+.slide-menu-nav > a.slide-menu-link {
+  text-decoration: none;
+  box-sizing: border-box;
 }
 
 .slide-menu-nav > button.active,
@@ -1485,6 +1492,10 @@
   background: rgba(28, 109, 201, 0.06);
 }
 
+.ship-import-form {
+  margin-bottom: 1.25rem;
+}
+
 .messages-tabs {
   display: flex;
   gap: 0.4rem;
@@ -2118,4 +2129,151 @@
   .login-form {
     padding-inline: 0.95rem;
   }
+}
+
+/* Admin */
+.admin-page {
+  min-height: 100vh;
+  background:
+    radial-gradient(ellipse 80% 50% at 10% -10%, rgba(28, 109, 201, 0.08), transparent),
+    var(--is-light);
+  color: var(--is-dark);
+}
+
+.admin-topbar {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  padding: 1.1rem 1.25rem;
+  border-bottom: 1px solid var(--is-grey-lighter);
+  background: var(--is-white);
+}
+
+.admin-brand {
+  margin: 0;
+  font-family: var(--font-brand);
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--is-blue);
+}
+
+.admin-brand em {
+  font-style: normal;
+  color: var(--is-dark);
+}
+
+.admin-user {
+  margin: 0.25rem 0 0;
+  font-size: 0.85rem;
+  color: var(--is-grey);
+}
+
+.admin-topbar-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.admin-topbar-actions a.messages-write-btn {
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+}
+
+.admin-main {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 1.25rem;
+}
+
+.admin-section {
+  display: grid;
+  gap: 1rem;
+}
+
+.admin-section > h1 {
+  margin: 0 0 0.35rem;
+  font-family: var(--font-brand);
+  font-size: clamp(1.4rem, 3.5vw, 1.8rem);
+  color: var(--is-blue);
+}
+
+.admin-forbidden .admin-section {
+  padding: 2rem 1rem;
+  text-align: center;
+}
+
+.admin-forbidden .admin-section a.messages-write-btn {
+  justify-self: center;
+  text-decoration: none;
+  display: inline-flex;
+  margin-top: 0.5rem;
+}
+
+.admin-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--is-grey-lighter);
+  border-radius: 12px;
+  background: var(--is-white);
+}
+
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.admin-table th,
+.admin-table td {
+  padding: 0.75rem 0.85rem;
+  text-align: left;
+  border-bottom: 1px solid var(--is-grey-lighter);
+  white-space: nowrap;
+}
+
+.admin-table th {
+  font-size: 0.8rem;
+  color: var(--is-grey);
+  background: var(--is-light);
+}
+
+.admin-table tr:last-child td {
+  border-bottom: 0;
+}
+
+.admin-table select {
+  border: 1px solid var(--is-grey-lighter);
+  border-radius: 6px;
+  background: var(--is-white);
+  padding: 0.35rem 0.5rem;
+  font: inherit;
+  color: var(--is-dark);
+}
+
+.admin-table select:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.admin-danger-btn {
+  border: 1px solid #c45c5c;
+  border-radius: 6px;
+  background: var(--is-white);
+  color: #b33;
+  font-size: 0.82rem;
+  font-weight: 700;
+  padding: 0.35rem 0.65rem;
+  cursor: pointer;
+}
+
+.admin-danger-btn:hover:not(:disabled) {
+  background: rgba(179, 51, 51, 0.06);
+}
+
+.admin-danger-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }

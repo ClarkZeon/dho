@@ -220,6 +220,19 @@ export async function deleteSessionByToken(token) {
   await sql`DELETE FROM sessions WHERE token = ${token}`
 }
 
+/** @param {string} userId */
+export async function deleteSessionsByUserId(userId) {
+  const sql = getSql()
+  await sql`DELETE FROM sessions WHERE user_id = ${userId}`
+}
+
+/** @param {string} userId */
+export async function deleteUser(userId) {
+  const sql = getSql()
+  await deleteSessionsByUserId(userId)
+  await sql`DELETE FROM users WHERE id = ${userId}`
+}
+
 /** @param {string} token */
 export async function getAuthUserByToken(token) {
   const sql = getSql()
