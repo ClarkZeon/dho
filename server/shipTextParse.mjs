@@ -2,13 +2,17 @@
  * 위키형 선박 텍스트 → DB용 객체
  */
 
+import { createHash } from 'node:crypto'
+
+/** URL/프록시 안전한 ASCII slug (한글명은 name 필드에 유지) */
 function slugify(name) {
-  const base = String(name)
-    .trim()
-    .toLowerCase()
-    .replace(/[^\w가-힣]+/g, '-')
+  const normalized = String(name).trim().toLowerCase()
+  const ascii = normalized
+    .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
-  return base || `ship-${Date.now()}`
+  if (ascii && ascii.length >= 2) return ascii
+  const hash = createHash('sha1').update(normalized).digest('hex').slice(0, 10)
+  return `ship-${hash}`
 }
 
 function toNum(value) {

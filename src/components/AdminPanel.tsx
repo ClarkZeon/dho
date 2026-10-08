@@ -145,40 +145,47 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
   return (
     <div className="admin-shell">
       <aside className="admin-sidebar">
+        <div className="admin-sidebar-glow" aria-hidden="true" />
+
         <div className="admin-sidebar-brand">
           <p className="admin-sidebar-mark">
             DHO <em>Light</em>
           </p>
-          <p className="admin-sidebar-sub">ADMIN</p>
+          <p className="admin-sidebar-sub">관리자 콘솔</p>
         </div>
 
         <nav className="admin-sidebar-nav" aria-label="관리 메뉴">
-          <p className="admin-sidebar-label">관리</p>
+          <p className="admin-sidebar-label">메뉴</p>
           <button
             type="button"
             className={nav === 'users' ? 'active' : ''}
             onClick={() => setNav('users')}
           >
-            회원 리스트
+            <span className="admin-nav-index">01</span>
+            <span className="admin-nav-text">회원 리스트</span>
           </button>
           <button
             type="button"
             className={nav === 'ships' ? 'active' : ''}
             onClick={() => setNav('ships')}
           >
-            선박 리스트
+            <span className="admin-nav-index">02</span>
+            <span className="admin-nav-text">선박 리스트</span>
           </button>
         </nav>
 
         <div className="admin-sidebar-foot">
-          <p className="admin-sidebar-who">
-            {user.nickname}
+          <div className="admin-sidebar-who">
+            <span className="admin-sidebar-who-label">접속 중</span>
+            <strong>{user.nickname}</strong>
             <span>{user.username}</span>
-          </p>
-          <a href="/">사이트로</a>
-          <button type="button" onClick={onLogout}>
-            로그아웃
-          </button>
+          </div>
+          <div className="admin-sidebar-foot-actions">
+            <a href="/">사이트로</a>
+            <button type="button" onClick={onLogout}>
+              로그아웃
+            </button>
+          </div>
         </div>
       </aside>
 
@@ -351,7 +358,8 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
                       <th>크기</th>
                       <th>형태</th>
                       <th>레벨</th>
-                      <th>획득</th>
+                      <th>획득 구분</th>
+                      <th>획득 방법</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -364,12 +372,13 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
                         <td>
                           모{ship.adventureLv}/교{ship.tradeLv}/전{ship.battleLv}
                         </td>
-                        <td>{ship.acquireType || ship.acquireMethod || '-'}</td>
+                        <td>{ship.acquireType || '-'}</td>
+                        <td>{ship.acquireMethod || '-'}</td>
                       </tr>
                     ))}
                     {ships.length === 0 && (
                       <tr>
-                        <td colSpan={6}>등록된 선박이 없습니다.</td>
+                        <td colSpan={7}>등록된 선박이 없습니다.</td>
                       </tr>
                     )}
                   </tbody>

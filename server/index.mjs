@@ -921,7 +921,7 @@ export async function handleRequest(req, res) {
       return
     }
 
-    sendJson(res, 404, { error: 'Not found' })
+    sendJson(res, 404, { error: `요청한 API를 찾을 수 없습니다. (${req.method} ${pathname})` })
   } catch (error) {
     console.error(error)
     sendJson(res, 500, { error: '서버 오류가 발생했습니다.' })
