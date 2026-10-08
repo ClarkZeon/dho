@@ -24,6 +24,70 @@ function splitTabs(line) {
   return line.split('\t').map((s) => s.trim())
 }
 
+/**
+ * 탭/공백 혼용 위키 줄에서 라벨 다음 값을 뽑음.
+ * 예: "크로노 퀘스트\t기원전\t의뢰 장소\t아덴, …"
+ *     "목적지 홍해 서쪽 해안 발견물 [화석] 3 …"
+ */
+function pickLabeledValue(line, labelRe, nextLabelRes = []) {
+  const next =
+    nextLabelRes.length > 0
+      ? nextLabelRes.map((re) => re.source).join('|')
+      : null
+  const re = new RegExp(
+    `(?:^|[\\t\\s])(?:${labelRe.source})[\\t\\s:：]+(.+?)(?=${
+      next ? `[\\t\\s]+(?:${next})(?:[\\t\\s:：]|$)` : '$'
+    }|$)`,
+    'u',
+  )
+  const m = String(line || '').match(re)
+  return m ? m[1].trim() : null
+}
+
+function applyQuestMetaLabels(line, state) {
+  const places = pickLabeledValue(line, /의뢰\s*장소/, [
+    /목적지/,
+    /발견물/,
+    /크로노\s*퀘스트/,
+    /난이도/,
+  ])
+  if (places) state.requestPlaces = places
+
+  const dest = pickLabeledValue(line, /목적지/, [
+    /발견물/,
+    /의뢰\s*장소/,
+    /크로노\s*퀘스트/,
+  ])
+  if (dest) state.destination = dest
+
+  const chrono = pickLabeledValue(line, /크로노\s*퀘스트/, [
+    /의뢰\s*장소/,
+    /목적지/,
+    /발견물/,
+  ])
+  if (chrono) {
+    state.questType = state.questType
+      ? `${state.questType} · ${chrono}`
+      : chrono
+  }
+
+  const disc = pickLabeledValue(line, /발견물/, [
+    /목적지/,
+    /의뢰\s*장소/,
+    /크로노\s*퀘스트/,
+  ])
+  if (disc) {
+    const m = disc.match(/\[([^\]]+)\]\s*(\d+)\s*(.+)/)
+    if (m) {
+      state.discoveryCategory = m[1].trim()
+      state.discoveryRank = Number(m[2])
+      state.discoveryName = m[3].trim()
+    } else {
+      state.discoveryName = disc
+    }
+  }
+}
+
 function parseSkillList(text) {
   // 생태 조사 1, 생물학 3, 스와힐리어 1
   return String(text || '')
@@ -265,25 +329,31 @@ export function parseQuestText(text) {
       continue
     }
 
-    if (/^의뢰\s*장소/.test(line)) {
-      const cols = splitTabs(line)
-      requestPlaces = cols[1] || null
-      const destIdx = cols.findIndex((c) => c === '목적지')
-      if (destIdx >= 0) destination = cols[destIdx + 1] || null
-      continue
-    }
-
-    if (/^발견물/.test(line)) {
-      const cols = splitTabs(line)
-      const disc = cols[1] || ''
-      const m = disc.match(/\[([^\]]+)\]\s*(\d+)\s*(.+)/)
-      if (m) {
-        discoveryCategory = m[1].trim()
-        discoveryRank = Number(m[2])
-        discoveryName = m[3].trim()
-      } else if (disc) {
-        discoveryName = disc
+    // 일반: 의뢰 장소 … 목적지 …
+    // 크로노: 크로노 퀘스트 … 의뢰 장소 …
+    //         목적지 … 발견물 …
+    if (
+      mode === 'meta' &&
+      (/의뢰\s*장소/.test(line) ||
+        /목적지/.test(line) ||
+        /발견물/.test(line) ||
+        /크로노\s*퀘스트/.test(line))
+    ) {
+      const meta = {
+        requestPlaces,
+        destination,
+        questType,
+        discoveryCategory,
+        discoveryRank,
+        discoveryName,
       }
+      applyQuestMetaLabels(line, meta)
+      requestPlaces = meta.requestPlaces
+      destination = meta.destination
+      questType = meta.questType
+      discoveryCategory = meta.discoveryCategory
+      discoveryRank = meta.discoveryRank
+      discoveryName = meta.discoveryName
       continue
     }
 
@@ -383,16 +453,6 @@ export function parseQuestText(text) {
         continue
       }
       chainQuests.push(parseChainLine(line))
-      if (difficulty == null && chainQuests[0]?.difficulty != null) {
-        const first = chainQuests[0]
-        if (
-          first.name === name ||
-          String(first.name || '').includes(name) ||
-          name.includes(String(first.name || ''))
-        ) {
-          difficulty = first.difficulty
-        }
-      }
       continue
     }
 
