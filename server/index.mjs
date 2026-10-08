@@ -170,6 +170,7 @@ function sendJson(res, status, body) {
   const payload = JSON.stringify(body)
   res.writeHead(status, {
     'Content-Type': 'application/json; charset=utf-8',
+    'X-Robots-Tag': 'noindex, nofollow, noarchive, nosnippet, noimageindex',
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET,POST,PATCH,DELETE,OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',

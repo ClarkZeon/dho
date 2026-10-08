@@ -6,9 +6,23 @@
       "includeFiles": "server/**"
     }
   },
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow, noarchive, nosnippet, noimageindex"
+        }
+      ]
+    }
+  ],
   "rewrites": [
     { "source": "/api", "destination": "/api?__p=/api" },
     { "source": "/api/(.*)", "destination": "/api?__p=/api/$1" },
-    { "source": "/((?!api/).*)", "destination": "/index.html" }
+    {
+      "source": "/((?!api/|robots\\.txt|favicon\\.svg|icons\\.svg).*)",
+      "destination": "/index.html"
+    }
   ]
 }
