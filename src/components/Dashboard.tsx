@@ -359,7 +359,7 @@ export function Dashboard({ user, token, onLogout, onToast }: DashboardProps) {
         )}
 
         {view.name === 'ship-accel' && (
-          <ShipAccel onBack={() => navigate({ name: 'home' })} />
+          <ShipAccel token={token} onBack={() => navigate({ name: 'home' })} />
         )}
 
         {view.name === 'ship-compare' && (

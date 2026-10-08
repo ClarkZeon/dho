@@ -7,7 +7,7 @@ export type AccelInput = {
   adventurer: boolean
   rapidAccel: boolean
   seaSurvey: boolean
-  accelGrade: 0 | 1 | 2 | 3
+  accelGrade: 0 | 1 | 2
   gradeWithExtraArmor: boolean
   coal: boolean
 }
@@ -39,7 +39,7 @@ export function calcX(
 export function calcZ(
   form: AccelShipForm,
   seaSurvey: boolean,
-  accelGrade: 0 | 1 | 2 | 3,
+  accelGrade: 0 | 1 | 2,
   gradeWithExtraArmor: boolean,
 ): number {
   if (form === 'steam') return 0

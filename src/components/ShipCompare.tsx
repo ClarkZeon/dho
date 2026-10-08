@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { fetchShips } from '../lib/api'
 import type { ShipDetail } from '../types'
+import { ShipSearchSelect } from './ShipSearchSelect'
 
 type ShipCompareProps = {
   token: string
@@ -98,21 +99,18 @@ function ShipPick({
   onChange: (slug: string) => void
 }) {
   return (
-    <label className="ship-pick">
-      <span className="ship-pick-label">{label}</span>
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        aria-label={label}
-      >
-        <option value="">선박 선택</option>
-        {ships.map((ship) => (
-          <option key={ship.slug} value={ship.slug} disabled={ship.slug === otherId}>
-            {ship.name}
-          </option>
-        ))}
-      </select>
-    </label>
+    <ShipSearchSelect
+      label={label}
+      value={value}
+      onChange={onChange}
+      placeholder="선박 이름 검색…"
+      options={ships.map((ship) => ({
+        value: ship.slug,
+        label: ship.name,
+        meta: [ship.size, ship.form].filter(Boolean).join(' · '),
+        disabled: ship.slug === otherId,
+      }))}
+    />
   )
 }
 

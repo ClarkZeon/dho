@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { fetchShip, fetchShips } from '../lib/api'
 import type { ShipDetail } from '../types'
+import { ShipSearchSelect } from './ShipSearchSelect'
 
 type ShipInfoProps = {
   token: string
@@ -94,21 +95,19 @@ export function ShipInfo({ token, onBack }: ShipInfoProps) {
         </div>
       </div>
 
-      <label className="ship-pick">
-        <span className="ship-pick-label">선박</span>
-        <select
-          value={slug}
-          disabled={loading || ships.length === 0}
-          onChange={(e) => setSlug(e.target.value)}
-        >
-          {ships.length === 0 && <option value="">선박 없음</option>}
-          {ships.map((item) => (
-            <option key={item.slug} value={item.slug}>
-              {item.name}
-            </option>
-          ))}
-        </select>
-      </label>
+      <ShipSearchSelect
+        label="선박"
+        value={slug}
+        disabled={loading || ships.length === 0}
+        placeholder="선박 이름 검색…"
+        emptyText={ships.length === 0 ? '선박 없음' : '검색 결과 없음'}
+        options={ships.map((item) => ({
+          value: item.slug,
+          label: item.name,
+          meta: [item.size, item.form].filter(Boolean).join(' · '),
+        }))}
+        onChange={setSlug}
+      />
 
       {error && (
         <p className="form-note error" role="alert">
