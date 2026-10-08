@@ -3,6 +3,8 @@ import { fetchBoards, fetchUnreadCount } from '../lib/api'
 import type { BoardSummary, User } from '../types'
 import { BoardView } from './BoardView'
 import { Messages } from './Messages'
+import { PortCatalog } from './PortCatalog'
+import { QuestCatalog } from './QuestCatalog'
 import { ShipAccel } from './ShipAccel'
 import { ShipCompare } from './ShipCompare'
 import { ShipInfo } from './ShipInfo'
@@ -15,6 +17,8 @@ type View =
   | { name: 'ship-info' }
   | { name: 'ship-accel' }
   | { name: 'ship-compare' }
+  | { name: 'quests' }
+  | { name: 'ports' }
 
 type DashboardProps = {
   user: User
@@ -34,6 +38,10 @@ function viewToHash(view: View): string {
       return '#/ship-accel'
     case 'ship-compare':
       return '#/ship-compare'
+    case 'quests':
+      return '#/quests'
+    case 'ports':
+      return '#/ports'
     case 'board':
       return view.postId
         ? `#/board/${encodeURIComponent(view.boardId)}/${encodeURIComponent(view.postId)}`
@@ -66,6 +74,8 @@ function hashToView(hash: string): View {
   if (parts[0] === 'ship-info') return { name: 'ship-info' }
   if (parts[0] === 'ship-accel') return { name: 'ship-accel' }
   if (parts[0] === 'ship-compare') return { name: 'ship-compare' }
+  if (parts[0] === 'quests') return { name: 'quests' }
+  if (parts[0] === 'ports') return { name: 'ports' }
   if (parts[0] === 'board' && parts[1]) {
     return {
       name: 'board',
@@ -146,6 +156,8 @@ function toMenuTarget(view: View): MenuTarget {
   if (view.name === 'ship-info') return { name: 'ship-info' }
   if (view.name === 'ship-accel') return { name: 'ship-accel' }
   if (view.name === 'ship-compare') return { name: 'ship-compare' }
+  if (view.name === 'quests') return { name: 'quests' }
+  if (view.name === 'ports') return { name: 'ports' }
   return { name: 'home' }
 }
 
@@ -241,6 +253,14 @@ export function Dashboard({ user, token, onLogout, onToast }: DashboardProps) {
     }
     if (target.name === 'ship-compare') {
       go({ name: 'ship-compare' })
+      return
+    }
+    if (target.name === 'quests') {
+      go({ name: 'quests' })
+      return
+    }
+    if (target.name === 'ports') {
+      go({ name: 'ports' })
       return
     }
     go({ name: 'board', boardId: target.boardId })
@@ -383,6 +403,10 @@ export function Dashboard({ user, token, onLogout, onToast }: DashboardProps) {
         {view.name === 'ship-accel' && <ShipAccel token={token} />}
 
         {view.name === 'ship-compare' && <ShipCompare token={token} />}
+
+        {view.name === 'quests' && <QuestCatalog token={token} />}
+
+        {view.name === 'ports' && <PortCatalog token={token} />}
 
       </main>
     </div>

@@ -2641,6 +2641,30 @@
   padding: 0.28rem 0.65rem;
 }
 
+.discovery-quest-link {
+  appearance: none;
+  border: 0;
+  background: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  font-weight: inherit;
+  color: var(--is-blue);
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+  cursor: pointer;
+  text-align: left;
+}
+
+.discovery-quest-link:hover {
+  color: #0f4f96;
+}
+
+.discovery-quest-link.is-static {
+  cursor: default;
+  text-decoration: none;
+}
+
 .quest-stars {
   display: inline-flex;
   align-items: center;

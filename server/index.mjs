@@ -48,6 +48,13 @@ import {
 } from './portStore.mjs'
 import { parsePortText } from './portTextParse.mjs'
 import {
+  ensureDiscoveryStore,
+  listDiscoveries,
+  listDiscoveryCategoryTree,
+  upsertDiscoveryFromParsed,
+} from './discoveryStore.mjs'
+import { parseDiscoveryText } from './discoveryTextParse.mjs'
+import {
   createUser,
   deleteSessionByToken,
   getAuthUserByToken,
@@ -106,6 +113,7 @@ async function ensureStore() {
   await ensureShipStore()
   await ensureQuestStore()
   await ensurePortStore()
+  await ensureDiscoveryStore()
 }
 
 function requireAuthDb(res) {
@@ -840,6 +848,52 @@ export async function handleRequest(req, res) {
             err instanceof Error
               ? err.message
               : '항구(도시) 텍스트 파싱에 실패했습니다.',
+        })
+      }
+      return
+    }
+
+    if (req.method === 'GET' && pathname === '/api/discoveries') {
+      const authUser = await getAuthUser(req)
+      if (!authUser) {
+        sendJson(res, 401, { error: '로그인이 필요합니다.' })
+        return
+      }
+      const discoveries = await listDiscoveries()
+      sendJson(res, 200, { discoveries })
+      return
+    }
+
+    if (req.method === 'GET' && pathname === '/api/discovery-categories') {
+      const authUser = await getAuthUser(req)
+      if (!authUser) {
+        sendJson(res, 401, { error: '로그인이 필요합니다.' })
+        return
+      }
+      const groups = await listDiscoveryCategoryTree()
+      sendJson(res, 200, { groups })
+      return
+    }
+
+    if (req.method === 'POST' && pathname === '/api/discoveries/import-text') {
+      const authUser = await getAuthUser(req)
+      if (!authUser) {
+        sendJson(res, 401, { error: '로그인이 필요합니다.' })
+        return
+      }
+      if (!requireAdmin(authUser, res)) return
+      const body = await readBody(req)
+      const text = typeof body.text === 'string' ? body.text : ''
+      try {
+        const parsed = parseDiscoveryText(text)
+        const discovery = await upsertDiscoveryFromParsed(parsed)
+        sendJson(res, 201, { discovery })
+      } catch (err) {
+        sendJson(res, 400, {
+          error:
+            err instanceof Error
+              ? err.message
+              : '발견물 텍스트 파싱에 실패했습니다.',
         })
       }
       return

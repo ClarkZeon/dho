@@ -3,6 +3,8 @@ import type {
   BoardPost,
   BoardSummary,
   MessageItem,
+  DiscoveryCategoryGroup,
+  DiscoveryDetail,
   PortDetail,
   QuestDetail,
   Session,
@@ -267,6 +269,29 @@ export function importPortText(token: string, text: string) {
     token,
     body: { text },
   })
+}
+
+export function fetchDiscoveries(token: string) {
+  return request<{ discoveries: DiscoveryDetail[] }>('/api/discoveries', {
+    token,
+  })
+}
+
+export function fetchDiscoveryCategories(token: string) {
+  return request<{ groups: DiscoveryCategoryGroup[] }>(
+    '/api/discovery-categories',
+    { token },
+  )
+}
+
+export function importDiscoveryText(token: string, text: string) {
+  return request<{ discovery: DiscoveryDetail }>(
+    '/api/discoveries/import-text',
+    {
+      token,
+      body: { text },
+    },
+  )
 }
 
 export function fetchAdminUsers(token: string) {

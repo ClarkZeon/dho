@@ -77,11 +77,14 @@ function applyQuestMetaLabels(line, state) {
     /크로노\s*퀘스트/,
   ])
   if (disc) {
-    const m = disc.match(/\[([^\]]+)\]\s*(\d+)\s*(.+)/)
+    // [대형생물] 5성 비단뱀  /  [화석] 3 목이 긴 …
+    const withSeong = disc.match(/\[([^\]]+)\]\s*(\d+)\s*성\s+(.+)/)
+    const plain = disc.match(/\[([^\]]+)\]\s*(\d+)\s+(.+)/)
+    const m = withSeong || plain
     if (m) {
       state.discoveryCategory = m[1].trim()
       state.discoveryRank = Number(m[2])
-      state.discoveryName = m[3].trim()
+      state.discoveryName = m[3].replace(/^성\s+/, '').trim()
     } else {
       state.discoveryName = disc
     }

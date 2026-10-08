@@ -214,3 +214,59 @@ export type PortDetail = {
   rewards: PortReward[]
   collectItems: PortCollectItem[]
 }
+
+export type DiscoveryCategory = {
+  id: number
+  code: string
+  name: string
+  sortOrder: number
+}
+
+export type DiscoveryCategoryGroup = {
+  id: number
+  code: string
+  name: string
+  sortOrder: number
+  categories: DiscoveryCategory[]
+}
+
+export type DiscoveryQuestRef = {
+  id: number
+  slug: string
+  name: string
+}
+
+export type DiscoveryLinkedQuest = {
+  tag: string | null
+  title: string
+  raw: string
+  quest: DiscoveryQuestRef | null
+}
+
+export type DiscoveryDebateCombo = {
+  effect: string | null
+  comboName: string | null
+  cards: string[]
+}
+
+export type DiscoveryDetail = {
+  id: number
+  slug: string
+  name: string
+  description: string | null
+  category: string | null
+  categoryGroup: string | null
+  categoryId: number | null
+  rank: number | null
+  cardPoints: number | null
+  discoveryExp: number | null
+  cardExp: number | null
+  reportFame: number | null
+  skills: QuestSkillReq[]
+  acquireType: string | null
+  acquireName: string | null
+  place: string | null
+  linkedQuests: DiscoveryLinkedQuest[]
+  debateCombo: DiscoveryDebateCombo | null
+  acquireQuest: DiscoveryQuestRef | null
+}

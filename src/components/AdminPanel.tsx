@@ -2,21 +2,33 @@ import { useCallback, useEffect, useState, type FormEvent, type KeyboardEvent } 
 import {
   deleteAdminUser,
   fetchAdminUsers,
+  fetchDiscoveries,
   fetchPorts,
   fetchQuests,
   fetchShips,
+  importDiscoveryText,
   importPortText,
   importQuestText,
   importShipText,
   updateAdminUserRole,
   updateQuest,
 } from '../lib/api'
-import type { AdminUser, PortDetail, QuestDetail, ShipDetail, User } from '../types'
+import type {
+  AdminUser,
+  DiscoveryDetail,
+  DiscoveryQuestRef,
+  PortDetail,
+  QuestDetail,
+  ShipDetail,
+  User,
+} from '../types'
+import { DetailModal } from './DetailModal'
+import { DiscoveryDetailView } from './DiscoveryDetailView'
 import { PortDetailView } from './PortDetailView'
 import { QuestDetailView } from './QuestDetailView'
 import { ShipDetailView } from './ShipDetailView'
 
-type AdminNav = 'users' | 'ships' | 'quests' | 'ports'
+type AdminNav = 'users' | 'ships' | 'quests' | 'ports' | 'discoveries'
 
 type AdminPanelProps = {
   user: User
@@ -74,6 +86,16 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
   const [importingPort, setImportingPort] = useState(false)
   const [portImportNote, setPortImportNote] = useState('')
   const [detailPort, setDetailPort] = useState<PortDetail | null>(null)
+
+  const [discoveries, setDiscoveries] = useState<DiscoveryDetail[]>([])
+  const [loadingDiscoveries, setLoadingDiscoveries] = useState(false)
+  const [discoveriesError, setDiscoveriesError] = useState('')
+  const [showDiscoveryImport, setShowDiscoveryImport] = useState(false)
+  const [discoveryImportText, setDiscoveryImportText] = useState('')
+  const [importingDiscovery, setImportingDiscovery] = useState(false)
+  const [discoveryImportNote, setDiscoveryImportNote] = useState('')
+  const [detailDiscovery, setDetailDiscovery] =
+    useState<DiscoveryDetail | null>(null)
 
   const loadUsers = useCallback(async () => {
     setLoadingUsers(true)
@@ -137,32 +159,52 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
     }
   }, [token])
 
+  const loadDiscoveries = useCallback(async () => {
+    setLoadingDiscoveries(true)
+    setDiscoveriesError('')
+    try {
+      const res = await fetchDiscoveries(token)
+      setDiscoveries(res.discoveries)
+    } catch (err) {
+      setDiscoveriesError(
+        err instanceof Error
+          ? err.message
+          : '발견물 목록을 불러오지 못했습니다.',
+      )
+    } finally {
+      setLoadingDiscoveries(false)
+    }
+  }, [token])
+
   useEffect(() => {
     if (nav === 'users') void loadUsers()
     if (nav === 'ships') void loadShips()
     if (nav === 'quests') void loadQuests()
     if (nav === 'ports') void loadPorts()
-  }, [nav, loadUsers, loadShips, loadQuests, loadPorts])
+    if (nav === 'discoveries') {
+      void loadDiscoveries()
+      if (quests.length === 0) void loadQuests()
+    }
+  }, [nav, loadUsers, loadShips, loadQuests, loadPorts, loadDiscoveries, quests.length])
 
-  const detailOpen = Boolean(detailShip || detailQuest || detailPort)
-
-  useEffect(() => {
-    if (!detailOpen) return
-    const prev = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    function onKey(event: globalThis.KeyboardEvent) {
-      if (event.key === 'Escape') {
-        setDetailShip(null)
-        setDetailQuest(null)
-        setDetailPort(null)
+  async function openQuestByRef(ref: DiscoveryQuestRef) {
+    let quest = quests.find((q) => q.id === ref.id)
+    if (!quest) {
+      try {
+        const res = await fetchQuests(token)
+        setQuests(res.quests)
+        quest = res.quests.find((q) => q.id === ref.id)
+      } catch {
+        onToast('퀘스트 목록을 불러오지 못했습니다.')
+        return
       }
     }
-    window.addEventListener('keydown', onKey)
-    return () => {
-      document.body.style.overflow = prev
-      window.removeEventListener('keydown', onKey)
+    if (!quest) {
+      onToast(`「${ref.name}」 퀘스트가 아직 등록되지 않았습니다.`)
+      return
     }
-  }, [detailOpen])
+    setDetailQuest(quest)
+  }
 
   async function handleRoleChange(target: AdminUser, role: 'admin' | 'member') {
     if (target.role === role) return
@@ -274,6 +316,32 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
     }
   }
 
+  async function handleDiscoveryImport(e: FormEvent) {
+    e.preventDefault()
+    if (!discoveryImportText.trim()) {
+      setDiscoveryImportNote('텍스트를 붙여넣어 주세요.')
+      return
+    }
+    setImportingDiscovery(true)
+    setDiscoveryImportNote('')
+    try {
+      const res = await importDiscoveryText(token, discoveryImportText)
+      setDiscoveryImportText('')
+      setShowDiscoveryImport(false)
+      setDiscoveryImportNote(
+        `「${res.discovery.name}」을(를) 저장했습니다. (동일 이름이면 내용이 갱신됩니다)`,
+      )
+      onToast(`발견물 「${res.discovery.name}」 저장 완료`)
+      await loadDiscoveries()
+    } catch (err) {
+      setDiscoveryImportNote(
+        err instanceof Error ? err.message : '저장에 실패했습니다.',
+      )
+    } finally {
+      setImportingDiscovery(false)
+    }
+  }
+
   function applyQuestUpdate(quest: QuestDetail) {
     setQuests((prev) => prev.map((q) => (q.id === quest.id ? quest : q)))
     setDetailQuest((prev) => (prev?.id === quest.id ? quest : prev))
@@ -347,6 +415,14 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
           >
             <span className="admin-nav-index">04</span>
             <span className="admin-nav-text">항구(도시) 리스트</span>
+          </button>
+          <button
+            type="button"
+            className={nav === 'discoveries' ? 'active' : ''}
+            onClick={() => setNav('discoveries')}
+          >
+            <span className="admin-nav-index">05</span>
+            <span className="admin-nav-text">발견물 리스트</span>
           </button>
         </nav>
 
@@ -865,99 +941,205 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
             )}
           </section>
         )}
+
+        {nav === 'discoveries' && (
+          <section className="admin-section">
+            <div className="admin-page-head">
+              <div>
+                <h1>발견물 리스트</h1>
+                <p>
+                  위키 텍스트로 추가·갱신합니다. 같은 이름이면 내용을 덮어씁니다.
+                </p>
+              </div>
+              <div className="admin-page-actions">
+                <button
+                  type="button"
+                  className="admin-btn"
+                  onClick={() => void loadDiscoveries()}
+                  disabled={loadingDiscoveries}
+                >
+                  새로고침
+                </button>
+                <button
+                  type="button"
+                  className="admin-btn admin-btn-primary"
+                  onClick={() => {
+                    setShowDiscoveryImport((v) => !v)
+                    setDiscoveryImportNote('')
+                  }}
+                >
+                  {showDiscoveryImport ? '닫기' : '발견물 추가'}
+                </button>
+              </div>
+            </div>
+
+            {showDiscoveryImport && (
+              <form
+                className="admin-import-form"
+                onSubmit={handleDiscoveryImport}
+              >
+                <label className="field">
+                  <span>발견물 텍스트</span>
+                  <textarea
+                    className="quest-import-textarea"
+                    rows={16}
+                    value={discoveryImportText}
+                    onChange={(e) => setDiscoveryImportText(e.target.value)}
+                    placeholder={`발견물 | 비단뱀\n대형 뱀으로 특히 큰 것은 10m나 된다. …\n분류\t생물 » 대형생물\n난이도\t5\n카드 포인트\t6\n발견 경험치\t1,118\n카드 획득 경험치\t559\n보고시 명성\t559\n발견 방법\t[퀘스트] 모험 | 인도의 큰 뱀 …`}
+                    disabled={importingDiscovery}
+                  />
+                </label>
+                <div className="form-actions">
+                  <button
+                    type="submit"
+                    className="admin-btn admin-btn-primary"
+                    disabled={importingDiscovery}
+                  >
+                    {importingDiscovery ? '저장 중…' : '저장'}
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {discoveryImportNote && (
+              <p
+                className={`form-note${
+                  /실패|못|오류|에러|중복/.test(discoveryImportNote)
+                    ? ' error'
+                    : ''
+                }`}
+              >
+                {discoveryImportNote}
+              </p>
+            )}
+
+            {discoveriesError && (
+              <p className="form-note error" role="alert">
+                {discoveriesError}
+              </p>
+            )}
+
+            {loadingDiscoveries ? (
+              <p className="form-note">불러오는 중…</p>
+            ) : (
+              <div className="admin-table-wrap">
+                <table className="admin-table">
+                  <thead>
+                    <tr>
+                      <th>이름</th>
+                      <th>분류</th>
+                      <th>난이도</th>
+                      <th>카드P</th>
+                      <th>발견 방법</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {discoveries.map((discovery, index) => (
+                      <tr
+                        key={discovery.id}
+                        className={`admin-row-clickable${index % 2 === 0 ? ' is-even' : ' is-odd'}`}
+                        tabIndex={0}
+                        onClick={() => setDetailDiscovery(discovery)}
+                        onKeyDown={(
+                          event: KeyboardEvent<HTMLTableRowElement>,
+                        ) => {
+                          if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault()
+                            setDetailDiscovery(discovery)
+                          }
+                        }}
+                      >
+                        <td>{discovery.name}</td>
+                        <td>{discovery.category || '-'}</td>
+                        <td>
+                          {discovery.rank != null
+                            ? `${discovery.rank}성`
+                            : '-'}
+                        </td>
+                        <td>
+                          {discovery.cardPoints != null
+                            ? discovery.cardPoints
+                            : '-'}
+                        </td>
+                        <td
+                          onClick={(event) => {
+                            if (discovery.acquireQuest) event.stopPropagation()
+                          }}
+                        >
+                          {discovery.acquireQuest ? (
+                            <button
+                              type="button"
+                              className="discovery-quest-link"
+                              onClick={(event) => {
+                                event.stopPropagation()
+                                void openQuestByRef(discovery.acquireQuest!)
+                              }}
+                            >
+                              [퀘스트] {discovery.acquireQuest.name}
+                            </button>
+                          ) : discovery.acquireType ? (
+                            `[${discovery.acquireType}] ${discovery.acquireName || ''}`.trim()
+                          ) : (
+                            discovery.acquireName || '-'
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                    {discoveries.length === 0 && (
+                      <tr>
+                        <td colSpan={5}>등록된 발견물이 없습니다.</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+        )}
       </div>
 
       {detailShip && (
-        <div
-          className="admin-modal"
-          role="dialog"
-          aria-modal="true"
-          aria-label={`${detailShip.name} 상세`}
+        <DetailModal
+          title="선박 상세"
+          label={`${detailShip.name} 상세`}
+          onClose={() => setDetailShip(null)}
         >
-          <button
-            type="button"
-            className="admin-modal-backdrop"
-            aria-label="닫기"
-            onClick={() => setDetailShip(null)}
-          />
-          <div className="admin-modal-panel">
-            <header className="admin-modal-head">
-              <p>선박 상세</p>
-              <button
-                type="button"
-                className="admin-btn"
-                onClick={() => setDetailShip(null)}
-              >
-                닫기
-              </button>
-            </header>
-            <div className="admin-modal-body">
-              <ShipDetailView ship={detailShip} />
-            </div>
-          </div>
-        </div>
-      )}
-
-      {detailQuest && (
-        <div
-          className="admin-modal"
-          role="dialog"
-          aria-modal="true"
-          aria-label={`${detailQuest.name} 상세`}
-        >
-          <button
-            type="button"
-            className="admin-modal-backdrop"
-            aria-label="닫기"
-            onClick={() => setDetailQuest(null)}
-          />
-          <div className="admin-modal-panel">
-            <header className="admin-modal-head">
-              <p>퀘스트 상세</p>
-              <button
-                type="button"
-                className="admin-btn"
-                onClick={() => setDetailQuest(null)}
-              >
-                닫기
-              </button>
-            </header>
-            <div className="admin-modal-body">
-              <QuestDetailView quest={detailQuest} />
-            </div>
-          </div>
-        </div>
+          <ShipDetailView ship={detailShip} />
+        </DetailModal>
       )}
 
       {detailPort && (
-        <div
-          className="admin-modal"
-          role="dialog"
-          aria-modal="true"
-          aria-label={`${detailPort.name} 상세`}
+        <DetailModal
+          title="항구(도시) 상세"
+          label={`${detailPort.name} 상세`}
+          onClose={() => setDetailPort(null)}
         >
-          <button
-            type="button"
-            className="admin-modal-backdrop"
-            aria-label="닫기"
-            onClick={() => setDetailPort(null)}
+          <PortDetailView port={detailPort} />
+        </DetailModal>
+      )}
+
+      {detailDiscovery && (
+        <DetailModal
+          title="발견물 상세"
+          label={`${detailDiscovery.name} 상세`}
+          onClose={() => setDetailDiscovery(null)}
+        >
+          <DiscoveryDetailView
+            discovery={detailDiscovery}
+            onOpenQuest={(ref) => void openQuestByRef(ref)}
           />
-          <div className="admin-modal-panel">
-            <header className="admin-modal-head">
-              <p>항구(도시) 상세</p>
-              <button
-                type="button"
-                className="admin-btn"
-                onClick={() => setDetailPort(null)}
-              >
-                닫기
-              </button>
-            </header>
-            <div className="admin-modal-body">
-              <PortDetailView port={detailPort} />
-            </div>
-          </div>
-        </div>
+        </DetailModal>
+      )}
+
+      {detailQuest && (
+        <DetailModal
+          title="퀘스트 상세"
+          label={`${detailQuest.name} 상세`}
+          onClose={() => setDetailQuest(null)}
+          stack={detailDiscovery ? 1 : 0}
+        >
+          <QuestDetailView quest={detailQuest} />
+        </DetailModal>
       )}
 
     </div>

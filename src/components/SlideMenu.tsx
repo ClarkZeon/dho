@@ -8,6 +8,8 @@ export type MenuTarget =
   | { name: 'ship-info' }
   | { name: 'ship-accel' }
   | { name: 'ship-compare' }
+  | { name: 'quests' }
+  | { name: 'ports' }
 
 type SlideMenuProps = {
   open: boolean
@@ -31,12 +33,7 @@ export function SlideMenu({
   onLogout,
 }: SlideMenuProps) {
   const boardActive = active.name === 'board'
-  const shipActive =
-    active.name === 'ship-info' ||
-    active.name === 'ship-accel' ||
-    active.name === 'ship-compare'
   const [boardsOpen, setBoardsOpen] = useState(false)
-  const [shipOpen, setShipOpen] = useState(false)
 
   useEffect(() => {
     if (!open) return
@@ -56,8 +53,7 @@ export function SlideMenu({
   useEffect(() => {
     if (!open) return
     setBoardsOpen(boardActive)
-    setShipOpen(shipActive)
-  }, [open, boardActive, shipActive])
+  }, [open, boardActive])
 
   function go(target: MenuTarget) {
     onNavigate(target)
@@ -68,12 +64,6 @@ export function SlideMenu({
     event.preventDefault()
     event.stopPropagation()
     setBoardsOpen((prev) => !prev)
-  }
-
-  function toggleShip(event: MouseEvent<HTMLButtonElement>) {
-    event.preventDefault()
-    event.stopPropagation()
-    setShipOpen((prev) => !prev)
   }
 
   return (
@@ -162,44 +152,46 @@ export function SlideMenu({
             )}
           </div>
 
-          <p className="slide-menu-label">도구</p>
-          <div className={`slide-menu-group ${shipOpen ? 'is-open' : ''}`}>
-            <button
-              type="button"
-              className={`slide-menu-parent ${shipActive ? 'active' : ''}`}
-              aria-expanded={shipOpen}
-              onClick={toggleShip}
-            >
-              <span>선박</span>
-              <span className="slide-menu-caret" aria-hidden="true" />
-            </button>
+          <p className="slide-menu-label">선박</p>
+          <button
+            type="button"
+            className={active.name === 'ship-info' ? 'active' : ''}
+            onClick={() => go({ name: 'ship-info' })}
+          >
+            선박 정보
+          </button>
+          <button
+            type="button"
+            className={active.name === 'ship-accel' ? 'active' : ''}
+            onClick={() => go({ name: 'ship-accel' })}
+          >
+            선박 가속도 계산기
+          </button>
+          <button
+            type="button"
+            className={active.name === 'ship-compare' ? 'active' : ''}
+            onClick={() => go({ name: 'ship-compare' })}
+          >
+            선박 비교
+          </button>
 
-            {shipOpen && (
-              <div className="slide-menu-sub">
-                <button
-                  type="button"
-                  className={active.name === 'ship-info' ? 'active' : ''}
-                  onClick={() => go({ name: 'ship-info' })}
-                >
-                  선박 정보
-                </button>
-                <button
-                  type="button"
-                  className={active.name === 'ship-accel' ? 'active' : ''}
-                  onClick={() => go({ name: 'ship-accel' })}
-                >
-                  선박 가속도 계산기
-                </button>
-                <button
-                  type="button"
-                  className={active.name === 'ship-compare' ? 'active' : ''}
-                  onClick={() => go({ name: 'ship-compare' })}
-                >
-                  선박 비교
-                </button>
-              </div>
-            )}
-          </div>
+          <p className="slide-menu-label">퀘스트</p>
+          <button
+            type="button"
+            className={active.name === 'quests' ? 'active' : ''}
+            onClick={() => go({ name: 'quests' })}
+          >
+            퀘스트
+          </button>
+
+          <p className="slide-menu-label">항구(도시)</p>
+          <button
+            type="button"
+            className={active.name === 'ports' ? 'active' : ''}
+            onClick={() => go({ name: 'ports' })}
+          >
+            항구
+          </button>
         </nav>
 
         <footer className="slide-menu-foot">
