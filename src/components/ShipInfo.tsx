@@ -5,7 +5,6 @@ import { ShipSearchSelect } from './ShipSearchSelect'
 
 type ShipInfoProps = {
   token: string
-  onBack: () => void
 }
 
 function StatTable({
@@ -30,7 +29,7 @@ function StatTable({
   )
 }
 
-export function ShipInfo({ token, onBack }: ShipInfoProps) {
+export function ShipInfo({ token }: ShipInfoProps) {
   const [ships, setShips] = useState<ShipDetail[]>([])
   const [slug, setSlug] = useState('')
   const [ship, setShip] = useState<ShipDetail | null>(null)
@@ -87,9 +86,6 @@ export function ShipInfo({ token, onBack }: ShipInfoProps) {
     <section className="tool-page">
       <div className="messages-head">
         <div>
-          <button type="button" className="text-link" onClick={onBack}>
-            ← 대시보드
-          </button>
           <h1>선박 정보</h1>
           <p>등록된 선박의 기본 스펙을 확인합니다.</p>
         </div>

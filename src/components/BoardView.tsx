@@ -11,7 +11,6 @@ type BoardViewProps = {
   user: User
   boardId: string
   initialPostId?: string
-  onBack: () => void
   onToast: (message: string) => void
 }
 
@@ -28,7 +27,6 @@ export function BoardView({
   user,
   boardId,
   initialPostId,
-  onBack,
   onToast,
 }: BoardViewProps) {
   const [mode, setMode] = useState<Mode>('list')
@@ -107,9 +105,6 @@ export function BoardView({
     <section className="board-view">
       <div className="messages-head">
         <div>
-          <button type="button" className="text-link" onClick={onBack}>
-            ← 대시보드
-          </button>
           <h1>{board?.title || '게시판'}</h1>
           <p>{board?.description || ''}</p>
         </div>

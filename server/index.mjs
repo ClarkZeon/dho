@@ -1,3 +1,4 @@
+import 'dotenv/config'
 import { createServer } from 'node:http'
 import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
@@ -13,6 +14,7 @@ import {
   validatePostBody,
   validatePostTitle,
 } from './boardStore.mjs'
+import { hasDatabaseUrl } from './db.mjs'
 import { getWritableDataDir } from './paths.mjs'
 import {
   ensureShipStore,
@@ -20,16 +22,22 @@ import {
   listShipLookups,
   listShips,
 } from './shipStore.mjs'
+import {
+  createUser,
+  deleteSessionByToken,
+  getAuthUserByToken,
+  getUserByNickname,
+  getUserByUsername,
+  listUsers,
+  createSession,
+  searchUsers,
+  updateUser,
+  ensureUserStore,
+} from './userStore.mjs'
 
 const PORT = Number(process.env.API_PORT || 17778)
 const DAILY_LOGIN_XP = 20
 
-function usersFile() {
-  return path.join(getWritableDataDir(), 'users.json')
-}
-function sessionsFile() {
-  return path.join(getWritableDataDir(), 'sessions.json')
-}
 function messagesFile() {
   return path.join(getWritableDataDir(), 'messages.json')
 }
@@ -73,18 +81,25 @@ async function ensureFile(file, fallback) {
 
 async function ensureStore() {
   await mkdir(getWritableDataDir(), { recursive: true })
-  await ensureFile(usersFile(), '[]\n')
-  await ensureFile(sessionsFile(), '[]\n')
   await ensureFile(messagesFile(), '[]\n')
   await ensureBoardStore()
   await ensureShipStore()
-
-  // 관리자가 없으면 첫 유저를 admin으로 지정 (공지 작성용)
-  const users = await loadUsers()
-  if (users.length > 0 && !users.some((u) => u.role === 'admin')) {
-    users[0] = { ...users[0], role: 'admin' }
-    await saveUsers(users)
+  if (hasDatabaseUrl()) {
+    await ensureUserStore()
+  } else {
+    console.warn(
+      '[dho] DATABASE_URL 없음 — 인증은 Neon 연결 후 동작합니다. (.env.example 참고)',
+    )
   }
+}
+
+function requireAuthDb(res) {
+  if (hasDatabaseUrl()) return true
+  sendJson(res, 503, {
+    error:
+      '계정 DB(DATABASE_URL)가 설정되지 않았습니다. Vercel Storage에서 Neon을 연결하세요.',
+  })
+  return false
 }
 
 function xpNeeded(level) {
@@ -139,27 +154,6 @@ async function readJson(file) {
 
 async function writeJson(file, data) {
   await writeFile(file, `${JSON.stringify(data, null, 2)}\n`, 'utf8')
-}
-
-/** @returns {Promise<User[]>} */
-async function loadUsers() {
-  const users = await readJson(usersFile())
-  return users.map((user) => normalizeUser(user))
-}
-
-/** @param {User[]} users */
-async function saveUsers(users) {
-  await writeJson(usersFile(), users)
-}
-
-/** @returns {Promise<Session[]>} */
-async function loadSessions() {
-  return readJson(sessionsFile())
-}
-
-/** @param {Session[]} sessions */
-async function saveSessions(sessions) {
-  await writeJson(sessionsFile(), sessions)
 }
 
 /** @returns {Promise<Message[]>} */
@@ -226,13 +220,10 @@ function getBearerToken(req) {
 }
 
 async function getAuthUser(req) {
+  if (!hasDatabaseUrl()) return null
   const token = getBearerToken(req)
   if (!token) return null
-  const sessions = await loadSessions()
-  const session = sessions.find((s) => s.token === token)
-  if (!session) return null
-  const users = await loadUsers()
-  return users.find((u) => u.id === session.userId) || null
+  return getAuthUserByToken(token)
 }
 
 function validateUsername(username) {
@@ -324,11 +315,15 @@ export async function handleRequest(req, res) {
     const { pathname } = url
 
     if (req.method === 'GET' && pathname === '/api/health') {
-      sendJson(res, 200, { ok: true })
+      sendJson(res, 200, {
+        ok: true,
+        authDb: hasDatabaseUrl() ? 'configured' : 'missing',
+      })
       return
     }
 
     if (req.method === 'POST' && pathname === '/api/auth/signup') {
+      if (!requireAuthDb(res)) return
       const body = await readBody(req)
       const usernameError = validateUsername(body.username)
       const passwordError = validatePassword(body.password)
@@ -348,14 +343,13 @@ export async function handleRequest(req, res) {
 
       const username = String(body.username).trim().toLowerCase()
       const nickname = String(body.nickname).trim()
-      const users = await loadUsers()
 
-      if (users.some((u) => u.username === username)) {
+      if (await getUserByUsername(username)) {
         sendJson(res, 409, { error: '이미 사용 중인 아이디입니다.' })
         return
       }
 
-      if (users.some((u) => u.nickname === nickname)) {
+      if (await getUserByNickname(nickname)) {
         sendJson(res, 409, { error: '이미 사용 중인 닉네임입니다.' })
         return
       }
@@ -374,13 +368,25 @@ export async function handleRequest(req, res) {
         createdAt: new Date().toISOString(),
       })
 
-      users.push(user)
-      await saveUsers(users)
+      try {
+        await createUser(user)
+      } catch (err) {
+        if (err instanceof Error && err.message === 'USERNAME_TAKEN') {
+          sendJson(res, 409, { error: '이미 사용 중인 아이디입니다.' })
+          return
+        }
+        if (err instanceof Error && err.message === 'NICKNAME_TAKEN') {
+          sendJson(res, 409, { error: '이미 사용 중인 닉네임입니다.' })
+          return
+        }
+        throw err
+      }
       sendJson(res, 201, { user: publicUser(user) })
       return
     }
 
     if (req.method === 'POST' && pathname === '/api/auth/login') {
+      if (!requireAuthDb(res)) return
       const body = await readBody(req)
       const usernameError = validateUsername(body.username)
       const passwordError = validatePassword(body.password)
@@ -391,9 +397,7 @@ export async function handleRequest(req, res) {
       }
 
       const username = String(body.username).trim().toLowerCase()
-      const users = await loadUsers()
-      const index = users.findIndex((u) => u.username === username)
-      const found = index >= 0 ? users[index] : null
+      const found = await getUserByUsername(username)
 
       if (!found || !verifyPassword(body.password, found.salt, found.passwordHash)) {
         sendJson(res, 401, { error: '아이디 또는 비밀번호가 올바르지 않습니다.' })
@@ -418,18 +422,10 @@ export async function handleRequest(req, res) {
         ...user,
         lastLoginAt: now.toISOString(),
       }
-      users[index] = user
-      await saveUsers(users)
+      await updateUser(user)
 
       const token = randomBytes(24).toString('hex')
-      const sessions = await loadSessions()
-      const nextSessions = sessions.filter((s) => s.userId !== user.id)
-      nextSessions.push({
-        token,
-        userId: user.id,
-        createdAt: now.toISOString(),
-      })
-      await saveSessions(nextSessions)
+      await createSession(user.id, token, now.toISOString())
 
       sendJson(res, 200, {
         user: publicUser(user),
@@ -442,11 +438,21 @@ export async function handleRequest(req, res) {
       return
     }
 
+    if (req.method === 'GET' && pathname === '/api/auth/me') {
+      if (!requireAuthDb(res)) return
+      const authUser = await getAuthUser(req)
+      if (!authUser) {
+        sendJson(res, 401, { error: '로그인이 필요합니다.' })
+        return
+      }
+      sendJson(res, 200, { user: publicUser(authUser) })
+      return
+    }
+
     if (req.method === 'POST' && pathname === '/api/auth/logout') {
       const token = getBearerToken(req)
       if (token) {
-        const sessions = await loadSessions()
-        await saveSessions(sessions.filter((s) => s.token !== token))
+        await deleteSessionByToken(token)
       }
       sendJson(res, 200, { ok: true })
       return
@@ -465,22 +471,7 @@ export async function handleRequest(req, res) {
         return
       }
 
-      const users = await loadUsers()
-      const matched = users
-        .filter((u) => u.id !== authUser.id)
-        .filter(
-          (u) =>
-            u.username.includes(q) ||
-            u.nickname.toLowerCase().includes(q),
-        )
-        .slice(0, 10)
-        .map((u) => ({
-          id: u.id,
-          username: u.username,
-          nickname: u.nickname,
-          level: u.level,
-        }))
-
+      const matched = await searchUsers(q, authUser.id, 10)
       sendJson(res, 200, { users: matched })
       return
     }
@@ -507,7 +498,7 @@ export async function handleRequest(req, res) {
         return
       }
 
-      const users = await loadUsers()
+      const users = await listUsers()
       const messages = await loadMessages()
       const inbox = messages
         .filter((m) => m.toUserId === authUser.id)
@@ -525,7 +516,7 @@ export async function handleRequest(req, res) {
         return
       }
 
-      const users = await loadUsers()
+      const users = await listUsers()
       const messages = await loadMessages()
       const sent = messages
         .filter((m) => m.fromUserId === authUser.id)
@@ -545,7 +536,7 @@ export async function handleRequest(req, res) {
       }
 
       const messageId = messageMatch[1]
-      const users = await loadUsers()
+      const users = await listUsers()
       const messages = await loadMessages()
       const index = messages.findIndex((m) => m.id === messageId)
       if (index < 0) {
@@ -591,7 +582,7 @@ export async function handleRequest(req, res) {
         return
       }
 
-      const users = await loadUsers()
+      const users = await listUsers()
       const toUser = findUserByHandle(users, body.to)
       if (!toUser) {
         sendJson(res, 404, { error: '받는 사람을 찾을 수 없습니다.' })
@@ -641,7 +632,7 @@ export async function handleRequest(req, res) {
       }
 
       const parentId = replyMatch[1]
-      const users = await loadUsers()
+      const users = await listUsers()
       const messages = await loadMessages()
       const parent = messages.find((m) => m.id === parentId)
       if (!parent) {
@@ -734,7 +725,7 @@ export async function handleRequest(req, res) {
       const boards = await loadBoards()
       const preview = url.searchParams.get('preview') === '1'
       const posts = preview ? await loadPosts() : []
-      const users = preview ? await loadUsers() : []
+      const users = preview ? await listUsers() : []
 
       sendJson(res, 200, {
         boards: boards.map((board) => {
@@ -783,7 +774,7 @@ export async function handleRequest(req, res) {
 
         const limit = Math.min(50, Math.max(1, Number(url.searchParams.get('limit') || 20)))
         const offset = Math.max(0, Number(url.searchParams.get('offset') || 0))
-        const users = await loadUsers()
+        const users = await listUsers()
         const posts = (await loadPosts())
           .filter((p) => p.boardId === boardId && !p.isDeleted)
           .sort((a, b) => {
@@ -824,7 +815,7 @@ export async function handleRequest(req, res) {
           return
         }
 
-        const users = await loadUsers()
+        const users = await listUsers()
         const post = createPost({
           boardId,
           authorId: authUser.id,
@@ -857,7 +848,7 @@ export async function handleRequest(req, res) {
         return
       }
 
-      const users = await loadUsers()
+      const users = await listUsers()
       const post = (await loadPosts()).find(
         (p) => p.id === postId && p.boardId === boardId && !p.isDeleted,
       )

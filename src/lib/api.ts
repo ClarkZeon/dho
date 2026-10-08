@@ -10,10 +10,29 @@ import type {
 const SESSION_KEY = 'dho.session'
 const LEGACY_USER_KEY = 'dho.user'
 
+type UnauthorizedHandler = () => void
+
+let unauthorizedHandler: UnauthorizedHandler | null = null
+
+/** 401 시 로그인 화면으로 보내는 핸들러 등록 */
+export function setUnauthorizedHandler(handler: UnauthorizedHandler | null) {
+  unauthorizedHandler = handler
+}
+
+export class ApiError extends Error {
+  status: number
+
+  constructor(message: string, status: number) {
+    super(message)
+    this.name = 'ApiError'
+    this.status = status
+  }
+}
+
 export function loadSession(): Session | null {
-  const raw = localStorage.getItem(SESSION_KEY) || sessionStorage.getItem(SESSION_KEY)
+  const raw =
+    localStorage.getItem(SESSION_KEY) || sessionStorage.getItem(SESSION_KEY)
   if (!raw) {
-    // 이전 세션(토큰 없음)은 무효 → 재로그인
     localStorage.removeItem(LEGACY_USER_KEY)
     sessionStorage.removeItem(LEGACY_USER_KEY)
     return null
@@ -27,14 +46,13 @@ export function loadSession(): Session | null {
   }
 }
 
-export function saveSession(session: Session, remember: boolean) {
+/** 세션은 항상 localStorage에 저장 (새로고침·재방문 유지) */
+export function saveSession(session: Session, _remember = true) {
   const raw = JSON.stringify(session)
-  localStorage.removeItem(SESSION_KEY)
   sessionStorage.removeItem(SESSION_KEY)
   localStorage.removeItem(LEGACY_USER_KEY)
   sessionStorage.removeItem(LEGACY_USER_KEY)
-  if (remember) localStorage.setItem(SESSION_KEY, raw)
-  else sessionStorage.setItem(SESSION_KEY, raw)
+  localStorage.setItem(SESSION_KEY, raw)
 }
 
 export function clearSession() {
@@ -50,6 +68,8 @@ async function request<T>(
     method?: string
     body?: unknown
     token?: string | null
+    /** true면 401 시 전역 로그아웃 핸들러를 호출하지 않음 */
+    skipUnauthorizedHandler?: boolean
   } = {},
 ): Promise<T> {
   const headers: Record<string, string> = {}
@@ -74,7 +94,15 @@ async function request<T>(
     )
   }
   if (!res.ok) {
-    throw new Error(data.error || '요청에 실패했습니다.')
+    const message = data.error || '요청에 실패했습니다.'
+    if (
+      res.status === 401 &&
+      !options.skipUnauthorizedHandler &&
+      unauthorizedHandler
+    ) {
+      unauthorizedHandler()
+    }
+    throw new ApiError(message, res.status)
   }
   return data
 }
@@ -96,18 +124,25 @@ export function login(body: { username: string; password: string }) {
   }>('/api/auth/login', { body })
 }
 
+export function fetchMe(token: string) {
+  return request<{ user: User }>('/api/auth/me', {
+    token,
+    skipUnauthorizedHandler: true,
+  })
+}
+
 export function logout(token: string) {
   return request<{ ok: boolean }>('/api/auth/logout', {
     method: 'POST',
     token,
+    skipUnauthorizedHandler: true,
   })
 }
 
 export function searchUsers(token: string, q: string) {
-  return request<{ users: Array<Pick<User, 'id' | 'username' | 'nickname' | 'level'>> }>(
-    `/api/users/search?q=${encodeURIComponent(q)}`,
-    { token },
-  )
+  return request<{
+    users: Array<Pick<User, 'id' | 'username' | 'nickname' | 'level'>>
+  }>(`/api/users/search?q=${encodeURIComponent(q)}`, { token })
 }
 
 export function fetchInbox(token: string) {
@@ -181,7 +216,8 @@ export function fetchShips(token: string) {
 }
 
 export function fetchShip(token: string, slug: string) {
-  return request<{ ship: ShipDetail }>(`/api/ships/${encodeURIComponent(slug)}`, {
-    token,
-  })
+  return request<{ ship: ShipDetail }>(
+    `/api/ships/${encodeURIComponent(slug)}`,
+    { token },
+  )
 }

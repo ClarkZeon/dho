@@ -349,22 +349,15 @@ export function Dashboard({ user, token, onLogout, onToast }: DashboardProps) {
             user={user}
             boardId={view.boardId}
             initialPostId={view.postId}
-            onBack={() => navigate({ name: 'home' })}
             onToast={onToast}
           />
         )}
 
-        {view.name === 'ship-info' && (
-          <ShipInfo token={token} onBack={() => navigate({ name: 'home' })} />
-        )}
+        {view.name === 'ship-info' && <ShipInfo token={token} />}
 
-        {view.name === 'ship-accel' && (
-          <ShipAccel token={token} onBack={() => navigate({ name: 'home' })} />
-        )}
+        {view.name === 'ship-accel' && <ShipAccel token={token} />}
 
-        {view.name === 'ship-compare' && (
-          <ShipCompare token={token} onBack={() => navigate({ name: 'home' })} />
-        )}
+        {view.name === 'ship-compare' && <ShipCompare token={token} />}
 
       </main>
     </div>

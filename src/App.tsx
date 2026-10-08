@@ -3,10 +3,12 @@ import { Dashboard } from './components/Dashboard'
 import { Toast } from './components/Toast'
 import {
   clearSession,
+  fetchMe,
   loadSession,
   login as loginRequest,
   logout as logoutRequest,
   saveSession,
+  setUnauthorizedHandler,
   signup as signupRequest,
 } from './lib/api'
 import type { Session, User } from './types'
@@ -46,17 +48,56 @@ function App() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [session, setSession] = useState<Session | null>(null)
+  const [bootstrapping, setBootstrapping] = useState(true)
 
   const clearToast = useCallback(() => setToast(''), [])
   const showToast = useCallback((text: string) => setToast(text), [])
 
+  const forceLoginScreen = useCallback((toastText?: string) => {
+    clearSession()
+    setSession(null)
+    setMode('login')
+    setError('')
+    setMessage('')
+    if (toastText) setToast(toastText)
+  }, [])
+
   useEffect(() => {
-    const saved = loadSession()
-    if (!saved) return
-    setSession({
-      token: saved.token,
-      user: normalizeUser(saved.user),
+    setUnauthorizedHandler(() => {
+      forceLoginScreen('로그인이 만료되었습니다. 다시 로그인해 주세요.')
     })
+    return () => setUnauthorizedHandler(null)
+  }, [forceLoginScreen])
+
+  useEffect(() => {
+    let alive = true
+    ;(async () => {
+      const saved = loadSession()
+      if (!saved) {
+        if (alive) setBootstrapping(false)
+        return
+      }
+      try {
+        const data = await fetchMe(saved.token)
+        if (!alive) return
+        const next = {
+          token: saved.token,
+          user: normalizeUser(data.user),
+        }
+        saveSession(next, true)
+        setSession(next)
+      } catch {
+        if (!alive) return
+        clearSession()
+        setSession(null)
+        setMode('login')
+      } finally {
+        if (alive) setBootstrapping(false)
+      }
+    })()
+    return () => {
+      alive = false
+    }
   }, [])
 
   function switchMode(next: Mode) {
@@ -73,7 +114,7 @@ function App() {
       token: next.token,
       user: normalizeUser(next.user),
     }
-    saveSession(normalized, remember)
+    saveSession(normalized, true)
     setSession(normalized)
   }
 
@@ -85,11 +126,7 @@ function App() {
         // ignore network logout failure
       }
     }
-    clearSession()
-    setSession(null)
-    setMessage('')
-    setToast('로그아웃되었습니다.')
-    setMode('login')
+    forceLoginScreen('로그아웃되었습니다.')
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -130,6 +167,10 @@ function App() {
     } finally {
       setLoading(false)
     }
+  }
+
+  if (bootstrapping) {
+    return null
   }
 
   return (

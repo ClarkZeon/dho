@@ -5,7 +5,6 @@ import { ShipSearchSelect } from './ShipSearchSelect'
 
 type ShipCompareProps = {
   token: string
-  onBack: () => void
 }
 
 type Diff = 'better' | 'worse' | 'same' | 'plain'
@@ -158,7 +157,7 @@ function CompareCard({
   )
 }
 
-export function ShipCompare({ token, onBack }: ShipCompareProps) {
+export function ShipCompare({ token }: ShipCompareProps) {
   const [ships, setShips] = useState<ShipDetail[]>([])
   const [leftId, setLeftId] = useState('')
   const [rightId, setRightId] = useState('')
@@ -195,9 +194,6 @@ export function ShipCompare({ token, onBack }: ShipCompareProps) {
     <section className="tool-page">
       <div className="messages-head">
         <div>
-          <button type="button" className="text-link" onClick={onBack}>
-            ← 대시보드
-          </button>
           <h1>선박 비교</h1>
           <p>두 척을 골라 기본 스펙을 나란히 비교합니다.</p>
         </div>

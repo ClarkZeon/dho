@@ -6,11 +6,14 @@
   "scripts": {
     "dev": "vite",
     "dev:api": "node server/index.mjs",
+    "db:migrate-users": "node server/scripts/migrate-users-to-neon.mjs",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview"
   },
   "dependencies": {
+    "@neondatabase/serverless": "^1.2.0",
+    "dotenv": "^18.0.6",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
   },

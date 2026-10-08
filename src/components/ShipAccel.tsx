@@ -6,7 +6,6 @@ import { ShipSearchSelect } from './ShipSearchSelect'
 
 type ShipAccelProps = {
   token: string
-  onBack: () => void
 }
 
 const FORMS: { value: AccelShipForm; label: string }[] = [
@@ -66,7 +65,7 @@ function applyShip(
   setters.setRapidAccel(ship.skills.some((s) => s.name === '급가속'))
 }
 
-export function ShipAccel({ token, onBack }: ShipAccelProps) {
+export function ShipAccel({ token }: ShipAccelProps) {
   const [ships, setShips] = useState<ShipDetail[]>([])
   const [shipSlug, setShipSlug] = useState('')
   const [shipsError, setShipsError] = useState('')
@@ -154,9 +153,6 @@ export function ShipAccel({ token, onBack }: ShipAccelProps) {
     <section className="tool-page">
       <div className="messages-head">
         <div>
-          <button type="button" className="text-link" onClick={onBack}>
-            ← 대시보드
-          </button>
           <h1>선박 가속도 계산기</h1>
           <p>선박 정보를 불러오거나, 장갑·적재·조건을 직접 넣어 가속단계를 계산합니다.</p>
         </div>
