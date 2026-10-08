@@ -1,0 +1,82 @@
+{
+  "sizes": [
+    { "id": 1, "code": "small1", "name": "소형1", "sortOrder": 10, "enabled": true },
+    { "id": 2, "code": "small2", "name": "소형2", "sortOrder": 20, "enabled": true },
+    { "id": 3, "code": "medium1", "name": "중형1", "sortOrder": 30, "enabled": true },
+    { "id": 4, "code": "medium2", "name": "중형2", "sortOrder": 40, "enabled": true },
+    { "id": 5, "code": "large1", "name": "대형1", "sortOrder": 50, "enabled": true },
+    { "id": 6, "code": "large2", "name": "대형2", "sortOrder": 60, "enabled": true }
+  ],
+  "forms": [
+    { "id": 1, "code": "sail", "name": "범선", "sortOrder": 10, "enabled": true },
+    { "id": 2, "code": "galley", "name": "갤리", "sortOrder": 20, "enabled": true },
+    { "id": 3, "code": "steam", "name": "증기선", "sortOrder": 30, "enabled": true }
+  ],
+  "materials": [
+    { "id": 1, "code": "beech", "name": "너도밤나무", "sortOrder": 10, "enabled": true },
+    { "id": 2, "code": "cedar_plank", "name": "삼나무판", "sortOrder": 20, "enabled": true },
+    { "id": 3, "code": "red_pine", "name": "붉은 소나무", "sortOrder": 30, "enabled": true },
+    { "id": 4, "code": "england_admiral", "name": "잉글랜드 제독 재료", "sortOrder": 40, "enabled": true },
+    { "id": 5, "code": "field_admiral", "name": "야전용 제독 재료", "sortOrder": 50, "enabled": true }
+  ],
+  "skills": [
+    { "id": 1, "name": "강화포문" },
+    { "id": 2, "name": "고속범주" },
+    { "id": 3, "name": "급가속" },
+    { "id": 4, "name": "반동타" },
+    { "id": 5, "name": "사령탑" },
+    { "id": 6, "name": "수밀격벽" },
+    { "id": 7, "name": "직격저지" },
+    { "id": 8, "name": "집중장전" },
+    { "id": 9, "name": "특수기뢰" }
+  ],
+  "ships": [
+    {
+      "id": 1,
+      "slug": "fancy",
+      "name": "팬시",
+      "category": "전투용",
+      "description": "해적 헨리 에브리의 기함으로서, 인도양에서 활약한 매우 빠른 프리깃함.",
+      "sizeId": 6,
+      "formId": 1,
+      "materialId": 5,
+      "adventureLv": 25,
+      "tradeLv": 15,
+      "battleLv": 40,
+      "acquireMethod": "팬시 교환권",
+      "enhanceCount": 9,
+      "durability": 1301,
+      "sailVertical": 340,
+      "sailHorizontal": 300,
+      "oar": 0,
+      "turn": 18,
+      "wave": 14,
+      "armor": 53,
+      "cabin": 190,
+      "crewRequired": 85,
+      "guns": 110,
+      "warehouse": 480,
+      "capDurability": 280,
+      "capSailVertical": 150,
+      "capSailHorizontal": 150,
+      "capOar": 0,
+      "capTurn": 24,
+      "capWave": 25,
+      "capArmor": 25,
+      "capCabin": 50,
+      "capGuns": 50,
+      "capWarehouse": 50,
+      "partAuxSail": 3,
+      "partFigurehead": 1,
+      "partEmblem": 1,
+      "partSpecial": 2,
+      "partExtraArmor": 3,
+      "partBroadside": 5,
+      "partBow": 1,
+      "partStern": 1,
+      "skillIds": [1, 2, 3, 4, 5, 6, 7, 8, 9],
+      "enabled": true,
+      "sortOrder": 10
+    }
+  ]
+}

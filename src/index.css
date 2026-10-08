@@ -1,0 +1,48 @@
+:root {
+  /* Papaya Play DHO official tone */
+  --is-white: #fff;
+  --is-light: #f8f8f8;
+  --is-grey-lighter: #ddd;
+  --is-grey: #787878;
+  --is-dark: #333;
+  --is-black: #000;
+  --is-blue-lighter: #1c6dc9;
+  --is-blue: #244f80;
+  --is-blue-hover: #3a7bc4;
+  --is-yellow: #fffd72;
+  --is-gold: #f5a623;
+  --sea-deep: #0e2a4a;
+  --sea-mid: #163a63;
+  --foam: #e8f1f8;
+
+  --font-sans: "Noto Sans KR", sans-serif;
+  --font-brand: "Noto Serif KR", "Cormorant Garamond", serif;
+  --font-display: "Cormorant Garamond", "Noto Serif KR", serif;
+  --font-script: "Great Vibes", cursive;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  color: var(--is-dark);
+  background: var(--is-light);
+  -webkit-font-smoothing: antialiased;
+}
+
+button,
+input {
+  font: inherit;
+}
