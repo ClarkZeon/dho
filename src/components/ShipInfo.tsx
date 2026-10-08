@@ -130,6 +130,8 @@ export function ShipInfo({ token }: ShipInfoProps) {
                 { label: '교역 Lv', value: ship.tradeLv },
                 { label: '전투 Lv', value: ship.battleLv },
                 { label: '강화 횟수', value: ship.enhanceCount },
+                { label: '건조 일수', value: ship.buildDays },
+                { label: '획득 구분', value: ship.acquireType },
                 { label: '획득 방법', value: ship.acquireMethod },
               ]}
             />

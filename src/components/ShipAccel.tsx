@@ -76,9 +76,9 @@ export function ShipAccel({ token }: ShipAccelProps) {
   const [loadMode, setLoadMode] = useState<LoadAdjustMode>('none')
   const [loadPercent, setLoadPercent] = useState(0)
   const [adventurer, setAdventurer] = useState(false)
-  const [rapidAccel, setRapidAccel] = useState(true)
+  const [rapidAccel, setRapidAccel] = useState(false)
   const [seaSurvey, setSeaSurvey] = useState(false)
-  const [accelGrade, setAccelGrade] = useState<0 | 1 | 2>(0)
+  const [accelGrade, setAccelGrade] = useState<0 | 1 | 2 | 3>(0)
   const [coal, setCoal] = useState(true)
 
   useEffect(() => {
@@ -189,34 +189,38 @@ export function ShipAccel({ token }: ShipAccelProps) {
             )}
           </div>
 
-          <label className="ship-pick">
-            <span className="ship-pick-label">선박 형식</span>
-            <select
-              value={form}
-              disabled
-              title="선박 정보에서 불러옵니다"
-              aria-readonly="true"
-            >
-              {FORMS.map((item) => (
-                <option key={item.value} value={item.value}>
-                  {item.label}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <div className="accel-num-grid">
+          {selectedShip && (
             <label className="ship-pick">
-              <span className="ship-pick-label">기본 장갑 (강화 제외)</span>
-              <input
-                type="number"
-                min={0}
-                value={baseArmor}
-                readOnly
+              <span className="ship-pick-label">선박 형식</span>
+              <select
+                value={form}
                 disabled
                 title="선박 정보에서 불러옵니다"
-              />
+                aria-readonly="true"
+              >
+                {FORMS.map((item) => (
+                  <option key={item.value} value={item.value}>
+                    {item.label}
+                  </option>
+                ))}
+              </select>
             </label>
+          )}
+
+          <div className="accel-num-grid">
+            {selectedShip && (
+              <label className="ship-pick">
+                <span className="ship-pick-label">기본 장갑 (강화 제외)</span>
+                <input
+                  type="number"
+                  min={0}
+                  value={baseArmor}
+                  readOnly
+                  disabled
+                  title="선박 정보에서 불러옵니다"
+                />
+              </label>
+            )}
             <label className="ship-pick">
               <span className="ship-pick-label">추가 장갑 (강화 제외)</span>
               <input
@@ -226,17 +230,19 @@ export function ShipAccel({ token }: ShipAccelProps) {
                 onChange={(e) => setExtraArmor(Number(e.target.value) || 0)}
               />
             </label>
-            <label className="ship-pick">
-              <span className="ship-pick-label">기본 총 적재 (강화 제외)</span>
-              <input
-                type="number"
-                min={0}
-                value={baseLoad}
-                readOnly
-                disabled
-                title="선박 정보에서 불러옵니다"
-              />
-            </label>
+            {selectedShip && (
+              <label className="ship-pick">
+                <span className="ship-pick-label">기본 총 적재 (강화 제외)</span>
+                <input
+                  type="number"
+                  min={0}
+                  value={baseLoad}
+                  readOnly
+                  disabled
+                  title="선박 정보에서 불러옵니다"
+                />
+              </label>
+            )}
             <div className="ship-pick accel-load-adjust">
               <span className="ship-pick-label">적재 조정 (최대 25%)</span>
               <div className="accel-load-adjust-row">
@@ -268,16 +274,18 @@ export function ShipAccel({ token }: ShipAccelProps) {
                 <span className="accel-load-adjust-unit">%</span>
               </div>
             </div>
-            <p className="accel-load-hint accel-armor-sum">
-              계산용 장갑 a = 기본 + 추가 = {armorTotal}
-              <br />
-              계산용 적재 b
-              {loadMode === 'down' && loadPercent > 0
-                ? ` = 기본 × (100 − ${loadPercent}) ÷ 100 = ${loadTotal}`
-                : loadMode === 'up' && loadPercent > 0
-                  ? ` = 기본 × (100 + ${loadPercent}) ÷ 100 = ${loadTotal}`
-                  : ` = 기본 = ${loadTotal}`}
-            </p>
+            {selectedShip && (
+              <p className="accel-load-hint accel-armor-sum">
+                계산용 장갑 a = 기본 + 추가 = {armorTotal}
+                <br />
+                계산용 적재 b
+                {loadMode === 'down' && loadPercent > 0
+                  ? ` = 기본 × (100 − ${loadPercent}) ÷ 100 = ${loadTotal}`
+                  : loadMode === 'up' && loadPercent > 0
+                    ? ` = 기본 × (100 + ${loadPercent}) ÷ 100 = ${loadTotal}`
+                    : ` = 기본 = ${loadTotal}`}
+              </p>
+            )}
           </div>
 
           <fieldset className="accel-checks">
@@ -313,12 +321,13 @@ export function ShipAccel({ token }: ShipAccelProps) {
                   <select
                     value={accelGrade}
                     onChange={(e) =>
-                      setAccelGrade(Number(e.target.value) as 0 | 1 | 2)
+                      setAccelGrade(Number(e.target.value) as 0 | 1 | 2 | 3)
                     }
                   >
                     <option value={0}>없음</option>
                     <option value={1}>1</option>
                     <option value={2}>2</option>
+                    <option value={3}>3</option>
                   </select>
                 </label>
                 <p className="accel-load-hint">
@@ -355,15 +364,21 @@ export function ShipAccel({ token }: ShipAccelProps) {
           {result.note && <p className="accel-result-note">{result.note}</p>}
           <dl className="accel-breakdown">
             <div>
-              <dt>X (1차)</dt>
+              <dt>X (장갑·적재·직업·급가)</dt>
               <dd>{result.x}</dd>
             </div>
             <div>
-              <dt>Y (스킬)</dt>
+              <dt>
+                {form === 'galley'
+                  ? 'Y (갤리·노젓기)'
+                  : form === 'steam'
+                    ? 'Y (증기선·석탄)'
+                    : 'Y (범선·증기기관)'}
+              </dt>
               <dd>{result.y}</dd>
             </div>
             <div>
-              <dt>Z (보너스)</dt>
+              <dt>Z (해역·가강)</dt>
               <dd>{result.z}</dd>
             </div>
           </dl>

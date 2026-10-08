@@ -50,10 +50,13 @@ function decorateShipRow(ship, sizes, forms, materials, skillRows) {
     adventureLv: Number(ship.adventure_lv) || 0,
     tradeLv: Number(ship.trade_lv) || 0,
     battleLv: Number(ship.battle_lv) || 0,
+    acquireType:
+      ship.acquire_type == null ? null : String(ship.acquire_type),
     acquireMethod:
       ship.acquire_method == null ? null : String(ship.acquire_method),
     enhanceCount:
       ship.enhance_count == null ? null : Number(ship.enhance_count),
+    buildDays: ship.build_days == null ? null : Number(ship.build_days),
     durability: Number(ship.durability) || 0,
     sailVertical,
     sailHorizontal,
@@ -159,7 +162,8 @@ async function seedShipsFromBundle() {
     await sql`
       INSERT INTO ships (
         id, slug, name, category, description, size_id, form_id, material_id,
-        adventure_lv, trade_lv, battle_lv, acquire_method, enhance_count,
+        adventure_lv, trade_lv, battle_lv, acquire_type, acquire_method,
+        enhance_count, build_days,
         durability, sail_vertical, sail_horizontal, oar, turn_stat, wave_resist,
         armor, cabin, crew_required, guns, warehouse,
         cap_durability, cap_sail_vertical, cap_sail_horizontal, cap_oar,
@@ -172,7 +176,8 @@ async function seedShipsFromBundle() {
         ${ship.description ?? null}, ${ship.sizeId}, ${ship.formId},
         ${ship.materialId ?? null}, ${ship.adventureLv ?? 0},
         ${ship.tradeLv ?? 0}, ${ship.battleLv ?? 0},
-        ${ship.acquireMethod ?? null}, ${ship.enhanceCount ?? null},
+        ${ship.acquireType ?? null}, ${ship.acquireMethod ?? null},
+        ${ship.enhanceCount ?? null}, ${ship.buildDays ?? null},
         ${ship.durability ?? 0}, ${ship.sailVertical ?? 0},
         ${ship.sailHorizontal ?? 0}, ${ship.oar ?? 0}, ${ship.turn ?? 0},
         ${ship.wave ?? 0}, ${ship.armor ?? 0}, ${ship.cabin ?? 0},
@@ -199,8 +204,10 @@ async function seedShipsFromBundle() {
         adventure_lv = EXCLUDED.adventure_lv,
         trade_lv = EXCLUDED.trade_lv,
         battle_lv = EXCLUDED.battle_lv,
+        acquire_type = EXCLUDED.acquire_type,
         acquire_method = EXCLUDED.acquire_method,
         enhance_count = EXCLUDED.enhance_count,
+        build_days = EXCLUDED.build_days,
         durability = EXCLUDED.durability,
         sail_vertical = EXCLUDED.sail_vertical,
         sail_horizontal = EXCLUDED.sail_horizontal,
@@ -262,11 +269,9 @@ async function seedShipsFromBundle() {
 export async function ensureShipStore() {
   if (!hasDatabaseUrl()) throw new Error('DATABASE_URL 이 없습니다.')
   await runSqlFile('sql/006_ships.sql')
-  const sql = getSql()
-  const rows = await sql`SELECT COUNT(*)::int AS n FROM ships`
-  if (Number(rows[0]?.n || 0) === 0) {
-    await seedShipsFromBundle()
-  }
+  await runSqlFile('sql/007_ship_acquire.sql')
+  // 번들 JSON upsert — 신규 선박·획득 방법 반영
+  await seedShipsFromBundle()
 }
 
 async function loadLookups() {
@@ -363,5 +368,6 @@ export async function getShipBySlug(slug) {
 /** 번들 JSON으로 강제 재시드 (마이그레이션용) */
 export async function reseedShipsFromBundle() {
   await runSqlFile('sql/006_ships.sql')
+  await runSqlFile('sql/007_ship_acquire.sql')
   await seedShipsFromBundle()
 }

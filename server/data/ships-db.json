@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "sizes": [
     { "id": 1, "code": "small1", "name": "소형1", "sortOrder": 10, "enabled": true },
     { "id": 2, "code": "small2", "name": "소형2", "sortOrder": 20, "enabled": true },
@@ -18,7 +18,8 @@
     { "id": 2, "code": "cedar_plank", "name": "삼나무판", "sortOrder": 20, "enabled": true },
     { "id": 3, "code": "red_pine", "name": "붉은 소나무", "sortOrder": 30, "enabled": true },
     { "id": 4, "code": "england_admiral", "name": "잉글랜드 제독 재료", "sortOrder": 40, "enabled": true },
-    { "id": 5, "code": "field_admiral", "name": "야전용 제독 재료", "sortOrder": 50, "enabled": true }
+    { "id": 5, "code": "field_admiral", "name": "야전용 제독 재료", "sortOrder": 50, "enabled": true },
+    { "id": 6, "code": "teak", "name": "티크", "sortOrder": 60, "enabled": true }
   ],
   "skills": [
     { "id": 1, "name": "강화포문" },
@@ -29,7 +30,17 @@
     { "id": 6, "name": "수밀격벽" },
     { "id": 7, "name": "직격저지" },
     { "id": 8, "name": "집중장전" },
-    { "id": 9, "name": "특수기뢰" }
+    { "id": 9, "name": "특수기뢰" },
+    { "id": 10, "name": "고속수송" },
+    { "id": 11, "name": "고층 감시대" },
+    { "id": 12, "name": "구명정" },
+    { "id": 13, "name": "군함 위장" },
+    { "id": 14, "name": "내풍마스트" },
+    { "id": 15, "name": "내화벽" },
+    { "id": 16, "name": "예항 보조" },
+    { "id": 17, "name": "위장창고" },
+    { "id": 18, "name": "침투방지망" },
+    { "id": 19, "name": "투망" }
   ],
   "ships": [
     {
@@ -44,8 +55,10 @@
       "adventureLv": 25,
       "tradeLv": 15,
       "battleLv": 40,
+      "acquireType": "아이템 사용",
       "acquireMethod": "팬시 교환권",
       "enhanceCount": 9,
+      "buildDays": null,
       "durability": 1301,
       "sailVertical": 340,
       "sailHorizontal": 300,
@@ -142,6 +155,133 @@
       ],
       "enabled": true,
       "sortOrder": 10
+    },
+    {
+      "id": 2,
+      "slug": "special-mod-long-schooner",
+      "name": "특수 개조 롱 스쿠너",
+      "category": "모험용",
+      "description": "항해 성능을 한층 더 높인 특수 개조 롱 스쿠너.",
+      "sizeId": 6,
+      "formId": 1,
+      "materialId": 6,
+      "adventureLv": 30,
+      "tradeLv": 15,
+      "battleLv": 15,
+      "acquireType": "아이템 사용",
+      "acquireMethod": "선박 교환권(NO. 719)",
+      "enhanceCount": 8,
+      "buildDays": 35,
+      "durability": 918,
+      "sailVertical": 420,
+      "sailHorizontal": 236,
+      "oar": 0,
+      "turn": 9,
+      "wave": 14,
+      "armor": 30,
+      "cabin": 75,
+      "crewRequired": 20,
+      "guns": 35,
+      "warehouse": 560,
+      "capDurability": 260,
+      "capSailVertical": 180,
+      "capSailHorizontal": 180,
+      "capOar": 0,
+      "capTurn": 26,
+      "capWave": 26,
+      "capArmor": 23,
+      "capCabin": 45,
+      "capGuns": 45,
+      "capWarehouse": 45,
+      "partAuxSail": 0,
+      "partFigurehead": 0,
+      "partEmblem": 0,
+      "partSpecial": 0,
+      "partExtraArmor": 0,
+      "partBroadside": 0,
+      "partBow": 0,
+      "partStern": 0,
+      "skills": [
+        {
+          "skillId": 10,
+          "sail": null,
+          "gunPort": null,
+          "material1": "특수 선창",
+          "material2": "훈장의 의장도안"
+        },
+        {
+          "skillId": 11,
+          "sail": null,
+          "gunPort": null,
+          "material1": "기능성 할야드",
+          "material2": "마스트 톱"
+        },
+        {
+          "skillId": 12,
+          "sail": null,
+          "gunPort": null,
+          "material1": "이동용 그물",
+          "material2": "구명정"
+        },
+        {
+          "skillId": 13,
+          "sail": null,
+          "gunPort": "개량형 대형 포문",
+          "material1": null,
+          "material2": "사령탑"
+        },
+        {
+          "skillId": 3,
+          "sail": "대 개프세일",
+          "gunPort": null,
+          "material1": "오물방지 도장",
+          "material2": null
+        },
+        {
+          "skillId": 14,
+          "sail": null,
+          "gunPort": null,
+          "material1": "대형 마스트",
+          "material2": "수리 도구 세트"
+        },
+        {
+          "skillId": 15,
+          "sail": null,
+          "gunPort": null,
+          "material1": "철재 가공",
+          "material2": "해체 도구 세트"
+        },
+        {
+          "skillId": 16,
+          "sail": null,
+          "gunPort": null,
+          "material1": "정박용 그물",
+          "material2": "이동용 그물"
+        },
+        {
+          "skillId": 17,
+          "sail": null,
+          "gunPort": null,
+          "material1": "금고",
+          "material2": "특수 선창"
+        },
+        {
+          "skillId": 18,
+          "sail": null,
+          "gunPort": null,
+          "material1": "투망",
+          "material2": "제독실"
+        },
+        {
+          "skillId": 19,
+          "sail": null,
+          "gunPort": null,
+          "material1": "투망",
+          "material2": "격납고"
+        }
+      ],
+      "enabled": true,
+      "sortOrder": 20
     }
   ]
 }

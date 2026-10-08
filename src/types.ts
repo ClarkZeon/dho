@@ -73,8 +73,12 @@ export type ShipDetail = {
   adventureLv: number
   tradeLv: number
   battleLv: number
+  /** 예: 아이템 사용, 조선소 건조 */
+  acquireType: string | null
+  /** 예: 선박 교환권(NO. 719) */
   acquireMethod: string | null
   enhanceCount: number | null
+  buildDays: number | null
   durability: number
   sailVertical: number
   sailHorizontal: number

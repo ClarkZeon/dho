@@ -23,6 +23,7 @@ type DashboardProps = {
   onToast: (message: string) => void
 }
 
+/** 홈은 해시 없음(깨끗한 URL). 하위 페이지만 #/… 사용 */
 function viewToHash(view: View): string {
   switch (view.name) {
     case 'messages':
@@ -38,8 +39,21 @@ function viewToHash(view: View): string {
         ? `#/board/${encodeURIComponent(view.boardId)}/${encodeURIComponent(view.postId)}`
         : `#/board/${encodeURIComponent(view.boardId)}`
     default:
-      return '#/'
+      return ''
   }
+}
+
+function currentUrlWithHash(hash: string) {
+  return `${window.location.pathname}${window.location.search}${hash}`
+}
+
+function applyViewUrl(view: View) {
+  const hash = viewToHash(view)
+  const nextUrl = currentUrlWithHash(hash)
+  const now = currentUrlWithHash(window.location.hash)
+  if (now === nextUrl) return
+  // 홈으로 갈 때 hash='' 만 쓰면 주소에 `#` 잔여가 남을 수 있어 pathname으로 교체
+  window.history.pushState(null, '', nextUrl)
 }
 
 function hashToView(hash: string): View {
@@ -166,10 +180,7 @@ export function Dashboard({ user, token, onLogout, onToast }: DashboardProps) {
   const go = useCallback(
     (next: View) => {
       setView((prev) => (viewsEqual(prev, next) ? prev : next))
-      const nextHash = viewToHash(next)
-      if (window.location.hash !== nextHash) {
-        window.location.hash = nextHash
-      }
+      applyViewUrl(next)
       if (next.name === 'home') void refreshBoards()
     },
     [refreshBoards],
@@ -185,11 +196,16 @@ export function Dashboard({ user, token, onLogout, onToast }: DashboardProps) {
   }, [refreshUnread, refreshBoards])
 
   useEffect(() => {
-    if (!window.location.hash || window.location.hash === '#') {
-      window.history.replaceState(null, '', '#/')
+    // 예전 홈 URL `#/` · `#` 정리
+    if (window.location.hash === '#/' || window.location.hash === '#') {
+      window.history.replaceState(
+        null,
+        '',
+        `${window.location.pathname}${window.location.search}`,
+      )
     }
 
-    function onHashChange() {
+    function syncFromLocation() {
       const next = hashToView(window.location.hash)
       setView((prev) => {
         if (viewsEqual(prev, next)) return prev
@@ -198,8 +214,12 @@ export function Dashboard({ user, token, onLogout, onToast }: DashboardProps) {
       })
     }
 
-    window.addEventListener('hashchange', onHashChange)
-    return () => window.removeEventListener('hashchange', onHashChange)
+    window.addEventListener('hashchange', syncFromLocation)
+    window.addEventListener('popstate', syncFromLocation)
+    return () => {
+      window.removeEventListener('hashchange', syncFromLocation)
+      window.removeEventListener('popstate', syncFromLocation)
+    }
   }, [refreshBoards])
 
   function navigate(target: MenuTarget) {
@@ -353,10 +373,7 @@ export function Dashboard({ user, token, onLogout, onToast }: DashboardProps) {
             onClearPostId={() => {
               const next = { name: 'board' as const, boardId: view.boardId }
               setView(next)
-              const nextHash = viewToHash(next)
-              if (window.location.hash !== nextHash) {
-                window.history.replaceState(null, '', nextHash)
-              }
+              window.history.replaceState(null, '', currentUrlWithHash(viewToHash(next)))
             }}
           />
         )}
