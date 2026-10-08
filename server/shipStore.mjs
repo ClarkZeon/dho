@@ -1,16 +1,19 @@
-import { readFile, writeFile } from 'node:fs/promises'
+import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { BUNDLED_DATA_DIR, getWritableDataDir } from './paths.mjs'
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
-export const SHIPS_DB_FILE = path.join(__dirname, 'data', 'ships-db.json')
+const BUNDLED_SHIPS_FILE = path.join(BUNDLED_DATA_DIR, 'ships-db.json')
+
+function shipsDbFile() {
+  return path.join(getWritableDataDir(), 'ships-db.json')
+}
 
 async function readDb() {
-  return JSON.parse(await readFile(SHIPS_DB_FILE, 'utf8'))
+  return JSON.parse(await readFile(shipsDbFile(), 'utf8'))
 }
 
 async function writeDb(db) {
-  await writeFile(SHIPS_DB_FILE, `${JSON.stringify(db, null, 2)}\n`, 'utf8')
+  await writeFile(shipsDbFile(), `${JSON.stringify(db, null, 2)}\n`, 'utf8')
 }
 
 function byId(list, id) {
@@ -81,17 +84,23 @@ function decorateShip(db, ship) {
 }
 
 export async function ensureShipStore() {
+  const dir = getWritableDataDir()
+  await mkdir(dir, { recursive: true })
+  const target = shipsDbFile()
   try {
-    await readFile(SHIPS_DB_FILE, 'utf8')
+    await readFile(target, 'utf8')
   } catch {
-    // ships-db.json 은 저장소에 포함. 없으면 빈 골격만 생성
-    await writeDb({
-      sizes: [],
-      forms: [],
-      materials: [],
-      skills: [],
-      ships: [],
-    })
+    try {
+      await copyFile(BUNDLED_SHIPS_FILE, target)
+    } catch {
+      await writeDb({
+        sizes: [],
+        forms: [],
+        materials: [],
+        skills: [],
+        ships: [],
+      })
+    }
   }
 }
 

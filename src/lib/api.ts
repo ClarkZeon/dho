@@ -62,7 +62,17 @@ async function request<T>(
     body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
   })
 
-  const data = (await res.json()) as T & { error?: string }
+  const text = await res.text()
+  let data: T & { error?: string }
+  try {
+    data = JSON.parse(text) as T & { error?: string }
+  } catch {
+    throw new Error(
+      res.ok
+        ? '서버 응답 형식이 올바르지 않습니다.'
+        : 'API 서버에 연결하지 못했습니다. 배포 설정을 확인해 주세요.',
+    )
+  }
   if (!res.ok) {
     throw new Error(data.error || '요청에 실패했습니다.')
   }

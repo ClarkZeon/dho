@@ -2,7 +2,6 @@ import { createServer } from 'node:http'
 import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
-import { fileURLToPath } from 'node:url'
 import {
   canWriteBoard,
   createPost,
@@ -14,6 +13,7 @@ import {
   validatePostBody,
   validatePostTitle,
 } from './boardStore.mjs'
+import { getWritableDataDir } from './paths.mjs'
 import {
   ensureShipStore,
   getShipBySlug,
@@ -21,13 +21,18 @@ import {
   listShips,
 } from './shipStore.mjs'
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const DATA_DIR = path.join(__dirname, 'data')
-const USERS_FILE = path.join(DATA_DIR, 'users.json')
-const SESSIONS_FILE = path.join(DATA_DIR, 'sessions.json')
-const MESSAGES_FILE = path.join(DATA_DIR, 'messages.json')
 const PORT = Number(process.env.API_PORT || 17778)
 const DAILY_LOGIN_XP = 20
+
+function usersFile() {
+  return path.join(getWritableDataDir(), 'users.json')
+}
+function sessionsFile() {
+  return path.join(getWritableDataDir(), 'sessions.json')
+}
+function messagesFile() {
+  return path.join(getWritableDataDir(), 'messages.json')
+}
 
 /**
  * @typedef {{
@@ -68,9 +73,9 @@ async function ensureFile(file, fallback) {
 
 async function ensureStore() {
   await mkdir(DATA_DIR, { recursive: true })
-  await ensureFile(USERS_FILE, '[]\n')
-  await ensureFile(SESSIONS_FILE, '[]\n')
-  await ensureFile(MESSAGES_FILE, '[]\n')
+  await ensureFile(usersFile(), '[]\n')
+  await ensureFile(sessionsFile(), '[]\n')
+  await ensureFile(messagesFile(), '[]\n')
   await ensureBoardStore()
   await ensureShipStore()
 
@@ -138,33 +143,33 @@ async function writeJson(file, data) {
 
 /** @returns {Promise<User[]>} */
 async function loadUsers() {
-  const users = await readJson(USERS_FILE)
+  const users = await readJson(usersFile())
   return users.map((user) => normalizeUser(user))
 }
 
 /** @param {User[]} users */
 async function saveUsers(users) {
-  await writeJson(USERS_FILE, users)
+  await writeJson(usersFile(), users)
 }
 
 /** @returns {Promise<Session[]>} */
 async function loadSessions() {
-  return readJson(SESSIONS_FILE)
+  return readJson(sessionsFile())
 }
 
 /** @param {Session[]} sessions */
 async function saveSessions(sessions) {
-  await writeJson(SESSIONS_FILE, sessions)
+  await writeJson(sessionsFile(), sessions)
 }
 
 /** @returns {Promise<Message[]>} */
 async function loadMessages() {
-  return readJson(MESSAGES_FILE)
+  return readJson(messagesFile())
 }
 
 /** @param {Message[]} messages */
 async function saveMessages(messages) {
-  await writeJson(MESSAGES_FILE, messages)
+  await writeJson(messagesFile(), messages)
 }
 
 function hashPassword(password, salt = randomBytes(16).toString('hex')) {
@@ -299,10 +304,17 @@ function decorateMessage(message, users, currentUserId) {
   }
 }
 
-await ensureStore()
+let storeReady = null
 
-const server = createServer(async (req, res) => {
+export async function ensureReady() {
+  if (!storeReady) storeReady = ensureStore()
+  await storeReady
+}
+
+export async function handleRequest(req, res) {
   try {
+    await ensureReady()
+
     if (req.method === 'OPTIONS') {
       sendJson(res, 204, {})
       return
@@ -871,8 +883,14 @@ const server = createServer(async (req, res) => {
     console.error(error)
     sendJson(res, 500, { error: '서버 오류가 발생했습니다.' })
   }
-})
+}
 
-server.listen(PORT, () => {
-  console.log(`DHO API listening on http://localhost:${PORT}`)
-})
+if (!process.env.VERCEL) {
+  await ensureReady()
+  const server = createServer((req, res) => {
+    void handleRequest(req, res)
+  })
+  server.listen(PORT, () => {
+    console.log(`DHO API listening on http://localhost:${PORT}`)
+  })
+}

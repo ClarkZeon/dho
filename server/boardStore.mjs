@@ -1,12 +1,19 @@
 import { randomBytes } from 'node:crypto'
 import { readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { getWritableDataDir } from './paths.mjs'
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const DATA_DIR = path.join(__dirname, 'data')
-export const BOARDS_FILE = path.join(DATA_DIR, 'boards.json')
-export const POSTS_FILE = path.join(DATA_DIR, 'posts.json')
+function dataDir() {
+  return getWritableDataDir()
+}
+
+export function boardsFile() {
+  return path.join(dataDir(), 'boards.json')
+}
+
+export function postsFile() {
+  return path.join(dataDir(), 'posts.json')
+}
 
 /**
  * 공통 게시판 정의 (추후 MySQL boards 테이블)
@@ -83,17 +90,17 @@ async function writeJson(file, data) {
 }
 
 export async function ensureBoardStore() {
-  let boards = await readJson(BOARDS_FILE, null)
+  let boards = await readJson(boardsFile(), null)
   if (!Array.isArray(boards) || boards.length === 0) {
     boards = DEFAULT_BOARDS
-    await writeJson(BOARDS_FILE, boards)
+    await writeJson(boardsFile(), boards)
   } else if (boards.some((b) => b.id === 'ship')) {
     // 선박은 게시판이 아니라 독립 대메뉴로 분리
     boards = boards.filter((b) => b.id !== 'ship')
-    await writeJson(BOARDS_FILE, boards)
+    await writeJson(boardsFile(), boards)
   }
 
-  let posts = await readJson(POSTS_FILE, null)
+  let posts = await readJson(postsFile(), null)
   if (!Array.isArray(posts)) {
     posts = []
   }
@@ -124,13 +131,13 @@ export async function ensureBoardStore() {
         updatedAt: createdAt,
       },
     ]
-    await writeJson(POSTS_FILE, posts)
+    await writeJson(postsFile(), posts)
   }
 }
 
 /** @returns {Promise<Board[]>} */
 export async function loadBoards() {
-  const boards = await readJson(BOARDS_FILE, DEFAULT_BOARDS)
+  const boards = await readJson(boardsFile(), DEFAULT_BOARDS)
   return boards
     .filter((b) => b.enabled !== false)
     .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
@@ -138,12 +145,12 @@ export async function loadBoards() {
 
 /** @returns {Promise<Post[]>} */
 export async function loadPosts() {
-  return readJson(POSTS_FILE, [])
+  return readJson(postsFile(), [])
 }
 
 /** @param {Post[]} posts */
 export async function savePosts(posts) {
-  await writeJson(POSTS_FILE, posts)
+  await writeJson(postsFile(), posts)
 }
 
 export function canWriteBoard(board, user) {
