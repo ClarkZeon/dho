@@ -72,7 +72,7 @@ async function ensureFile(file, fallback) {
 }
 
 async function ensureStore() {
-  await mkdir(DATA_DIR, { recursive: true })
+  await mkdir(getWritableDataDir(), { recursive: true })
   await ensureFile(usersFile(), '[]\n')
   await ensureFile(sessionsFile(), '[]\n')
   await ensureFile(messagesFile(), '[]\n')
