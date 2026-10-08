@@ -42,6 +42,12 @@ import {
 } from './questStore.mjs'
 import { parseQuestText } from './questTextParse.mjs'
 import {
+  ensurePortStore,
+  listPorts,
+  upsertPortFromParsed,
+} from './portStore.mjs'
+import { parsePortText } from './portTextParse.mjs'
+import {
   createUser,
   deleteSessionByToken,
   getAuthUserByToken,
@@ -99,6 +105,7 @@ async function ensureStore() {
   await ensureMessageStore()
   await ensureShipStore()
   await ensureQuestStore()
+  await ensurePortStore()
 }
 
 function requireAuthDb(res) {
@@ -798,6 +805,41 @@ export async function handleRequest(req, res) {
         sendJson(res, 400, {
           error:
             err instanceof Error ? err.message : '퀘스트 텍스트 파싱에 실패했습니다.',
+        })
+      }
+      return
+    }
+
+    if (req.method === 'GET' && pathname === '/api/ports') {
+      const authUser = await getAuthUser(req)
+      if (!authUser) {
+        sendJson(res, 401, { error: '로그인이 필요합니다.' })
+        return
+      }
+      const ports = await listPorts()
+      sendJson(res, 200, { ports })
+      return
+    }
+
+    if (req.method === 'POST' && pathname === '/api/ports/import-text') {
+      const authUser = await getAuthUser(req)
+      if (!authUser) {
+        sendJson(res, 401, { error: '로그인이 필요합니다.' })
+        return
+      }
+      if (!requireAdmin(authUser, res)) return
+      const body = await readBody(req)
+      const text = typeof body.text === 'string' ? body.text : ''
+      try {
+        const parsed = parsePortText(text)
+        const port = await upsertPortFromParsed(parsed)
+        sendJson(res, 201, { port })
+      } catch (err) {
+        sendJson(res, 400, {
+          error:
+            err instanceof Error
+              ? err.message
+              : '항구(도시) 텍스트 파싱에 실패했습니다.',
         })
       }
       return

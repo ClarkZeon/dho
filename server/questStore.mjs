@@ -60,11 +60,17 @@ function decorateQuest(row) {
     walkthrough:
       row.walkthrough == null
         ? null
-        : stripWikiMapNoise(String(row.walkthrough)) || null,
+        : stripWikiMapNoise(
+            String(row.walkthrough),
+            row.destination == null ? null : String(row.destination),
+          ) || null,
     progress:
       row.progress == null
         ? null
-        : stripWikiMapNoise(String(row.progress)) || null,
+        : stripWikiMapNoise(
+            String(row.progress),
+            row.destination == null ? null : String(row.destination),
+          ) || null,
   }
 }
 

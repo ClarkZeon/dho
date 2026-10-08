@@ -148,13 +148,60 @@ function isMapSourceLine(line) {
   return /지도\s*출처/.test(String(line || '').trim())
 }
 
-/** 위키 지도 위젯 출처 문구 제거 (지도 기능 없음) */
-export function stripWikiMapNoise(text) {
+/** 공략 단계 앞부분 지명 — "3. 캘리컷 북쪽, …" → "캘리컷 북쪽" */
+function placePrefixFromStep(line) {
+  const m = String(line || '')
+    .trim()
+    .match(/^\d+\.\s*(.+)$/)
+  if (!m) return ''
+  return normalizeLoose(m[1].split(/[,，]/)[0] || '')
+}
+
+function isWalkthroughMapCaption(line, destination, placePrefixes) {
+  const t = normalizeLoose(line)
+  if (!t) return false
+  if (/^\d+\./.test(t) || /^[-–—]/.test(t) || /^[（(]/.test(t)) return false
+  if (isMapSourceLine(t)) return true
+  if (destination && t === normalizeLoose(destination)) return true
+  // 마지막 단계 지명과 같은 지도 위젯 제목 (캘리컷 북쪽, 홍해 서쪽 해안)
+  return placePrefixes.some((p) => p && t === p)
+}
+
+/** 위키 지도 위젯 제목·출처 제거 (지도 기능 없음) */
+export function stripWikiMapNoise(text, destination = null) {
   if (text == null || text === '') return text == null ? null : ''
-  return String(text)
-    .split('\n')
-    .map((line) => line.replace(/지도\s*출처\s*[:：]?\s*.*$/, '').trimEnd())
-    .filter((line) => !isMapSourceLine(line))
+  const dest = destination ? normalizeLoose(destination) : ''
+  const rawLines = String(text).split('\n')
+  const placePrefixes = rawLines.map(placePrefixFromStep).filter(Boolean)
+  const out = []
+  for (let i = 0; i < rawLines.length; i++) {
+    let line = rawLines[i]
+      .replace(/지도\s*출처\s*[:：]?\s*.*$/, '')
+      .trimEnd()
+    if (!line.trim() && !rawLines[i].trim()) {
+      out.push('')
+      continue
+    }
+    if (isMapSourceLine(line) || isMapSourceLine(rawLines[i])) continue
+    const next = rawLines.slice(i + 1).find((l) => l.trim())
+    if (next && isMapSourceLine(next) && !/^\d+\./.test(line.trim())) continue
+    if (isWalkthroughMapCaption(line, dest, placePrefixes)) continue
+    out.push(line)
+  }
+  // 끝쪽에 남은 지도 제목 한 번 더 정리
+  while (out.length) {
+    const last = out[out.length - 1].trim()
+    if (!last) {
+      out.pop()
+      continue
+    }
+    if (isWalkthroughMapCaption(last, dest, placePrefixes)) {
+      out.pop()
+      continue
+    }
+    break
+  }
+  return out
     .join('\n')
     .replace(/\n{3,}/g, '\n\n')
     .trim()
@@ -467,9 +514,23 @@ export function parseQuestText(text) {
         line === '×' ||
         line === '+' ||
         line === '-' ||
-        /^지도\s*출처/.test(line) ||
+        isMapSourceLine(line) ||
         /^[\d,\s]+$/.test(line)
       ) {
+        continue
+      }
+      const nextLine = lines
+        .slice(i + 1)
+        .map((l) => l.replace(/^[\uFEFF\u200B\u200C\u200D]+/, '').trim())
+        .find(Boolean)
+      if (nextLine && isMapSourceLine(nextLine) && !/^\d+\./.test(line)) {
+        continue
+      }
+      const prefixes = [
+        ...walkthroughLines.map(placePrefixFromStep),
+        placePrefixFromStep(line),
+      ].filter(Boolean)
+      if (isWalkthroughMapCaption(line, destination, prefixes)) {
         continue
       }
       walkthroughLines.push(line)
@@ -512,8 +573,11 @@ export function parseQuestText(text) {
     chainQuests,
     linkedQuests,
     walkthrough:
-      stripWikiMapNoise(cleanWalkthrough(walkthroughLines.join('\n'))) || null,
-    progress: stripWikiMapNoise(progressLines.join('\n')) || null,
+      stripWikiMapNoise(
+        cleanWalkthrough(walkthroughLines.join('\n')),
+        destination,
+      ) || null,
+    progress: stripWikiMapNoise(progressLines.join('\n'), destination) || null,
   }
 }
 

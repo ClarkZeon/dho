@@ -6,13 +6,48 @@ function formatNum(n: number | null | undefined) {
   return n.toLocaleString('ko-KR')
 }
 
-function dropMapSource(text: string) {
-  return text
-    .split('\n')
+function placePrefixFromStep(line: string) {
+  const m = line.trim().match(/^\d+\.\s*(.+)$/)
+  if (!m) return ''
+  return m[1].split(/[,，]/)[0].replace(/\s+/g, ' ').trim()
+}
+
+function isWalkthroughMapCaption(
+  line: string,
+  destination: string,
+  placePrefixes: string[],
+) {
+  const t = line.replace(/\s+/g, ' ').trim()
+  if (!t) return false
+  if (/^\d+\./.test(t) || /^[-–—]/.test(t) || /^[（(]/.test(t)) return false
+  if (/지도\s*출처/.test(t)) return true
+  if (destination && t === destination) return true
+  return placePrefixes.some((p) => p && t === p)
+}
+
+function dropMapSource(text: string, destination?: string | null) {
+  const dest = (destination || '').replace(/\s+/g, ' ').trim()
+  const lines = text.split('\n')
+  const placePrefixes = lines.map(placePrefixFromStep).filter(Boolean)
+  const kept = lines
     .map((line) => line.replace(/지도\s*출처\s*[:：]?\s*.*$/, '').trimEnd())
-    .filter((line) => line.trim().length > 0 && !/지도\s*출처/.test(line))
-    .join('\n')
-    .trim()
+    .filter((line, idx, arr) => {
+      const t = line.trim()
+      if (!t || /지도\s*출처/.test(t)) return false
+      const next = arr.slice(idx + 1).find((l) => l.trim())
+      if (next && /지도\s*출처/.test(next) && !/^\d+\./.test(t)) return false
+      if (isWalkthroughMapCaption(t, dest, placePrefixes)) return false
+      return true
+    })
+  while (kept.length) {
+    const last = kept[kept.length - 1].trim()
+    if (!last || isWalkthroughMapCaption(last, dest, placePrefixes)) {
+      kept.pop()
+      continue
+    }
+    break
+  }
+  return kept.join('\n').trim()
 }
 
 function DifficultyStars({ value }: { value: number | null }) {
@@ -104,12 +139,15 @@ export function QuestDetailView({ quest }: QuestDetailViewProps) {
     .filter(Boolean)
     .join(' ')
 
-  const description = dropMapSource(quest.description || '')
-  const walkthroughSteps = dropMapSource(quest.walkthrough || '')
+  const description = dropMapSource(quest.description || '', quest.destination)
+  const walkthroughSteps = dropMapSource(
+    quest.walkthrough || '',
+    quest.destination,
+  )
     .split('\n')
     .filter((line) => line.trim().length > 0)
 
-  const progressBlocks = dropMapSource(quest.progress || '')
+  const progressBlocks = dropMapSource(quest.progress || '', quest.destination)
     .split(/\n(?=\d+\.\s+|결론\s*[-–—])/)
     .map((block) => block.trim())
     .filter(Boolean)

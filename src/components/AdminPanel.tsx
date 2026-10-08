@@ -2,18 +2,21 @@ import { useCallback, useEffect, useState, type FormEvent, type KeyboardEvent } 
 import {
   deleteAdminUser,
   fetchAdminUsers,
+  fetchPorts,
   fetchQuests,
   fetchShips,
+  importPortText,
   importQuestText,
   importShipText,
   updateAdminUserRole,
   updateQuest,
 } from '../lib/api'
-import type { AdminUser, QuestDetail, ShipDetail, User } from '../types'
+import type { AdminUser, PortDetail, QuestDetail, ShipDetail, User } from '../types'
+import { PortDetailView } from './PortDetailView'
 import { QuestDetailView } from './QuestDetailView'
 import { ShipDetailView } from './ShipDetailView'
 
-type AdminNav = 'users' | 'ships' | 'quests'
+type AdminNav = 'users' | 'ships' | 'quests' | 'ports'
 
 type AdminPanelProps = {
   user: User
@@ -63,6 +66,15 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
   const [detailQuest, setDetailQuest] = useState<QuestDetail | null>(null)
   const [busyQuestId, setBusyQuestId] = useState<number | null>(null)
 
+  const [ports, setPorts] = useState<PortDetail[]>([])
+  const [loadingPorts, setLoadingPorts] = useState(false)
+  const [portsError, setPortsError] = useState('')
+  const [showPortImport, setShowPortImport] = useState(false)
+  const [portImportText, setPortImportText] = useState('')
+  const [importingPort, setImportingPort] = useState(false)
+  const [portImportNote, setPortImportNote] = useState('')
+  const [detailPort, setDetailPort] = useState<PortDetail | null>(null)
+
   const loadUsers = useCallback(async () => {
     setLoadingUsers(true)
     setUsersError('')
@@ -108,13 +120,31 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
     }
   }, [token])
 
+  const loadPorts = useCallback(async () => {
+    setLoadingPorts(true)
+    setPortsError('')
+    try {
+      const res = await fetchPorts(token)
+      setPorts(res.ports)
+    } catch (err) {
+      setPortsError(
+        err instanceof Error
+          ? err.message
+          : '항구(도시) 목록을 불러오지 못했습니다.',
+      )
+    } finally {
+      setLoadingPorts(false)
+    }
+  }, [token])
+
   useEffect(() => {
     if (nav === 'users') void loadUsers()
     if (nav === 'ships') void loadShips()
     if (nav === 'quests') void loadQuests()
-  }, [nav, loadUsers, loadShips, loadQuests])
+    if (nav === 'ports') void loadPorts()
+  }, [nav, loadUsers, loadShips, loadQuests, loadPorts])
 
-  const detailOpen = Boolean(detailShip || detailQuest)
+  const detailOpen = Boolean(detailShip || detailQuest || detailPort)
 
   useEffect(() => {
     if (!detailOpen) return
@@ -124,6 +154,7 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
       if (event.key === 'Escape') {
         setDetailShip(null)
         setDetailQuest(null)
+        setDetailPort(null)
       }
     }
     window.addEventListener('keydown', onKey)
@@ -217,6 +248,32 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
     }
   }
 
+  async function handlePortImport(e: FormEvent) {
+    e.preventDefault()
+    if (!portImportText.trim()) {
+      setPortImportNote('텍스트를 붙여넣어 주세요.')
+      return
+    }
+    setImportingPort(true)
+    setPortImportNote('')
+    try {
+      const res = await importPortText(token, portImportText)
+      setPortImportText('')
+      setShowPortImport(false)
+      setPortImportNote(
+        `「${res.port.name}」을(를) 저장했습니다. (동일 이름이면 내용이 갱신됩니다)`,
+      )
+      onToast(`항구 「${res.port.name}」 저장 완료`)
+      await loadPorts()
+    } catch (err) {
+      setPortImportNote(
+        err instanceof Error ? err.message : '저장에 실패했습니다.',
+      )
+    } finally {
+      setImportingPort(false)
+    }
+  }
+
   function applyQuestUpdate(quest: QuestDetail) {
     setQuests((prev) => prev.map((q) => (q.id === quest.id ? quest : q)))
     setDetailQuest((prev) => (prev?.id === quest.id ? quest : prev))
@@ -282,6 +339,14 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
           >
             <span className="admin-nav-index">03</span>
             <span className="admin-nav-text">퀘스트 리스트</span>
+          </button>
+          <button
+            type="button"
+            className={nav === 'ports' ? 'active' : ''}
+            onClick={() => setNav('ports')}
+          >
+            <span className="admin-nav-index">04</span>
+            <span className="admin-nav-text">항구(도시) 리스트</span>
           </button>
         </nav>
 
@@ -679,6 +744,127 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
             )}
           </section>
         )}
+
+        {nav === 'ports' && (
+          <section className="admin-section">
+            <div className="admin-page-head">
+              <div>
+                <h1>항구(도시) 리스트</h1>
+                <p>
+                  위키 텍스트로 추가·갱신합니다. 같은 이름이면 내용을 덮어씁니다.
+                </p>
+              </div>
+              <div className="admin-page-actions">
+                <button
+                  type="button"
+                  className="admin-btn"
+                  onClick={() => void loadPorts()}
+                  disabled={loadingPorts}
+                >
+                  새로고침
+                </button>
+                <button
+                  type="button"
+                  className="admin-btn admin-btn-primary"
+                  onClick={() => {
+                    setShowPortImport((v) => !v)
+                    setPortImportNote('')
+                  }}
+                >
+                  {showPortImport ? '닫기' : '항구 추가'}
+                </button>
+              </div>
+            </div>
+
+            {showPortImport && (
+              <form className="admin-import-form" onSubmit={handlePortImport}>
+                <label className="field">
+                  <span>항구(도시) 텍스트</span>
+                  <textarea
+                    className="quest-import-textarea"
+                    rows={16}
+                    value={portImportText}
+                    onChange={(e) => setPortImportText(e.target.value)}
+                    placeholder={`도시리스본\n분류\t포르투갈본거지\t지역\t유럽 서부\n해역\t리스본 앞바다\t좌표\t15784, 3205\n입항허가\t북대서양\t문화\t이베리아\n언어\t포르투갈어\n보상\n종류\t금액\t보상\n투자\t1,000,000두캇\t…\n수집 아이템\n낚시\n랭크\t종류\t아이템\n1\t교역품\t고등어(교환), …`}
+                    disabled={importingPort}
+                  />
+                </label>
+                <div className="form-actions">
+                  <button
+                    type="submit"
+                    className="admin-btn admin-btn-primary"
+                    disabled={importingPort}
+                  >
+                    {importingPort ? '저장 중…' : '저장'}
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {portImportNote && (
+              <p
+                className={`form-note${
+                  /실패|못|오류|에러|중복/.test(portImportNote) ? ' error' : ''
+                }`}
+              >
+                {portImportNote}
+              </p>
+            )}
+
+            {portsError && (
+              <p className="form-note error" role="alert">
+                {portsError}
+              </p>
+            )}
+
+            {loadingPorts ? (
+              <p className="form-note">불러오는 중…</p>
+            ) : (
+              <div className="admin-table-wrap">
+                <table className="admin-table">
+                  <thead>
+                    <tr>
+                      <th>이름</th>
+                      <th>분류</th>
+                      <th>지역</th>
+                      <th>해역</th>
+                      <th>입항허가</th>
+                      <th>언어</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {ports.map((port, index) => (
+                      <tr
+                        key={port.id}
+                        className={`admin-row-clickable${index % 2 === 0 ? ' is-even' : ' is-odd'}`}
+                        tabIndex={0}
+                        onClick={() => setDetailPort(port)}
+                        onKeyDown={(event: KeyboardEvent<HTMLTableRowElement>) => {
+                          if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault()
+                            setDetailPort(port)
+                          }
+                        }}
+                      >
+                        <td>{port.name}</td>
+                        <td>{port.category || '-'}</td>
+                        <td>{port.region || '-'}</td>
+                        <td>{port.seaArea || '-'}</td>
+                        <td>{port.entryPermit || '-'}</td>
+                        <td>{port.language || '-'}</td>
+                      </tr>
+                    ))}
+                    {ports.length === 0 && (
+                      <tr>
+                        <td colSpan={6}>등록된 항구(도시)가 없습니다.</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+        )}
       </div>
 
       {detailShip && (
@@ -738,6 +924,37 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
             </header>
             <div className="admin-modal-body">
               <QuestDetailView quest={detailQuest} />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {detailPort && (
+        <div
+          className="admin-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`${detailPort.name} 상세`}
+        >
+          <button
+            type="button"
+            className="admin-modal-backdrop"
+            aria-label="닫기"
+            onClick={() => setDetailPort(null)}
+          />
+          <div className="admin-modal-panel">
+            <header className="admin-modal-head">
+              <p>항구(도시) 상세</p>
+              <button
+                type="button"
+                className="admin-btn"
+                onClick={() => setDetailPort(null)}
+              >
+                닫기
+              </button>
+            </header>
+            <div className="admin-modal-body">
+              <PortDetailView port={detailPort} />
             </div>
           </div>
         </div>

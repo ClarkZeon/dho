@@ -3,6 +3,7 @@ import type {
   BoardPost,
   BoardSummary,
   MessageItem,
+  PortDetail,
   QuestDetail,
   Session,
   ShipDetail,
@@ -255,6 +256,17 @@ export function updateQuest(
       body: patch,
     },
   )
+}
+
+export function fetchPorts(token: string) {
+  return request<{ ports: PortDetail[] }>('/api/ports', { token })
+}
+
+export function importPortText(token: string, text: string) {
+  return request<{ port: PortDetail }>('/api/ports/import-text', {
+    token,
+    body: { text },
+  })
 }
 
 export function fetchAdminUsers(token: string) {

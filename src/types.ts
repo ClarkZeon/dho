@@ -184,3 +184,33 @@ export type QuestDetail = {
   walkthrough: string | null
   progress: string | null
 }
+
+export type PortReward = {
+  kind: string
+  amount: string
+  reward: string
+}
+
+export type PortCollectItem = {
+  source: string
+  rank: number | null
+  type: string | null
+  items: string
+}
+
+export type PortDetail = {
+  id: number
+  slug: string
+  name: string
+  description: string | null
+  category: string | null
+  region: string | null
+  seaArea: string | null
+  coordX: number | null
+  coordY: number | null
+  entryPermit: string | null
+  culture: string | null
+  language: string | null
+  rewards: PortReward[]
+  collectItems: PortCollectItem[]
+}
