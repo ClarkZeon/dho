@@ -300,7 +300,7 @@ export function ShipAccel({ token, onBack }: ShipAccelProps) {
                 checked={rapidAccel}
                 onChange={(e) => setRapidAccel(e.target.checked)}
               />
-              <span>급가속 (+6, 전투 중에는 끔)</span>
+              <span>급가속 (+6)</span>
             </label>
             {form !== 'steam' && (
               <>
