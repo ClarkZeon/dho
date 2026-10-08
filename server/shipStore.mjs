@@ -3,6 +3,7 @@ import path from 'node:path'
 import { BUNDLED_DATA_DIR, getWritableDataDir } from './paths.mjs'
 
 const BUNDLED_SHIPS_FILE = path.join(BUNDLED_DATA_DIR, 'ships-db.json')
+const CURRENT_DB_VERSION = 2
 
 function shipsDbFile() {
   return path.join(getWritableDataDir(), 'ships-db.json')
@@ -20,13 +21,44 @@ function byId(list, id) {
   return list.find((item) => item.id === id)
 }
 
+function decorateSkills(db, ship) {
+  // 신규: ship.skills[{ skillId, sail, gunPort, material1, material2 }]
+  if (Array.isArray(ship.skills) && ship.skills.length > 0) {
+    return ship.skills.map((row, index) => {
+      const master = byId(db.skills, row.skillId)
+      return {
+        id: row.skillId ?? index + 1,
+        name: master?.name ?? row.name ?? `스킬 ${index + 1}`,
+        sail: row.sail ?? null,
+        gunPort: row.gunPort ?? null,
+        material1: row.material1 ?? null,
+        material2: row.material2 ?? null,
+      }
+    })
+  }
+
+  // 구버전: skillIds: number[]
+  return (ship.skillIds || [])
+    .map((id) => {
+      const master = byId(db.skills, id)
+      if (!master) return null
+      return {
+        id: master.id,
+        name: master.name,
+        sail: null,
+        gunPort: null,
+        material1: null,
+        material2: null,
+      }
+    })
+    .filter(Boolean)
+}
+
 function decorateShip(db, ship) {
   const size = byId(db.sizes, ship.sizeId)
   const form = byId(db.forms, ship.formId)
   const material = byId(db.materials, ship.materialId)
-  const skills = (ship.skillIds || [])
-    .map((id) => byId(db.skills, id)?.name)
-    .filter(Boolean)
+  const skills = decorateSkills(db, ship)
 
   return {
     id: ship.id,
@@ -87,13 +119,21 @@ export async function ensureShipStore() {
   const dir = getWritableDataDir()
   await mkdir(dir, { recursive: true })
   const target = shipsDbFile()
+
+  let needsSeed = false
   try {
-    await readFile(target, 'utf8')
+    const current = JSON.parse(await readFile(target, 'utf8'))
+    if (current.version !== CURRENT_DB_VERSION) needsSeed = true
   } catch {
+    needsSeed = true
+  }
+
+  if (needsSeed) {
     try {
       await copyFile(BUNDLED_SHIPS_FILE, target)
     } catch {
       await writeDb({
+        version: CURRENT_DB_VERSION,
         sizes: [],
         forms: [],
         materials: [],

@@ -608,18 +608,50 @@
   padding-inline: 0.9rem;
 }
 
-.ship-info-skills {
-  margin: 0;
-  padding: 0.2rem 0.9rem 0.7rem;
-  list-style: none;
-  display: grid;
-  gap: 0.28rem;
+.ship-skill-panel {
+  margin-top: 0.25rem;
 }
 
-.ship-info-skills li {
-  font-size: 0.9rem;
-  color: var(--is-dark);
+.ship-skill-panel .tool-card-title {
+  padding-inline: 1rem;
+  margin-bottom: 0.55rem;
+}
+
+.ship-skill-table-wrap {
+  overflow-x: auto;
+  padding: 0 0.55rem 0.75rem;
+}
+
+.ship-skill-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 32rem;
+  font-size: 0.86rem;
+}
+
+.ship-skill-table th,
+.ship-skill-table td {
+  padding: 0.55rem 0.65rem;
+  border-bottom: 1px solid rgba(36, 79, 128, 0.1);
+  text-align: left;
+  vertical-align: middle;
   word-break: keep-all;
+}
+
+.ship-skill-table thead th {
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: var(--is-grey);
+  background: rgba(248, 251, 254, 0.95);
+}
+
+.ship-skill-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.ship-skill-name {
+  font-weight: 700;
+  color: var(--is-blue);
 }
 
 @media (max-width: 720px) {

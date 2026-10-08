@@ -108,7 +108,16 @@ export type ShipDetail = {
     bow: number
     stern: number
   }
-  skills: string[]
+  skills: ShipSkillRow[]
   sailTotal: number
   loadTotal: number
+}
+
+export type ShipSkillRow = {
+  id: number
+  name: string
+  sail: string | null
+  gunPort: string | null
+  material1: string | null
+  material2: string | null
 }

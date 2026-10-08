@@ -5,6 +5,8 @@ INSERT INTO ship_materials (code, name, sort_order) VALUES
   ('field_admiral', '야전용 제독 재료', 50)
 ON DUPLICATE KEY UPDATE name = VALUES(name), sort_order = VALUES(sort_order);
 
+-- 스킬 마스터 + 선박별 재료(돛/포문/재료1/재료2)는 JSON 런타임 DB(ships-db.json) 기준.
+-- MySQL 이관 시 ship_skill_links 에 sail/gun_port/material1/material2 컬럼 추가 예정.
 INSERT INTO ship_skills (name) VALUES
   ('강화포문'),
   ('고속범주'),

@@ -152,7 +152,7 @@ function CompareCard({
         <p className="ship-compare-skills-title">선박 스킬</p>
         <ul>
           {ship.skills.map((skill) => (
-            <li key={skill}>{skill}</li>
+            <li key={skill.id}>{skill.name}</li>
           ))}
         </ul>
       </div>

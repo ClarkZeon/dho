@@ -1,4 +1,5 @@
 {
+  "version": 2,
   "sizes": [
     { "id": 1, "code": "small1", "name": "소형1", "sortOrder": 10, "enabled": true },
     { "id": 2, "code": "small2", "name": "소형2", "sortOrder": 20, "enabled": true },
@@ -74,7 +75,71 @@
       "partBroadside": 5,
       "partBow": 1,
       "partStern": 1,
-      "skillIds": [1, 2, 3, 4, 5, 6, 7, 8, 9],
+      "skills": [
+        {
+          "skillId": 1,
+          "sail": null,
+          "gunPort": null,
+          "material1": "화약고",
+          "material2": "제독실"
+        },
+        {
+          "skillId": 2,
+          "sail": null,
+          "gunPort": null,
+          "material1": "마스트 톱",
+          "material2": "훈장의 의장도안"
+        },
+        {
+          "skillId": 3,
+          "sail": "대 개프세일",
+          "gunPort": null,
+          "material1": "오물방지 도장",
+          "material2": null
+        },
+        {
+          "skillId": 4,
+          "sail": null,
+          "gunPort": null,
+          "material1": "철재 가공",
+          "material2": "특수 타륜"
+        },
+        {
+          "skillId": 5,
+          "sail": null,
+          "gunPort": null,
+          "material1": "제독실",
+          "material2": "사령탑"
+        },
+        {
+          "skillId": 6,
+          "sail": null,
+          "gunPort": null,
+          "material1": "방현망",
+          "material2": "선체 격벽판"
+        },
+        {
+          "skillId": 7,
+          "sail": null,
+          "gunPort": null,
+          "material1": "마스트 톱",
+          "material2": "사령탑"
+        },
+        {
+          "skillId": 8,
+          "sail": null,
+          "gunPort": null,
+          "material1": "화약고",
+          "material2": "제독실"
+        },
+        {
+          "skillId": 9,
+          "sail": null,
+          "gunPort": null,
+          "material1": "특수기뢰",
+          "material2": "특수 선창"
+        }
+      ],
       "enabled": true,
       "sortOrder": 10
     }

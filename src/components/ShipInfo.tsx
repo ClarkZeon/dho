@@ -189,15 +189,35 @@ export function ShipInfo({ token, onBack }: ShipInfoProps) {
                 { label: '선미포', value: ship.parts.stern },
               ]}
             />
-            <section className="tool-card ship-info-block">
-              <p className="tool-card-title">선박 스킬</p>
-              <ul className="ship-info-skills">
-                {ship.skills.map((skill) => (
-                  <li key={skill}>{skill}</li>
-                ))}
-              </ul>
-            </section>
           </div>
+
+          <section className="tool-card ship-skill-panel">
+            <p className="tool-card-title">선박 스킬 · 재료</p>
+            <div className="ship-skill-table-wrap">
+              <table className="ship-skill-table">
+                <thead>
+                  <tr>
+                    <th>선박 스킬</th>
+                    <th>돛</th>
+                    <th>포문</th>
+                    <th>선박 재료 1</th>
+                    <th>선박 재료 2</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {ship.skills.map((skill) => (
+                    <tr key={skill.id}>
+                      <td className="ship-skill-name">{skill.name}</td>
+                      <td>{skill.sail || ''}</td>
+                      <td>{skill.gunPort || ''}</td>
+                      <td>{skill.material1 || ''}</td>
+                      <td>{skill.material2 || ''}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
         </>
       )}
     </section>

@@ -47,7 +47,7 @@ MySQL 적용: `MYSQL_PASSWORD=... node server/scripts/init-ships-mysql.mjs`
 | 적재 | `cabin`, `crew_required`, `guns`, `warehouse` |
 | 강화 상한 | `cap_*` |
 | 선박 부품 슬롯 | `part_*` |
-| 선박 스킬 | `ship_skills` + `ship_skill_links` |
+| 선박 스킬 | 선박별 행: 스킬 + 돛/포문/재료1/재료2 (`ships-db.json` `ships[].skills`) |
 
 ## 테이블
 
