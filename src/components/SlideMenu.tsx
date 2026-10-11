@@ -10,6 +10,8 @@ export type MenuTarget =
   | { name: 'ship-compare' }
   | { name: 'quests' }
   | { name: 'ports' }
+  | { name: 'languages' }
+  | { name: 'ship-materials' }
 
 type SlideMenuProps = {
   open: boolean
@@ -174,6 +176,13 @@ export function SlideMenu({
           >
             선박 비교
           </button>
+          <button
+            type="button"
+            className={active.name === 'ship-materials' ? 'active' : ''}
+            onClick={() => go({ name: 'ship-materials' })}
+          >
+            선박 재료
+          </button>
 
           <p className="slide-menu-label">퀘스트</p>
           <button
@@ -191,6 +200,15 @@ export function SlideMenu({
             onClick={() => go({ name: 'ports' })}
           >
             항구
+          </button>
+
+          <p className="slide-menu-label">언어</p>
+          <button
+            type="button"
+            className={active.name === 'languages' ? 'active' : ''}
+            onClick={() => go({ name: 'languages' })}
+          >
+            언어
           </button>
         </nav>
 

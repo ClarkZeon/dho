@@ -3,11 +3,13 @@ import { fetchBoards, fetchUnreadCount } from '../lib/api'
 import type { BoardSummary, User } from '../types'
 import { BoardView } from './BoardView'
 import { Messages } from './Messages'
+import { LanguageCatalog } from './LanguageCatalog'
 import { PortCatalog } from './PortCatalog'
 import { QuestCatalog } from './QuestCatalog'
 import { ShipAccel } from './ShipAccel'
 import { ShipCompare } from './ShipCompare'
 import { ShipInfo } from './ShipInfo'
+import { ShipMaterialCatalog } from './ShipMaterialCatalog'
 import { SlideMenu, type MenuTarget } from './SlideMenu'
 
 type View =
@@ -17,8 +19,10 @@ type View =
   | { name: 'ship-info' }
   | { name: 'ship-accel' }
   | { name: 'ship-compare' }
+  | { name: 'ship-materials' }
   | { name: 'quests' }
   | { name: 'ports' }
+  | { name: 'languages' }
 
 type DashboardProps = {
   user: User
@@ -38,10 +42,14 @@ function viewToHash(view: View): string {
       return '#/ship-accel'
     case 'ship-compare':
       return '#/ship-compare'
+    case 'ship-materials':
+      return '#/ship-materials'
     case 'quests':
       return '#/quests'
     case 'ports':
       return '#/ports'
+    case 'languages':
+      return '#/languages'
     case 'board':
       return view.postId
         ? `#/board/${encodeURIComponent(view.boardId)}/${encodeURIComponent(view.postId)}`
@@ -74,8 +82,10 @@ function hashToView(hash: string): View {
   if (parts[0] === 'ship-info') return { name: 'ship-info' }
   if (parts[0] === 'ship-accel') return { name: 'ship-accel' }
   if (parts[0] === 'ship-compare') return { name: 'ship-compare' }
+  if (parts[0] === 'ship-materials') return { name: 'ship-materials' }
   if (parts[0] === 'quests') return { name: 'quests' }
   if (parts[0] === 'ports') return { name: 'ports' }
+  if (parts[0] === 'languages') return { name: 'languages' }
   if (parts[0] === 'board' && parts[1]) {
     return {
       name: 'board',
@@ -156,8 +166,10 @@ function toMenuTarget(view: View): MenuTarget {
   if (view.name === 'ship-info') return { name: 'ship-info' }
   if (view.name === 'ship-accel') return { name: 'ship-accel' }
   if (view.name === 'ship-compare') return { name: 'ship-compare' }
+  if (view.name === 'ship-materials') return { name: 'ship-materials' }
   if (view.name === 'quests') return { name: 'quests' }
   if (view.name === 'ports') return { name: 'ports' }
+  if (view.name === 'languages') return { name: 'languages' }
   return { name: 'home' }
 }
 
@@ -255,12 +267,20 @@ export function Dashboard({ user, token, onLogout, onToast }: DashboardProps) {
       go({ name: 'ship-compare' })
       return
     }
+    if (target.name === 'ship-materials') {
+      go({ name: 'ship-materials' })
+      return
+    }
     if (target.name === 'quests') {
       go({ name: 'quests' })
       return
     }
     if (target.name === 'ports') {
       go({ name: 'ports' })
+      return
+    }
+    if (target.name === 'languages') {
+      go({ name: 'languages' })
       return
     }
     go({ name: 'board', boardId: target.boardId })
@@ -327,7 +347,7 @@ export function Dashboard({ user, token, onLogout, onToast }: DashboardProps) {
             <div className="dash-head">
               <div>
                 <h1>대시보드</h1>
-                <p>게시판을 모아 보는 메인 화면입니다.</p>
+                <p>게시판·선박·퀘스트·항구·언어를 한곳에서 바로 엽니다.</p>
               </div>
 
               <section className="level-card compact" aria-label="레벨 정보">
@@ -353,24 +373,107 @@ export function Dashboard({ user, token, onLogout, onToast }: DashboardProps) {
               </section>
             </div>
 
-            {boardsError && (
-              <p className="form-note error" role="alert">
-                {boardsError}
-              </p>
-            )}
+            <section className="dash-section" aria-labelledby="dash-tools-heading">
+              <header className="dash-section-head">
+                <h2 id="dash-tools-heading">자료 · 도구</h2>
+                <p>메뉴에 있는 선박·퀘스트·항구·언어로 바로 이동합니다.</p>
+              </header>
+              <div className="dash-link-groups">
+                <div className="dash-link-group">
+                  <h3>선박</h3>
+                  <div className="dash-links">
+                    <button
+                      type="button"
+                      className="dash-link"
+                      onClick={() => go({ name: 'ship-info' })}
+                    >
+                      <strong>선박 정보</strong>
+                      <span>스펙·건조 정보</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="dash-link"
+                      onClick={() => go({ name: 'ship-accel' })}
+                    >
+                      <strong>가속도 계산기</strong>
+                      <span>가속·선회 분석</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="dash-link"
+                      onClick={() => go({ name: 'ship-compare' })}
+                    >
+                      <strong>선박 비교</strong>
+                      <span>선박 스펙 대조</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="dash-link"
+                      onClick={() => go({ name: 'ship-materials' })}
+                    >
+                      <strong>선박 재료</strong>
+                      <span>재료 목록·상세</span>
+                    </button>
+                  </div>
+                </div>
 
-            <div className="board-grid">
-              {boards.map((board) => (
-                <BoardPanel
-                  key={board.id}
-                  board={board}
-                  onOpen={() => go({ name: 'board', boardId: board.id })}
-                  onOpenPost={(postId) =>
-                    go({ name: 'board', boardId: board.id, postId })
-                  }
-                />
-              ))}
-            </div>
+                <div className="dash-link-group">
+                  <h3>항해 자료</h3>
+                  <div className="dash-links">
+                    <button
+                      type="button"
+                      className="dash-link"
+                      onClick={() => go({ name: 'quests' })}
+                    >
+                      <strong>퀘스트</strong>
+                      <span>퀘스트 목록·연계</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="dash-link"
+                      onClick={() => go({ name: 'ports' })}
+                    >
+                      <strong>항구</strong>
+                      <span>항구·도시 정보</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="dash-link"
+                      onClick={() => go({ name: 'languages' })}
+                    >
+                      <strong>언어</strong>
+                      <span>언어·습득 정보</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section className="dash-section" aria-labelledby="dash-boards-heading">
+              <header className="dash-section-head">
+                <h2 id="dash-boards-heading">커뮤니티</h2>
+                <p>공지·자유·공략·기능 요청 게시판 미리보기입니다.</p>
+              </header>
+
+              {boardsError && (
+                <p className="form-note error" role="alert">
+                  {boardsError}
+                </p>
+              )}
+
+              <div className="board-grid">
+                {boards.map((board) => (
+                  <BoardPanel
+                    key={board.id}
+                    board={board}
+                    onOpen={() => go({ name: 'board', boardId: board.id })}
+                    onOpenPost={(postId) =>
+                      go({ name: 'board', boardId: board.id, postId })
+                    }
+                  />
+                ))}
+              </div>
+            </section>
           </>
         )}
 
@@ -404,9 +507,15 @@ export function Dashboard({ user, token, onLogout, onToast }: DashboardProps) {
 
         {view.name === 'ship-compare' && <ShipCompare token={token} />}
 
+        {view.name === 'ship-materials' && (
+          <ShipMaterialCatalog token={token} />
+        )}
+
         {view.name === 'quests' && <QuestCatalog token={token} />}
 
         {view.name === 'ports' && <PortCatalog token={token} />}
+
+        {view.name === 'languages' && <LanguageCatalog token={token} />}
 
       </main>
     </div>

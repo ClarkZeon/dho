@@ -5,10 +5,12 @@ import type {
   MessageItem,
   DiscoveryCategoryGroup,
   DiscoveryDetail,
+  LibraryLanguageDetail,
   PortDetail,
   QuestDetail,
   Session,
   ShipDetail,
+  ShipMaterialDetail,
   User,
 } from '../types'
 
@@ -287,6 +289,39 @@ export function fetchDiscoveryCategories(token: string) {
 export function importDiscoveryText(token: string, text: string) {
   return request<{ discovery: DiscoveryDetail }>(
     '/api/discoveries/import-text',
+    {
+      token,
+      body: { text },
+    },
+  )
+}
+
+export function fetchLibraryLanguages(token: string) {
+  return request<{ languages: LibraryLanguageDetail[] }>(
+    '/api/library-languages',
+    { token },
+  )
+}
+
+export function importLibraryLanguageText(token: string, text: string) {
+  return request<{ language: LibraryLanguageDetail }>(
+    '/api/library-languages/import-text',
+    {
+      token,
+      body: { text },
+    },
+  )
+}
+
+export function fetchShipMaterials(token: string) {
+  return request<{ materials: ShipMaterialDetail[] }>('/api/ship-materials', {
+    token,
+  })
+}
+
+export function importShipMaterialText(token: string, text: string) {
+  return request<{ material: ShipMaterialDetail }>(
+    '/api/ship-materials/import-text',
     {
       token,
       body: { text },

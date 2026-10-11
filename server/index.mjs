@@ -29,10 +29,13 @@ import {
   ensureShipStore,
   getShipBySlug,
   listShipLookups,
+  listShipMaterials,
   listShips,
   upsertShipFromParsed,
+  upsertShipMaterialFromParsed,
 } from './shipStore.mjs'
 import { parseShipText } from './shipTextParse.mjs'
+import { parseShipMaterialText } from './shipMaterialTextParse.mjs'
 import {
   ensureQuestStore,
   getQuestById,
@@ -54,6 +57,12 @@ import {
   upsertDiscoveryFromParsed,
 } from './discoveryStore.mjs'
 import { parseDiscoveryText } from './discoveryTextParse.mjs'
+import {
+  ensureLibraryLanguageStore,
+  listLibraryLanguages,
+  upsertLibraryLanguageFromParsed,
+} from './libraryLanguageStore.mjs'
+import { parseLibraryLanguageText } from './libraryLanguageTextParse.mjs'
 import {
   createUser,
   deleteSessionByToken,
@@ -114,6 +123,7 @@ async function ensureStore() {
   await ensureQuestStore()
   await ensurePortStore()
   await ensureDiscoveryStore()
+  await ensureLibraryLanguageStore()
 }
 
 function requireAuthDb(res) {
@@ -785,6 +795,44 @@ export async function handleRequest(req, res) {
       return
     }
 
+    if (req.method === 'GET' && pathname === '/api/ship-materials') {
+      const authUser = await getAuthUser(req)
+      if (!authUser) {
+        sendJson(res, 401, { error: '로그인이 필요합니다.' })
+        return
+      }
+      const materials = await listShipMaterials()
+      sendJson(res, 200, { materials })
+      return
+    }
+
+    if (
+      req.method === 'POST' &&
+      pathname === '/api/ship-materials/import-text'
+    ) {
+      const authUser = await getAuthUser(req)
+      if (!authUser) {
+        sendJson(res, 401, { error: '로그인이 필요합니다.' })
+        return
+      }
+      if (!requireAdmin(authUser, res)) return
+      const body = await readBody(req)
+      const text = typeof body.text === 'string' ? body.text : ''
+      try {
+        const parsed = parseShipMaterialText(text)
+        const material = await upsertShipMaterialFromParsed(parsed)
+        sendJson(res, 201, { material })
+      } catch (err) {
+        sendJson(res, 400, {
+          error:
+            err instanceof Error
+              ? err.message
+              : '선박 재료 텍스트 파싱에 실패했습니다.',
+        })
+      }
+      return
+    }
+
     if (req.method === 'GET' && pathname === '/api/quests') {
       const authUser = await getAuthUser(req)
       if (!authUser) {
@@ -894,6 +942,44 @@ export async function handleRequest(req, res) {
             err instanceof Error
               ? err.message
               : '발견물 텍스트 파싱에 실패했습니다.',
+        })
+      }
+      return
+    }
+
+    if (req.method === 'GET' && pathname === '/api/library-languages') {
+      const authUser = await getAuthUser(req)
+      if (!authUser) {
+        sendJson(res, 401, { error: '로그인이 필요합니다.' })
+        return
+      }
+      const languages = await listLibraryLanguages()
+      sendJson(res, 200, { languages })
+      return
+    }
+
+    if (
+      req.method === 'POST' &&
+      pathname === '/api/library-languages/import-text'
+    ) {
+      const authUser = await getAuthUser(req)
+      if (!authUser) {
+        sendJson(res, 401, { error: '로그인이 필요합니다.' })
+        return
+      }
+      if (!requireAdmin(authUser, res)) return
+      const body = await readBody(req)
+      const text = typeof body.text === 'string' ? body.text : ''
+      try {
+        const parsed = parseLibraryLanguageText(text)
+        const language = await upsertLibraryLanguageFromParsed(parsed)
+        sendJson(res, 201, { language })
+      } catch (err) {
+        sendJson(res, 400, {
+          error:
+            err instanceof Error
+              ? err.message
+              : '언어 텍스트 파싱에 실패했습니다.',
         })
       }
       return

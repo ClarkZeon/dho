@@ -249,6 +249,55 @@ export type DiscoveryDebateCombo = {
   cards: string[]
 }
 
+export type LibraryLanguagePlace = {
+  region: string
+  city: string
+  npc: string | null
+}
+
+export type LibraryLanguageCity = {
+  region: string
+  city: string
+}
+
+export type LibraryLanguageDetail = {
+  id: number
+  slug: string
+  name: string
+  description: string | null
+  category: string | null
+  rangeScope: string | null
+  actionPower: string | null
+  autoEffect: string | null
+  learnCost: number | null
+  prerequisite: string | null
+  learnPlaces: LibraryLanguagePlace[]
+  useCities: LibraryLanguageCity[]
+}
+
+export type ShipMaterialEffect = {
+  stat: string
+  min: number | null
+  max: number | null
+}
+
+export type ShipMaterialAcquire = {
+  source: string
+  items: string[]
+}
+
+export type ShipMaterialDetail = {
+  id: number
+  code: string
+  name: string
+  description: string | null
+  materialKind: string | null
+  materialLabel: string | null
+  effects: ShipMaterialEffect[]
+  acquireMethods: ShipMaterialAcquire[]
+  sortOrder: number
+}
+
 export type DiscoveryDetail = {
   id: number
   slug: string

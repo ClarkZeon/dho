@@ -3,12 +3,16 @@ import {
   deleteAdminUser,
   fetchAdminUsers,
   fetchDiscoveries,
+  fetchLibraryLanguages,
   fetchPorts,
   fetchQuests,
+  fetchShipMaterials,
   fetchShips,
   importDiscoveryText,
+  importLibraryLanguageText,
   importPortText,
   importQuestText,
+  importShipMaterialText,
   importShipText,
   updateAdminUserRole,
   updateQuest,
@@ -17,18 +21,29 @@ import type {
   AdminUser,
   DiscoveryDetail,
   DiscoveryQuestRef,
+  LibraryLanguageDetail,
   PortDetail,
   QuestDetail,
   ShipDetail,
+  ShipMaterialDetail,
   User,
 } from '../types'
 import { DetailModal } from './DetailModal'
 import { DiscoveryDetailView } from './DiscoveryDetailView'
+import { LibraryLanguageDetailView } from './LibraryLanguageDetailView'
 import { PortDetailView } from './PortDetailView'
 import { QuestDetailView } from './QuestDetailView'
 import { ShipDetailView } from './ShipDetailView'
+import { ShipMaterialDetailView } from './ShipMaterialDetailView'
 
-type AdminNav = 'users' | 'ships' | 'quests' | 'ports' | 'discoveries'
+type AdminNav =
+  | 'users'
+  | 'ships'
+  | 'quests'
+  | 'ports'
+  | 'discoveries'
+  | 'languages'
+  | 'materials'
 
 type AdminPanelProps = {
   user: User
@@ -96,6 +111,26 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
   const [discoveryImportNote, setDiscoveryImportNote] = useState('')
   const [detailDiscovery, setDetailDiscovery] =
     useState<DiscoveryDetail | null>(null)
+
+  const [languages, setLanguages] = useState<LibraryLanguageDetail[]>([])
+  const [loadingLanguages, setLoadingLanguages] = useState(false)
+  const [languagesError, setLanguagesError] = useState('')
+  const [showLanguageImport, setShowLanguageImport] = useState(false)
+  const [languageImportText, setLanguageImportText] = useState('')
+  const [importingLanguage, setImportingLanguage] = useState(false)
+  const [languageImportNote, setLanguageImportNote] = useState('')
+  const [detailLanguage, setDetailLanguage] =
+    useState<LibraryLanguageDetail | null>(null)
+
+  const [materials, setMaterials] = useState<ShipMaterialDetail[]>([])
+  const [loadingMaterials, setLoadingMaterials] = useState(false)
+  const [materialsError, setMaterialsError] = useState('')
+  const [showMaterialImport, setShowMaterialImport] = useState(false)
+  const [materialImportText, setMaterialImportText] = useState('')
+  const [importingMaterial, setImportingMaterial] = useState(false)
+  const [materialImportNote, setMaterialImportNote] = useState('')
+  const [detailMaterial, setDetailMaterial] =
+    useState<ShipMaterialDetail | null>(null)
 
   const loadUsers = useCallback(async () => {
     setLoadingUsers(true)
@@ -176,6 +211,40 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
     }
   }, [token])
 
+  const loadLanguages = useCallback(async () => {
+    setLoadingLanguages(true)
+    setLanguagesError('')
+    try {
+      const res = await fetchLibraryLanguages(token)
+      setLanguages(res.languages)
+    } catch (err) {
+      setLanguagesError(
+        err instanceof Error
+          ? err.message
+          : '언어 목록을 불러오지 못했습니다.',
+      )
+    } finally {
+      setLoadingLanguages(false)
+    }
+  }, [token])
+
+  const loadMaterials = useCallback(async () => {
+    setLoadingMaterials(true)
+    setMaterialsError('')
+    try {
+      const res = await fetchShipMaterials(token)
+      setMaterials(res.materials)
+    } catch (err) {
+      setMaterialsError(
+        err instanceof Error
+          ? err.message
+          : '선박 재료 목록을 불러오지 못했습니다.',
+      )
+    } finally {
+      setLoadingMaterials(false)
+    }
+  }, [token])
+
   useEffect(() => {
     if (nav === 'users') void loadUsers()
     if (nav === 'ships') void loadShips()
@@ -185,7 +254,19 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
       void loadDiscoveries()
       if (quests.length === 0) void loadQuests()
     }
-  }, [nav, loadUsers, loadShips, loadQuests, loadPorts, loadDiscoveries, quests.length])
+    if (nav === 'languages') void loadLanguages()
+    if (nav === 'materials') void loadMaterials()
+  }, [
+    nav,
+    loadUsers,
+    loadShips,
+    loadQuests,
+    loadPorts,
+    loadDiscoveries,
+    loadLanguages,
+    loadMaterials,
+    quests.length,
+  ])
 
   async function openQuestByRef(ref: DiscoveryQuestRef) {
     let quest = quests.find((q) => q.id === ref.id)
@@ -342,6 +423,58 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
     }
   }
 
+  async function handleLanguageImport(e: FormEvent) {
+    e.preventDefault()
+    if (!languageImportText.trim()) {
+      setLanguageImportNote('텍스트를 붙여넣어 주세요.')
+      return
+    }
+    setImportingLanguage(true)
+    setLanguageImportNote('')
+    try {
+      const res = await importLibraryLanguageText(token, languageImportText)
+      setLanguageImportText('')
+      setShowLanguageImport(false)
+      setLanguageImportNote(
+        `「${res.language.name}」을(를) 저장했습니다. (동일 이름이면 내용이 갱신됩니다)`,
+      )
+      onToast(`언어 「${res.language.name}」 저장 완료`)
+      await loadLanguages()
+    } catch (err) {
+      setLanguageImportNote(
+        err instanceof Error ? err.message : '저장에 실패했습니다.',
+      )
+    } finally {
+      setImportingLanguage(false)
+    }
+  }
+
+  async function handleMaterialImport(e: FormEvent) {
+    e.preventDefault()
+    if (!materialImportText.trim()) {
+      setMaterialImportNote('텍스트를 붙여넣어 주세요.')
+      return
+    }
+    setImportingMaterial(true)
+    setMaterialImportNote('')
+    try {
+      const res = await importShipMaterialText(token, materialImportText)
+      setMaterialImportText('')
+      setShowMaterialImport(false)
+      setMaterialImportNote(
+        `「${res.material.name}」을(를) 저장했습니다. (동일 이름이면 내용이 갱신됩니다)`,
+      )
+      onToast(`선박 재료 「${res.material.name}」 저장 완료`)
+      await loadMaterials()
+    } catch (err) {
+      setMaterialImportNote(
+        err instanceof Error ? err.message : '저장에 실패했습니다.',
+      )
+    } finally {
+      setImportingMaterial(false)
+    }
+  }
+
   function applyQuestUpdate(quest: QuestDetail) {
     setQuests((prev) => prev.map((q) => (q.id === quest.id ? quest : q)))
     setDetailQuest((prev) => (prev?.id === quest.id ? quest : prev))
@@ -423,6 +556,22 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
           >
             <span className="admin-nav-index">05</span>
             <span className="admin-nav-text">발견물 리스트</span>
+          </button>
+          <button
+            type="button"
+            className={nav === 'languages' ? 'active' : ''}
+            onClick={() => setNav('languages')}
+          >
+            <span className="admin-nav-index">06</span>
+            <span className="admin-nav-text">언어 리스트</span>
+          </button>
+          <button
+            type="button"
+            className={nav === 'materials' ? 'active' : ''}
+            onClick={() => setNav('materials')}
+          >
+            <span className="admin-nav-index">07</span>
+            <span className="admin-nav-text">선박 재료 리스트</span>
           </button>
         </nav>
 
@@ -1096,6 +1245,278 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
             )}
           </section>
         )}
+
+        {nav === 'languages' && (
+          <section className="admin-section">
+            <div className="admin-page-head">
+              <div>
+                <h1>언어 리스트</h1>
+                <p>
+                  위키 스킬 텍스트로 추가·갱신합니다. 같은 이름이면 내용을 덮어씁니다.
+                </p>
+              </div>
+              <div className="admin-page-actions">
+                <button
+                  type="button"
+                  className="admin-btn"
+                  onClick={() => void loadLanguages()}
+                  disabled={loadingLanguages}
+                >
+                  새로고침
+                </button>
+                <button
+                  type="button"
+                  className="admin-btn admin-btn-primary"
+                  onClick={() => {
+                    setShowLanguageImport((v) => !v)
+                    setLanguageImportNote('')
+                  }}
+                >
+                  {showLanguageImport ? '닫기' : '언어 추가'}
+                </button>
+              </div>
+            </div>
+
+            {showLanguageImport && (
+              <form
+                className="admin-import-form"
+                onSubmit={handleLanguageImport}
+              >
+                <label className="field">
+                  <span>언어 텍스트</span>
+                  <textarea
+                    className="quest-import-textarea"
+                    rows={14}
+                    value={languageImportText}
+                    onChange={(e) => setLanguageImportText(e.target.value)}
+                    placeholder={`스킬북극어\n회화나 서적열람이 가능.\n러시아와 북극에서 사용한다.\n분류\t언어\t행동력\t자동효과\n범위\t함대\t습득 비용\t1,000,000두캇\n스킬 습득\n지역\t도시\t도시 인물\n유럽 북부\t상트 페테르부르크\t다이고쿠야 코다로\n사용 도시\n지역\t도시\n유럽 북부\t상트 페테르부르크`}
+                    disabled={importingLanguage}
+                  />
+                </label>
+                <div className="form-actions">
+                  <button
+                    type="submit"
+                    className="admin-btn admin-btn-primary"
+                    disabled={importingLanguage}
+                  >
+                    {importingLanguage ? '저장 중…' : '저장'}
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {languageImportNote && (
+              <p
+                className={`form-note${
+                  /실패|못|오류|에러|중복/.test(languageImportNote)
+                    ? ' error'
+                    : ''
+                }`}
+              >
+                {languageImportNote}
+              </p>
+            )}
+
+            {languagesError && (
+              <p className="form-note error" role="alert">
+                {languagesError}
+              </p>
+            )}
+
+            {loadingLanguages ? (
+              <p className="form-note">불러오는 중…</p>
+            ) : (
+              <div className="admin-table-wrap">
+                <table className="admin-table">
+                  <thead>
+                    <tr>
+                      <th>이름</th>
+                      <th>범위</th>
+                      <th>습득 비용</th>
+                      <th>사용 도시</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {languages.map((language, index) => (
+                      <tr
+                        key={language.id}
+                        className={`admin-row-clickable${index % 2 === 0 ? ' is-even' : ' is-odd'}`}
+                        tabIndex={0}
+                        onClick={() => setDetailLanguage(language)}
+                        onKeyDown={(
+                          event: KeyboardEvent<HTMLTableRowElement>,
+                        ) => {
+                          if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault()
+                            setDetailLanguage(language)
+                          }
+                        }}
+                      >
+                        <td>{language.name}</td>
+                        <td>{language.rangeScope || '-'}</td>
+                        <td>
+                          {language.learnCost != null
+                            ? `${language.learnCost.toLocaleString('ko-KR')}두캇`
+                            : '-'}
+                        </td>
+                        <td>
+                          {language.useCities?.length
+                            ? language.useCities.map((c) => c.city).join(', ')
+                            : '-'}
+                        </td>
+                      </tr>
+                    ))}
+                    {languages.length === 0 && (
+                      <tr>
+                        <td colSpan={4}>등록된 언어가 없습니다.</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+        )}
+
+        {nav === 'materials' && (
+          <section className="admin-section">
+            <div className="admin-page-head">
+              <div>
+                <h1>선박 재료 리스트</h1>
+                <p>
+                  위키 텍스트로 추가·갱신합니다. 같은 이름이면 내용을 덮어씁니다.
+                </p>
+              </div>
+              <div className="admin-page-actions">
+                <button
+                  type="button"
+                  className="admin-btn"
+                  onClick={() => void loadMaterials()}
+                  disabled={loadingMaterials}
+                >
+                  새로고침
+                </button>
+                <button
+                  type="button"
+                  className="admin-btn admin-btn-primary"
+                  onClick={() => {
+                    setShowMaterialImport((v) => !v)
+                    setMaterialImportNote('')
+                  }}
+                >
+                  {showMaterialImport ? '닫기' : '재료 추가'}
+                </button>
+              </div>
+            </div>
+
+            {showMaterialImport && (
+              <form
+                className="admin-import-form"
+                onSubmit={handleMaterialImport}
+              >
+                <label className="field">
+                  <span>선박 재료 텍스트</span>
+                  <textarea
+                    className="quest-import-textarea"
+                    rows={14}
+                    value={materialImportText}
+                    onChange={(e) => setMaterialImportText(e.target.value)}
+                    placeholder={`선박 재료스웨덴 제독 재료\n- 선박의 재질을 스웨덴 제독용 금속으로 바꾸기 위한 금속 재료.\n재료 종류\t재질\t가능\t전체\n선박 기본 재질\t스웨덴 제독 재료\t내구도\t0 ~ 20\n장갑\t0 ~ 2\n획득 방법\n트레져박스\n아이템\nTactic & Combo`}
+                    disabled={importingMaterial}
+                  />
+                </label>
+                <div className="form-actions">
+                  <button
+                    type="submit"
+                    className="admin-btn admin-btn-primary"
+                    disabled={importingMaterial}
+                  >
+                    {importingMaterial ? '저장 중…' : '저장'}
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {materialImportNote && (
+              <p
+                className={`form-note${
+                  /실패|못|오류|에러|중복/.test(materialImportNote)
+                    ? ' error'
+                    : ''
+                }`}
+              >
+                {materialImportNote}
+              </p>
+            )}
+
+            {materialsError && (
+              <p className="form-note error" role="alert">
+                {materialsError}
+              </p>
+            )}
+
+            {loadingMaterials ? (
+              <p className="form-note">불러오는 중…</p>
+            ) : (
+              <div className="admin-table-wrap">
+                <table className="admin-table">
+                  <thead>
+                    <tr>
+                      <th>이름</th>
+                      <th>재료 종류</th>
+                      <th>효과</th>
+                      <th>획득</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {materials.map((material, index) => (
+                      <tr
+                        key={material.id}
+                        className={`admin-row-clickable${index % 2 === 0 ? ' is-even' : ' is-odd'}`}
+                        tabIndex={0}
+                        onClick={() => setDetailMaterial(material)}
+                        onKeyDown={(
+                          event: KeyboardEvent<HTMLTableRowElement>,
+                        ) => {
+                          if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault()
+                            setDetailMaterial(material)
+                          }
+                        }}
+                      >
+                        <td>{material.name}</td>
+                        <td>{material.materialKind || '-'}</td>
+                        <td>
+                          {material.effects?.length
+                            ? material.effects
+                                .map((e) =>
+                                  e.min != null && e.max != null
+                                    ? `${e.stat} ${e.min}~${e.max}`
+                                    : e.stat,
+                                )
+                                .join(', ')
+                            : '-'}
+                        </td>
+                        <td>
+                          {material.acquireMethods?.length
+                            ? material.acquireMethods
+                                .map((a) => a.source)
+                                .join(', ')
+                            : '-'}
+                        </td>
+                      </tr>
+                    ))}
+                    {materials.length === 0 && (
+                      <tr>
+                        <td colSpan={4}>등록된 선박 재료가 없습니다.</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+        )}
       </div>
 
       {detailShip && (
@@ -1139,6 +1560,26 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
           stack={detailDiscovery ? 1 : 0}
         >
           <QuestDetailView quest={detailQuest} />
+        </DetailModal>
+      )}
+
+      {detailLanguage && (
+        <DetailModal
+          title="언어 상세"
+          label={`${detailLanguage.name} 상세`}
+          onClose={() => setDetailLanguage(null)}
+        >
+          <LibraryLanguageDetailView language={detailLanguage} />
+        </DetailModal>
+      )}
+
+      {detailMaterial && (
+        <DetailModal
+          title="선박 재료 상세"
+          label={`${detailMaterial.name} 상세`}
+          onClose={() => setDetailMaterial(null)}
+        >
+          <ShipMaterialDetailView material={detailMaterial} />
         </DetailModal>
       )}
 

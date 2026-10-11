@@ -53,6 +53,15 @@ const DEFAULT_BOARDS = [
     sortOrder: 3,
     enabled: true,
   },
+  {
+    id: 'feature',
+    title: '기능 요청',
+    description: '사이트에 필요한 기능·개선 제안',
+    writeRole: 'member',
+    previewCount: 5,
+    sortOrder: 4,
+    enabled: true,
+  },
 ]
 
 /** 시드 게시글 ID 고정 — 인스턴스마다 랜덤 ID가 바뀌지 않게 */
@@ -62,7 +71,7 @@ const SEED_POSTS = [
     boardId: 'notice',
     authorId: 'system',
     title: 'DHO Light 오픈 안내',
-    body: 'DHO Light에 오신 것을 환영합니다.\n\n공지·자유·공략 게시판과 쪽지·선박 도구를 이용할 수 있습니다.',
+    body: 'DHO Light에 오신 것을 환영합니다.\n\n공지·자유·공략·기능 요청 게시판과 쪽지·선박 도구를 이용할 수 있습니다.',
     isPinned: true,
   },
   {

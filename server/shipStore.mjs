@@ -270,6 +270,7 @@ export async function ensureShipStore() {
   if (!hasDatabaseUrl()) throw new Error('DATABASE_URL 이 없습니다.')
   await runSqlFile('sql/006_ships.sql')
   await runSqlFile('sql/007_ship_acquire.sql')
+  await runSqlFile('sql/013_ship_material_detail.sql')
   // 번들 JSON upsert — 신규 선박·획득 방법 반영
   await seedShipsFromBundle()
 }
@@ -315,6 +316,139 @@ export async function listShipLookups() {
         enabled: true,
       })),
   }
+}
+
+function asJsonArray(value) {
+  if (Array.isArray(value)) return value
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value)
+      return Array.isArray(parsed) ? parsed : []
+    } catch {
+      return []
+    }
+  }
+  return []
+}
+
+function decorateShipMaterial(row) {
+  return {
+    id: Number(row.id),
+    code: String(row.code),
+    name: String(row.name),
+    description: row.description == null ? null : String(row.description),
+    materialKind:
+      row.material_kind == null ? null : String(row.material_kind),
+    materialLabel:
+      row.material_label == null ? null : String(row.material_label),
+    effects: asJsonArray(row.effects).map((item) => ({
+      stat: String(item?.stat || ''),
+      min: item?.min == null ? null : Number(item.min),
+      max: item?.max == null ? null : Number(item.max),
+    })),
+    acquireMethods: asJsonArray(row.acquire_methods).map((item) => ({
+      source: String(item?.source || '기타'),
+      items: asJsonArray(item?.items).map(String),
+    })),
+    sortOrder: Number(row.sort_order) || 0,
+  }
+}
+
+export async function listShipMaterials() {
+  const sql = getSql()
+  const rows = await sql`
+    SELECT *
+    FROM ship_materials
+    WHERE enabled = TRUE
+    ORDER BY sort_order, id
+  `
+  return rows.map(decorateShipMaterial)
+}
+
+export async function getShipMaterialById(id) {
+  const sql = getSql()
+  const rows = await sql`
+    SELECT *
+    FROM ship_materials
+    WHERE id = ${id} AND enabled = TRUE
+    LIMIT 1
+  `
+  return rows[0] ? decorateShipMaterial(rows[0]) : null
+}
+
+/**
+ * @param {{
+ *   name: string,
+ *   code?: string|null,
+ *   description?: string|null,
+ *   materialKind?: string|null,
+ *   materialLabel?: string|null,
+ *   effects?: Array<{ stat: string, min: number|null, max: number|null }>,
+ *   acquireMethods?: Array<{ source: string, items: string[] }>,
+ * }} parsed
+ */
+export async function upsertShipMaterialFromParsed(parsed) {
+  const sql = getSql()
+  const name = normalizeShipName(parsed.name)
+  if (!name) throw new Error('재료 이름이 없습니다.')
+
+  const effectsJson = JSON.stringify(parsed.effects || [])
+  const acquireJson = JSON.stringify(parsed.acquireMethods || [])
+
+  const existing = await sql`
+    SELECT id, code FROM ship_materials
+    WHERE TRIM(BOTH FROM regexp_replace(name, '\\s+', ' ', 'g')) = ${name}
+    LIMIT 1
+  `
+  if (existing[0]) {
+    const id = Number(existing[0].id)
+    await sql`
+      UPDATE ship_materials SET
+        name = ${name},
+        description = ${parsed.description ?? null},
+        material_kind = ${parsed.materialKind ?? null},
+        material_label = ${parsed.materialLabel ?? name},
+        effects = ${effectsJson},
+        acquire_methods = ${acquireJson},
+        enabled = TRUE
+      WHERE id = ${id}
+    `
+    return getShipMaterialById(id)
+  }
+
+  const maxRows =
+    await sql`SELECT COALESCE(MAX(id), 0) AS max_id FROM ship_materials`
+  const id = Number(maxRows[0].max_id) + 1
+  let code = parsed.code ? String(parsed.code).trim() : `mat-${id}`
+  if (!code) code = `mat-${id}`
+  let attempt = code
+  let n = 2
+  while (true) {
+    const clash =
+      await sql`SELECT id FROM ship_materials WHERE code = ${attempt} LIMIT 1`
+    if (!clash[0]) {
+      code = attempt
+      break
+    }
+    attempt = `${code}-${n++}`
+  }
+
+  const sortRows = await sql`
+    SELECT COALESCE(MAX(sort_order), 0) AS max_sort FROM ship_materials
+  `
+  const sortOrder = Number(sortRows[0].max_sort) + 10
+
+  await sql`
+    INSERT INTO ship_materials (
+      id, code, name, description, material_kind, material_label,
+      effects, acquire_methods, sort_order, enabled
+    ) VALUES (
+      ${id}, ${code}, ${name}, ${parsed.description ?? null},
+      ${parsed.materialKind ?? null}, ${parsed.materialLabel ?? name},
+      ${effectsJson}, ${acquireJson}, ${sortOrder}, TRUE
+    )
+  `
+  return getShipMaterialById(id)
 }
 
 async function loadSkillLinks() {
@@ -369,6 +503,7 @@ export async function getShipBySlug(slug) {
 export async function reseedShipsFromBundle() {
   await runSqlFile('sql/006_ships.sql')
   await runSqlFile('sql/007_ship_acquire.sql')
+  await runSqlFile('sql/013_ship_material_detail.sql')
   await seedShipsFromBundle()
 }
 
