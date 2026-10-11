@@ -38,7 +38,7 @@ function isHeaderRow(cols) {
 }
 
 function isStatName(text) {
-  return /^(내구도|장갑|선회|내파|창고|포문|선실|돛|노)$/.test(
+  return /^(내구도|세로돛|가로돛|조력|선회|내파|장갑|선실|포실|창고|포문|돛|노)$/.test(
     String(text || '').trim(),
   )
 }

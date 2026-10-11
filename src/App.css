@@ -301,6 +301,11 @@
 .slide-menu-group {
   display: grid;
   gap: 0.15rem;
+  margin-top: 0.35rem;
+}
+
+.slide-menu-group + .slide-menu-group {
+  margin-top: 0.15rem;
 }
 
 .slide-menu-caret {
@@ -2565,6 +2570,163 @@
   max-width: 28rem;
 }
 
+.material-list {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.material-list-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem 1rem;
+}
+
+.material-list-kinds {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem 0.85rem;
+}
+
+.material-list-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.35rem 0.7rem;
+  border: 1px solid var(--is-grey-lighter);
+  border-radius: 6px;
+  background: var(--is-light);
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: var(--is-blue);
+}
+
+.material-list-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.88rem;
+  color: var(--is-dark);
+  cursor: pointer;
+}
+
+.material-list-check input {
+  margin: 0;
+}
+
+.material-list-search {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.material-list-search input {
+  width: min(100%, 14rem);
+  border: 1px solid var(--is-grey-lighter);
+  border-radius: 8px;
+  background: var(--is-white);
+  color: var(--is-dark);
+  padding: 0.55rem 0.7rem;
+  font-size: 0.9rem;
+  outline: none;
+}
+
+.material-list-search input:focus {
+  border-color: var(--is-blue-lighter);
+}
+
+.material-list-table-wrap {
+  overflow-x: auto;
+}
+
+.material-list-table th,
+.material-list-table td {
+  text-align: center;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.material-list-table th:nth-child(2),
+.material-list-table td:nth-child(2) {
+  text-align: left;
+}
+
+.material-list-table th {
+  padding: 0;
+}
+
+.material-list-sort {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.2rem;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  padding: 0.55rem 0.6rem;
+  font: inherit;
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: inherit;
+  cursor: pointer;
+}
+
+.material-list-table th:nth-child(2) .material-list-sort {
+  justify-content: flex-start;
+}
+
+.material-list-sort:hover,
+.material-list-sort.is-active {
+  color: var(--is-blue);
+}
+
+.material-list-sort-mark {
+  min-width: 0.75rem;
+  font-size: 0.62rem;
+  line-height: 1;
+}
+
+.material-list-num {
+  color: var(--is-grey);
+  font-size: 0.84rem;
+}
+
+.material-list-stat {
+  font-size: 0.84rem;
+}
+
+.material-list-pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.45rem 0.65rem;
+  padding: 0.35rem 0 0.15rem;
+}
+
+.material-list-page {
+  min-width: 1.6rem;
+  border: 0;
+  background: transparent;
+  padding: 0.2rem 0.35rem;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--is-dark);
+  cursor: pointer;
+}
+
+.material-list-page.is-current {
+  color: #d35400;
+  font-weight: 800;
+}
+
+.material-list-pager .text-link:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
 .catalog-search input {
   padding: 0.7rem 0.85rem;
   font-size: 0.95rem;
@@ -2763,6 +2925,13 @@
   border: 1px solid rgba(28, 109, 201, 0.18);
   border-radius: 999px;
   padding: 0.28rem 0.65rem;
+}
+
+.quest-badge.soft {
+  color: var(--is-grey);
+  background: var(--is-light);
+  border-color: var(--is-grey-lighter);
+  font-weight: 700;
 }
 
 .discovery-quest-link {
