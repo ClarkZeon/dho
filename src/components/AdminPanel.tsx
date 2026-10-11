@@ -36,6 +36,9 @@ import { QuestDetailView } from './QuestDetailView'
 import { ShipDetailView } from './ShipDetailView'
 import { ShipMaterialDetailView } from './ShipMaterialDetailView'
 
+const LANGUAGE_PAGE_SIZE = 15
+const MATERIAL_PAGE_SIZE = 15
+
 type AdminNav =
   | 'users'
   | 'ships'
@@ -121,6 +124,7 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
   const [languageImportNote, setLanguageImportNote] = useState('')
   const [detailLanguage, setDetailLanguage] =
     useState<LibraryLanguageDetail | null>(null)
+  const [languagePage, setLanguagePage] = useState(0)
 
   const [materials, setMaterials] = useState<ShipMaterialDetail[]>([])
   const [loadingMaterials, setLoadingMaterials] = useState(false)
@@ -131,6 +135,7 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
   const [materialImportNote, setMaterialImportNote] = useState('')
   const [detailMaterial, setDetailMaterial] =
     useState<ShipMaterialDetail | null>(null)
+  const [materialPage, setMaterialPage] = useState(0)
 
   const loadUsers = useCallback(async () => {
     setLoadingUsers(true)
@@ -217,6 +222,7 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
     try {
       const res = await fetchLibraryLanguages(token)
       setLanguages(res.languages)
+      setLanguagePage(0)
     } catch (err) {
       setLanguagesError(
         err instanceof Error
@@ -228,12 +234,23 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
     }
   }, [token])
 
+  const languageTotalPages = Math.max(
+    1,
+    Math.ceil(languages.length / LANGUAGE_PAGE_SIZE),
+  )
+  const languageSafePage = Math.min(languagePage, languageTotalPages - 1)
+  const languagePageItems = languages.slice(
+    languageSafePage * LANGUAGE_PAGE_SIZE,
+    languageSafePage * LANGUAGE_PAGE_SIZE + LANGUAGE_PAGE_SIZE,
+  )
+
   const loadMaterials = useCallback(async () => {
     setLoadingMaterials(true)
     setMaterialsError('')
     try {
       const res = await fetchShipMaterials(token)
       setMaterials(res.materials)
+      setMaterialPage(0)
     } catch (err) {
       setMaterialsError(
         err instanceof Error
@@ -244,6 +261,16 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
       setLoadingMaterials(false)
     }
   }, [token])
+
+  const materialTotalPages = Math.max(
+    1,
+    Math.ceil(materials.length / MATERIAL_PAGE_SIZE),
+  )
+  const materialSafePage = Math.min(materialPage, materialTotalPages - 1)
+  const materialPageItems = materials.slice(
+    materialSafePage * MATERIAL_PAGE_SIZE,
+    materialSafePage * MATERIAL_PAGE_SIZE + MATERIAL_PAGE_SIZE,
+  )
 
   useEffect(() => {
     if (nav === 'users') void loadUsers()
@@ -1326,54 +1353,87 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
             {loadingLanguages ? (
               <p className="form-note">불러오는 중…</p>
             ) : (
-              <div className="admin-table-wrap">
-                <table className="admin-table">
-                  <thead>
-                    <tr>
-                      <th>이름</th>
-                      <th>범위</th>
-                      <th>습득 비용</th>
-                      <th>사용 도시</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {languages.map((language, index) => (
-                      <tr
-                        key={language.id}
-                        className={`admin-row-clickable${index % 2 === 0 ? ' is-even' : ' is-odd'}`}
-                        tabIndex={0}
-                        onClick={() => setDetailLanguage(language)}
-                        onKeyDown={(
-                          event: KeyboardEvent<HTMLTableRowElement>,
-                        ) => {
-                          if (event.key === 'Enter' || event.key === ' ') {
-                            event.preventDefault()
-                            setDetailLanguage(language)
-                          }
-                        }}
-                      >
-                        <td>{language.name}</td>
-                        <td>{language.rangeScope || '-'}</td>
-                        <td>
-                          {language.learnCost != null
-                            ? `${language.learnCost.toLocaleString('ko-KR')}두캇`
-                            : '-'}
-                        </td>
-                        <td>
-                          {language.useCities?.length
-                            ? language.useCities.map((c) => c.city).join(', ')
-                            : '-'}
-                        </td>
-                      </tr>
-                    ))}
-                    {languages.length === 0 && (
+              <>
+                <div className="admin-table-wrap">
+                  <table className="admin-table">
+                    <thead>
                       <tr>
-                        <td colSpan={4}>등록된 언어가 없습니다.</td>
+                        <th>이름</th>
+                        <th>범위</th>
+                        <th>습득 비용</th>
+                        <th>사용 도시</th>
                       </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody>
+                      {languagePageItems.map((language, index) => (
+                        <tr
+                          key={language.id}
+                          className={`admin-row-clickable${index % 2 === 0 ? ' is-even' : ' is-odd'}`}
+                          tabIndex={0}
+                          onClick={() => setDetailLanguage(language)}
+                          onKeyDown={(
+                            event: KeyboardEvent<HTMLTableRowElement>,
+                          ) => {
+                            if (event.key === 'Enter' || event.key === ' ') {
+                              event.preventDefault()
+                              setDetailLanguage(language)
+                            }
+                          }}
+                        >
+                          <td>{language.name}</td>
+                          <td>{language.rangeScope || '-'}</td>
+                          <td>
+                            {language.learnCost != null
+                              ? `${language.learnCost.toLocaleString('ko-KR')}두캇`
+                              : '-'}
+                          </td>
+                          <td className="admin-table-wrap-cell">
+                            {language.useCities?.length
+                              ? language.useCities.map((c) => c.city).join(', ')
+                              : '-'}
+                          </td>
+                        </tr>
+                      ))}
+                      {languages.length === 0 && (
+                        <tr>
+                          <td colSpan={4}>등록된 언어가 없습니다.</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                {languages.length > 0 && (
+                  <div className="catalog-pager" aria-label="언어 목록 페이지">
+                    <button
+                      type="button"
+                      className="admin-btn"
+                      disabled={languageSafePage <= 0}
+                      onClick={() =>
+                        setLanguagePage((p) => Math.max(0, p - 1))
+                      }
+                    >
+                      이전
+                    </button>
+                    <span>
+                      {languageSafePage + 1} / {languageTotalPages}
+                      <em>· {languages.length}개</em>
+                    </span>
+                    <button
+                      type="button"
+                      className="admin-btn"
+                      disabled={languageSafePage >= languageTotalPages - 1}
+                      onClick={() =>
+                        setLanguagePage((p) =>
+                          Math.min(languageTotalPages - 1, p + 1),
+                        )
+                      }
+                    >
+                      다음
+                    </button>
+                  </div>
+                )}
+              </>
             )}
           </section>
         )}
@@ -1458,62 +1518,98 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
             {loadingMaterials ? (
               <p className="form-note">불러오는 중…</p>
             ) : (
-              <div className="admin-table-wrap">
-                <table className="admin-table">
-                  <thead>
-                    <tr>
-                      <th>이름</th>
-                      <th>재료 종류</th>
-                      <th>효과</th>
-                      <th>획득</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {materials.map((material, index) => (
-                      <tr
-                        key={material.id}
-                        className={`admin-row-clickable${index % 2 === 0 ? ' is-even' : ' is-odd'}`}
-                        tabIndex={0}
-                        onClick={() => setDetailMaterial(material)}
-                        onKeyDown={(
-                          event: KeyboardEvent<HTMLTableRowElement>,
-                        ) => {
-                          if (event.key === 'Enter' || event.key === ' ') {
-                            event.preventDefault()
-                            setDetailMaterial(material)
-                          }
-                        }}
-                      >
-                        <td>{material.name}</td>
-                        <td>{material.materialKind || '-'}</td>
-                        <td>
-                          {material.effects?.length
-                            ? material.effects
-                                .map((e) =>
-                                  e.min != null && e.max != null
-                                    ? `${e.stat} ${e.min}~${e.max}`
-                                    : e.stat,
-                                )
-                                .join(', ')
-                            : '-'}
-                        </td>
-                        <td>
-                          {material.acquireMethods?.length
-                            ? material.acquireMethods
-                                .map((a) => a.source)
-                                .join(', ')
-                            : '-'}
-                        </td>
-                      </tr>
-                    ))}
-                    {materials.length === 0 && (
+              <>
+                <div className="admin-table-wrap">
+                  <table className="admin-table">
+                    <thead>
                       <tr>
-                        <td colSpan={4}>등록된 선박 재료가 없습니다.</td>
+                        <th>이름</th>
+                        <th>재료 종류</th>
+                        <th>효과</th>
+                        <th>획득</th>
                       </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody>
+                      {materialPageItems.map((material, index) => (
+                        <tr
+                          key={material.id}
+                          className={`admin-row-clickable${index % 2 === 0 ? ' is-even' : ' is-odd'}`}
+                          tabIndex={0}
+                          onClick={() => setDetailMaterial(material)}
+                          onKeyDown={(
+                            event: KeyboardEvent<HTMLTableRowElement>,
+                          ) => {
+                            if (event.key === 'Enter' || event.key === ' ') {
+                              event.preventDefault()
+                              setDetailMaterial(material)
+                            }
+                          }}
+                        >
+                          <td>{material.name}</td>
+                          <td>{material.materialKind || '-'}</td>
+                          <td className="admin-table-wrap-cell">
+                            {material.effects?.length
+                              ? material.effects
+                                  .map((e) =>
+                                    e.min != null && e.max != null
+                                      ? `${e.stat} ${e.min}~${e.max}`
+                                      : e.stat,
+                                  )
+                                  .join(', ')
+                              : '-'}
+                          </td>
+                          <td className="admin-table-wrap-cell">
+                            {material.acquireMethods?.length
+                              ? material.acquireMethods
+                                  .map((a) => a.source)
+                                  .join(', ')
+                              : '-'}
+                          </td>
+                        </tr>
+                      ))}
+                      {materials.length === 0 && (
+                        <tr>
+                          <td colSpan={4}>등록된 선박 재료가 없습니다.</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                {materials.length > 0 && (
+                  <div
+                    className="catalog-pager"
+                    aria-label="선박 재료 목록 페이지"
+                  >
+                    <button
+                      type="button"
+                      className="admin-btn"
+                      disabled={materialSafePage <= 0}
+                      onClick={() =>
+                        setMaterialPage((p) => Math.max(0, p - 1))
+                      }
+                    >
+                      이전
+                    </button>
+                    <span>
+                      {materialSafePage + 1} / {materialTotalPages}
+                      <em>· {materials.length}개</em>
+                    </span>
+                    <button
+                      type="button"
+                      className="admin-btn"
+                      disabled={materialSafePage >= materialTotalPages - 1}
+                      onClick={() =>
+                        setMaterialPage((p) =>
+                          Math.min(materialTotalPages - 1, p + 1),
+                        )
+                      }
+                    >
+                      다음
+                    </button>
+                  </div>
+                )}
+              </>
             )}
           </section>
         )}

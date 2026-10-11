@@ -4,8 +4,37 @@ import type { LibraryLanguageDetail } from '../types'
 import { DetailModal } from './DetailModal'
 import { LibraryLanguageDetailView } from './LibraryLanguageDetailView'
 
+const PAGE_SIZE = 15
+
 type LanguageCatalogProps = {
   token: string
+}
+
+function matchesLanguage(language: LibraryLanguageDetail, query: string) {
+  const q = query.trim().toLowerCase()
+  if (!q) return true
+
+  const cities = (language.useCities || [])
+    .map((c) => `${c.region} ${c.city}`)
+    .join(' ')
+  const places = (language.learnPlaces || [])
+    .map((p) => `${p.region} ${p.city} ${p.npc || ''}`)
+    .join(' ')
+  const haystack = [
+    language.name,
+    language.slug,
+    language.description,
+    language.category,
+    language.rangeScope,
+    language.prerequisite,
+    cities,
+    places,
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase()
+
+  return haystack.includes(q)
 }
 
 export function LanguageCatalog({ token }: LanguageCatalogProps) {
@@ -13,6 +42,8 @@ export function LanguageCatalog({ token }: LanguageCatalogProps) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [detail, setDetail] = useState<LibraryLanguageDetail | null>(null)
+  const [query, setQuery] = useState('')
+  const [page, setPage] = useState(0)
 
   useEffect(() => {
     let alive = true
@@ -23,6 +54,7 @@ export function LanguageCatalog({ token }: LanguageCatalogProps) {
         const res = await fetchLibraryLanguages(token)
         if (!alive) return
         setLanguages(res.languages)
+        setPage(0)
       } catch (err) {
         if (!alive) return
         setError(
@@ -39,6 +71,16 @@ export function LanguageCatalog({ token }: LanguageCatalogProps) {
     }
   }, [token])
 
+  const filtered = languages.filter((language) =>
+    matchesLanguage(language, query),
+  )
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const safePage = Math.min(page, totalPages - 1)
+  const pageItems = filtered.slice(
+    safePage * PAGE_SIZE,
+    safePage * PAGE_SIZE + PAGE_SIZE,
+  )
+
   return (
     <section className="tool-page">
       <div className="messages-head">
@@ -47,6 +89,21 @@ export function LanguageCatalog({ token }: LanguageCatalogProps) {
           <p>등록된 언어 스킬을 확인하고 상세를 엽니다.</p>
         </div>
       </div>
+
+      <label className="field catalog-search">
+        <input
+          type="search"
+          value={query}
+          onChange={(e) => {
+            setQuery(e.target.value)
+            setPage(0)
+          }}
+          placeholder="언어 이름·도시·범위로 검색"
+          aria-label="언어 검색"
+          autoComplete="off"
+          disabled={loading}
+        />
+      </label>
 
       {error && (
         <p className="form-note error" role="alert">
@@ -57,52 +114,88 @@ export function LanguageCatalog({ token }: LanguageCatalogProps) {
       {loading ? (
         <p className="form-note">불러오는 중…</p>
       ) : (
-        <div className="admin-table-wrap">
-          <table className="admin-table">
-            <thead>
-              <tr>
-                <th>이름</th>
-                <th>범위</th>
-                <th>습득 비용</th>
-                <th>사용 도시</th>
-              </tr>
-            </thead>
-            <tbody>
-              {languages.map((language, index) => (
-                <tr
-                  key={language.id}
-                  className={`admin-row-clickable${index % 2 === 0 ? ' is-even' : ' is-odd'}`}
-                  tabIndex={0}
-                  onClick={() => setDetail(language)}
-                  onKeyDown={(event: KeyboardEvent<HTMLTableRowElement>) => {
-                    if (event.key === 'Enter' || event.key === ' ') {
-                      event.preventDefault()
-                      setDetail(language)
-                    }
-                  }}
-                >
-                  <td>{language.name}</td>
-                  <td>{language.rangeScope || '-'}</td>
-                  <td>
-                    {language.learnCost != null
-                      ? `${language.learnCost.toLocaleString('ko-KR')}두캇`
-                      : '-'}
-                  </td>
-                  <td>
-                    {language.useCities?.length
-                      ? language.useCities.map((c) => c.city).join(', ')
-                      : '-'}
-                  </td>
-                </tr>
-              ))}
-              {languages.length === 0 && (
+        <>
+          <div className="admin-table-wrap">
+            <table className="admin-table">
+              <thead>
                 <tr>
-                  <td colSpan={4}>등록된 언어가 없습니다.</td>
+                  <th>이름</th>
+                  <th>범위</th>
+                  <th>습득 비용</th>
+                  <th>사용 도시</th>
                 </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {pageItems.map((language, index) => (
+                  <tr
+                    key={language.id}
+                    className={`admin-row-clickable${index % 2 === 0 ? ' is-even' : ' is-odd'}`}
+                    tabIndex={0}
+                    onClick={() => setDetail(language)}
+                    onKeyDown={(event: KeyboardEvent<HTMLTableRowElement>) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault()
+                        setDetail(language)
+                      }
+                    }}
+                  >
+                    <td>{language.name}</td>
+                    <td>{language.rangeScope || '-'}</td>
+                    <td>
+                      {language.learnCost != null
+                        ? `${language.learnCost.toLocaleString('ko-KR')}두캇`
+                        : '-'}
+                    </td>
+                    <td className="admin-table-wrap-cell">
+                      {language.useCities?.length
+                        ? language.useCities.map((c) => c.city).join(', ')
+                        : '-'}
+                    </td>
+                  </tr>
+                ))}
+                {filtered.length === 0 && (
+                  <tr>
+                    <td colSpan={4}>
+                      {languages.length === 0
+                        ? '등록된 언어가 없습니다.'
+                        : '검색 결과가 없습니다.'}
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {filtered.length > 0 && (
+            <div className="catalog-pager" aria-label="언어 목록 페이지">
+              <button
+                type="button"
+                className="admin-btn"
+                disabled={safePage <= 0}
+                onClick={() => setPage((p) => Math.max(0, p - 1))}
+              >
+                이전
+              </button>
+              <span>
+                {safePage + 1} / {totalPages}
+                <em>
+                  · {filtered.length}개
+                  {query.trim() ? ` (전체 ${languages.length})` : ''}
+                </em>
+              </span>
+              <button
+                type="button"
+                className="admin-btn"
+                disabled={safePage >= totalPages - 1}
+                onClick={() =>
+                  setPage((p) => Math.min(totalPages - 1, p + 1))
+                }
+              >
+                다음
+              </button>
+            </div>
+          )}
+        </>
       )}
 
       {detail && (
