@@ -1,5 +1,6 @@
 import { useEffect, useState, type MouseEvent, type ReactNode } from 'react'
 import type { BoardSummary, User } from '../types'
+import { BrandMark } from './BrandMark'
 
 export type MenuTarget =
   | { name: 'home' }
@@ -11,11 +12,16 @@ export type MenuTarget =
   | { name: 'quests' }
   | { name: 'ports' }
   | { name: 'discoveries' }
-  | { name: 'languages' }
+  | { name: 'skills' }
   | { name: 'fields' }
   | { name: 'ship-materials' }
 
-type MenuSectionId = 'community' | 'ships' | 'voyage'
+type MenuSectionId =
+  | 'community'
+  | 'ships'
+  | 'atlas'
+  | 'pioneer'
+  | 'captain'
 
 type SlideMenuProps = {
   open: boolean
@@ -38,15 +44,9 @@ function sectionForActive(active: MenuTarget): MenuSectionId | null {
   ) {
     return 'ships'
   }
-  if (
-    active.name === 'quests' ||
-    active.name === 'ports' ||
-    active.name === 'discoveries' ||
-    active.name === 'languages' ||
-    active.name === 'fields'
-  ) {
-    return 'voyage'
-  }
+  if (active.name === 'quests' || active.name === 'discoveries') return 'atlas'
+  if (active.name === 'ports' || active.name === 'fields') return 'pioneer'
+  if (active.name === 'skills') return 'captain'
   return null
 }
 
@@ -142,12 +142,11 @@ export function SlideMenu({
     active.name === 'ship-accel' ||
     active.name === 'ship-compare' ||
     active.name === 'ship-materials'
-  const voyageActive =
-    active.name === 'quests' ||
-    active.name === 'ports' ||
-    active.name === 'discoveries' ||
-    active.name === 'languages' ||
-    active.name === 'fields'
+  const atlasActive =
+    active.name === 'quests' || active.name === 'discoveries'
+  const pioneerActive =
+    active.name === 'ports' || active.name === 'fields'
+  const captainActive = active.name === 'skills'
 
   return (
     <div className={`slide-menu ${open ? 'open' : ''}`} aria-hidden={!open}>
@@ -169,7 +168,7 @@ export function SlideMenu({
         <header className="slide-menu-head">
           <div>
             <p className="slide-menu-brand">
-              DHO <em>Light</em>
+              <BrandMark />
             </p>
             <p className="slide-menu-user">
               Lv.{user.level} · {user.nickname}
@@ -263,10 +262,10 @@ export function SlideMenu({
           </MenuSection>
 
           <MenuSection
-            id="voyage"
-            title="항해 자료"
-            open={openSections.has('voyage')}
-            active={voyageActive}
+            id="atlas"
+            title="도감"
+            open={openSections.has('atlas')}
+            active={atlasActive}
             onToggle={toggleSection}
           >
             <button
@@ -278,6 +277,22 @@ export function SlideMenu({
             </button>
             <button
               type="button"
+              className={active.name === 'discoveries' ? 'active' : ''}
+              onClick={() => go({ name: 'discoveries' })}
+            >
+              발견물
+            </button>
+          </MenuSection>
+
+          <MenuSection
+            id="pioneer"
+            title="개척"
+            open={openSections.has('pioneer')}
+            active={pioneerActive}
+            onToggle={toggleSection}
+          >
+            <button
+              type="button"
               className={active.name === 'ports' ? 'active' : ''}
               onClick={() => go({ name: 'ports' })}
             >
@@ -285,24 +300,26 @@ export function SlideMenu({
             </button>
             <button
               type="button"
-              className={active.name === 'discoveries' ? 'active' : ''}
-              onClick={() => go({ name: 'discoveries' })}
-            >
-              발견물
-            </button>
-            <button
-              type="button"
-              className={active.name === 'languages' ? 'active' : ''}
-              onClick={() => go({ name: 'languages' })}
-            >
-              언어
-            </button>
-            <button
-              type="button"
               className={active.name === 'fields' ? 'active' : ''}
               onClick={() => go({ name: 'fields' })}
             >
               필드
+            </button>
+          </MenuSection>
+
+          <MenuSection
+            id="captain"
+            title="함장"
+            open={openSections.has('captain')}
+            active={captainActive}
+            onToggle={toggleSection}
+          >
+            <button
+              type="button"
+              className={active.name === 'skills' ? 'active' : ''}
+              onClick={() => go({ name: 'skills' })}
+            >
+              스킬
             </button>
           </MenuSection>
         </nav>

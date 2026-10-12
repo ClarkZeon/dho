@@ -38,6 +38,10 @@ function decorateField(row) {
     seaArea: row.sea_area == null ? null : String(row.sea_area),
     coordX: row.coord_x == null ? null : Number(row.coord_x),
     coordY: row.coord_y == null ? null : Number(row.coord_y),
+    linkedPlaces: asJsonArray(row.linked_places).map((item) => ({
+      kind: String(item?.kind || ''),
+      name: String(item?.name || ''),
+    })),
     landSurveys: asJsonArray(row.land_surveys),
     resurveyRewards: asJsonArray(row.resurvey_rewards),
   }
@@ -134,6 +138,7 @@ export async function upsertFieldFromParsed(parsed) {
   const existing = await findFieldIdByName(sql, name)
   const surveysJson = JSON.stringify(parsed.landSurveys || [])
   const rewardsJson = JSON.stringify(parsed.resurveyRewards || [])
+  const linkedJson = JSON.stringify(parsed.linkedPlaces || [])
 
   if (existing) {
     await sql`
@@ -144,6 +149,7 @@ export async function upsertFieldFromParsed(parsed) {
         sea_area = ${parsed.seaArea},
         coord_x = ${parsed.coordX},
         coord_y = ${parsed.coordY},
+        linked_places = ${linkedJson},
         land_surveys = ${surveysJson},
         resurvey_rewards = ${rewardsJson},
         enabled = TRUE
@@ -175,12 +181,12 @@ export async function upsertFieldFromParsed(parsed) {
   await sql`
     INSERT INTO fields (
       id, slug, name, field_kind, region, sea_area,
-      coord_x, coord_y, land_surveys, resurvey_rewards,
+      coord_x, coord_y, linked_places, land_surveys, resurvey_rewards,
       enabled, sort_order
     ) VALUES (
       ${id}, ${slug}, ${name}, ${parsed.fieldKind}, ${parsed.region},
       ${parsed.seaArea}, ${parsed.coordX}, ${parsed.coordY},
-      ${surveysJson}, ${rewardsJson},
+      ${linkedJson}, ${surveysJson}, ${rewardsJson},
       TRUE, ${sortOrder}
     )
   `

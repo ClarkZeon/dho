@@ -238,15 +238,24 @@ export function parseFieldText(text) {
   const landSurveys = []
   /** @type {Array<{ kind: string, items: Array<{ name: string, qty: number|null }>, raw: string }>} */
   const resurveyRewards = []
+  /** @type {Array<{ kind: string, name: string }>} */
+  const linkedPlaces = []
 
-  let mode = 'meta' // meta | survey | rewards
+  let mode = 'meta' // meta | linked | map | survey | rewards
   let currentStage = null
 
   for (let i = nameIdx + 1; i < lines.length; i++) {
     const line = lines[i].trim()
     if (!line) continue
 
-    if (/^필드\s*지도/.test(line)) continue
+    if (/^필드\s*지도/.test(line) || /^지도\s*출처/.test(line)) {
+      mode = 'map'
+      continue
+    }
+    if (/^연결된\s*장소/.test(line)) {
+      mode = 'linked'
+      continue
+    }
     if (/^육지\s*조사/.test(line)) {
       mode = 'survey'
       continue
@@ -255,8 +264,32 @@ export function parseFieldText(text) {
       mode = 'rewards'
       continue
     }
+    if (
+      (mode === 'linked' || mode === 'meta') &&
+      /^종류(\t|$)/.test(line) &&
+      /내용/.test(line)
+    ) {
+      mode = 'linked'
+      continue
+    }
     if (mode === 'survey' && /^단계\t|^단계\s/.test(line)) continue
     if (mode === 'rewards' && /^종류\t|^종류\s/.test(line) && /아이템/.test(line)) {
+      continue
+    }
+
+    if (mode === 'map') continue
+
+    if (mode === 'linked' || (mode === 'meta' && /^(\d+\s*차\s*)?필드\t/.test(line))) {
+      const cols = splitTabs(line)
+      if (cols.length >= 2) {
+        const kind = cols[0]
+        const name = cols.slice(1).join(' ').replace(/\s+/g, ' ').trim()
+        if (kind && name && !/^(종류|내용)$/.test(kind)) {
+          linkedPlaces.push({ kind, name })
+          mode = 'linked'
+        }
+      }
+      if (mode === 'meta') applyMetaLine(line, meta)
       continue
     }
 
@@ -328,6 +361,7 @@ export function parseFieldText(text) {
     seaArea: meta.seaArea || null,
     coordX,
     coordY,
+    linkedPlaces,
     landSurveys,
     resurveyRewards,
   }

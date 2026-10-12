@@ -5,13 +5,14 @@ import { BoardView } from './BoardView'
 import { Messages } from './Messages'
 import { DiscoveryCatalog } from './DiscoveryCatalog'
 import { FieldCatalog } from './FieldCatalog'
-import { LanguageCatalog } from './LanguageCatalog'
+import { SkillCatalog } from './SkillCatalog'
 import { PortCatalog } from './PortCatalog'
 import { QuestCatalog } from './QuestCatalog'
 import { ShipAccel } from './ShipAccel'
 import { ShipCompare } from './ShipCompare'
 import { ShipInfo } from './ShipInfo'
 import { ShipMaterialCatalog } from './ShipMaterialCatalog'
+import { BrandMark } from './BrandMark'
 import { SlideMenu, type MenuTarget } from './SlideMenu'
 
 type View =
@@ -25,7 +26,7 @@ type View =
   | { name: 'quests' }
   | { name: 'ports' }
   | { name: 'discoveries' }
-  | { name: 'languages' }
+  | { name: 'skills' }
   | { name: 'fields' }
 
 type DashboardProps = {
@@ -54,8 +55,8 @@ function viewToHash(view: View): string {
       return '#/ports'
     case 'discoveries':
       return '#/discoveries'
-    case 'languages':
-      return '#/languages'
+    case 'skills':
+      return '#/skills'
     case 'fields':
       return '#/fields'
     case 'board':
@@ -94,7 +95,9 @@ function hashToView(hash: string): View {
   if (parts[0] === 'quests') return { name: 'quests' }
   if (parts[0] === 'ports') return { name: 'ports' }
   if (parts[0] === 'discoveries') return { name: 'discoveries' }
-  if (parts[0] === 'languages') return { name: 'languages' }
+  if (parts[0] === 'skills' || parts[0] === 'languages') {
+    return { name: 'skills' }
+  }
   if (parts[0] === 'fields') return { name: 'fields' }
   if (parts[0] === 'board' && parts[1]) {
     return {
@@ -180,7 +183,7 @@ function toMenuTarget(view: View): MenuTarget {
   if (view.name === 'quests') return { name: 'quests' }
   if (view.name === 'ports') return { name: 'ports' }
   if (view.name === 'discoveries') return { name: 'discoveries' }
-  if (view.name === 'languages') return { name: 'languages' }
+  if (view.name === 'skills') return { name: 'skills' }
   if (view.name === 'fields') return { name: 'fields' }
   return { name: 'home' }
 }
@@ -295,8 +298,8 @@ export function Dashboard({ user, token, onLogout, onToast }: DashboardProps) {
       go({ name: 'discoveries' })
       return
     }
-    if (target.name === 'languages') {
-      go({ name: 'languages' })
+    if (target.name === 'skills') {
+      go({ name: 'skills' })
       return
     }
     if (target.name === 'fields') {
@@ -327,7 +330,7 @@ export function Dashboard({ user, token, onLogout, onToast }: DashboardProps) {
             onClick={() => navigate({ name: 'home' })}
           >
             <span className="topbar-mark">
-              DHO <em>Light</em>
+              <BrandMark />
             </span>
           </button>
         </div>
@@ -367,7 +370,7 @@ export function Dashboard({ user, token, onLogout, onToast }: DashboardProps) {
             <div className="dash-head">
               <div>
                 <h1>대시보드</h1>
-                <p>게시판·선박·퀘스트·항구·언어를 한곳에서 바로 엽니다.</p>
+                <p>게시판·선박·도감·개척·함장을 한곳에서 바로 엽니다.</p>
               </div>
 
               <section className="level-card compact" aria-label="레벨 정보">
@@ -396,7 +399,7 @@ export function Dashboard({ user, token, onLogout, onToast }: DashboardProps) {
             <section className="dash-section" aria-labelledby="dash-tools-heading">
               <header className="dash-section-head">
                 <h2 id="dash-tools-heading">자료 · 도구</h2>
-                <p>메뉴에 있는 선박·퀘스트·항구·언어로 바로 이동합니다.</p>
+                <p>메뉴와 같은 대분류로 바로 이동합니다.</p>
               </header>
               <div className="dash-link-groups">
                 <div className="dash-link-group">
@@ -438,7 +441,7 @@ export function Dashboard({ user, token, onLogout, onToast }: DashboardProps) {
                 </div>
 
                 <div className="dash-link-group">
-                  <h3>항해 자료</h3>
+                  <h3>도감</h3>
                   <div className="dash-links">
                     <button
                       type="button"
@@ -451,6 +454,20 @@ export function Dashboard({ user, token, onLogout, onToast }: DashboardProps) {
                     <button
                       type="button"
                       className="dash-link"
+                      onClick={() => go({ name: 'discoveries' })}
+                    >
+                      <strong>발견물</strong>
+                      <span>발견물 목록·상세</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="dash-link-group">
+                  <h3>개척</h3>
+                  <div className="dash-links">
+                    <button
+                      type="button"
+                      className="dash-link"
                       onClick={() => go({ name: 'ports' })}
                     >
                       <strong>항구</strong>
@@ -459,26 +476,24 @@ export function Dashboard({ user, token, onLogout, onToast }: DashboardProps) {
                     <button
                       type="button"
                       className="dash-link"
-                      onClick={() => go({ name: 'discoveries' })}
-                    >
-                      <strong>발견물</strong>
-                      <span>발견물 목록·상세</span>
-                    </button>
-                    <button
-                      type="button"
-                      className="dash-link"
-                      onClick={() => go({ name: 'languages' })}
-                    >
-                      <strong>언어</strong>
-                      <span>언어·습득 정보</span>
-                    </button>
-                    <button
-                      type="button"
-                      className="dash-link"
                       onClick={() => go({ name: 'fields' })}
                     >
                       <strong>필드</strong>
                       <span>필드·육지 조사</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="dash-link-group">
+                  <h3>함장</h3>
+                  <div className="dash-links">
+                    <button
+                      type="button"
+                      className="dash-link"
+                      onClick={() => go({ name: 'skills' })}
+                    >
+                      <strong>스킬</strong>
+                      <span>스킬·습득 정보</span>
                     </button>
                   </div>
                 </div>
@@ -555,7 +570,7 @@ export function Dashboard({ user, token, onLogout, onToast }: DashboardProps) {
 
         {view.name === 'discoveries' && <DiscoveryCatalog token={token} />}
 
-        {view.name === 'languages' && <LanguageCatalog token={token} />}
+        {view.name === 'skills' && <SkillCatalog token={token} />}
 
         {view.name === 'fields' && <FieldCatalog token={token} />}
 

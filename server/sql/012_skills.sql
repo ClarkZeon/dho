@@ -1,6 +1,6 @@
--- Neon / PostgreSQL: 서고 언어 (인게임 언어 스킬)
+﻿-- Neon / PostgreSQL: 스킬 카탈로그
 
-CREATE TABLE IF NOT EXISTS library_languages (
+CREATE TABLE IF NOT EXISTS skills (
   id BIGINT PRIMARY KEY,
   slug TEXT NOT NULL UNIQUE,
   name TEXT NOT NULL UNIQUE,
@@ -12,12 +12,12 @@ CREATE TABLE IF NOT EXISTS library_languages (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_library_languages_enabled_sort
-  ON library_languages (enabled, sort_order, id);
-CREATE INDEX IF NOT EXISTS idx_library_languages_name
-  ON library_languages (name);
+CREATE INDEX IF NOT EXISTS idx_skills_enabled_sort
+  ON skills (enabled, sort_order, id);
+CREATE INDEX IF NOT EXISTS idx_skills_name
+  ON skills (name);
 
-INSERT INTO library_languages (id, slug, name, learn_cost, prerequisite, sort_order) VALUES
+INSERT INTO skills (id, slug, name, learn_cost, prerequisite, sort_order) VALUES
   (1,  'ancient-egyptian', '고대 이집트어', 30000, NULL, 10),
   (2,  'greek', '그리스어', 6000, NULL, 20),
   (3,  'nahuatl', '나우아틀어', 800000, NULL, 30),

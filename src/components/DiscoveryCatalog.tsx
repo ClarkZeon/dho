@@ -1,5 +1,6 @@
 import { useEffect, useState, type KeyboardEvent } from 'react'
 import { fetchDiscoveries } from '../lib/api'
+import { formatDiscoveryAcquire } from '../lib/discoveryAcquire'
 import { useTableSort } from '../lib/tableSort'
 import type { DiscoveryDetail } from '../types'
 import { DetailModal } from './DetailModal'
@@ -14,11 +15,7 @@ type DiscoveryCatalogProps = {
 type DiscoverySortKey = 'name' | 'category' | 'rank' | 'cardPoints' | 'acquire'
 
 function acquireLabel(discovery: DiscoveryDetail) {
-  if (discovery.acquireQuest) return discovery.acquireQuest.name
-  if (discovery.acquireType) {
-    return `[${discovery.acquireType}] ${discovery.acquireName || ''}`.trim()
-  }
-  return discovery.acquireName || ''
+  return formatDiscoveryAcquire(discovery)
 }
 
 export function DiscoveryCatalog({ token }: DiscoveryCatalogProps) {

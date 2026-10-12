@@ -80,19 +80,21 @@ import { parseConsumableText } from './consumableTextParse.mjs'
 import {
   deleteDiscovery,
   ensureDiscoveryStore,
+  getDiscoveryById,
   getDiscoveryBySlug,
   listDiscoveries,
   listDiscoveryCategoryTree,
+  updateDiscoveryFields,
   upsertDiscoveryFromParsed,
 } from './discoveryStore.mjs'
 import { parseDiscoveryText } from './discoveryTextParse.mjs'
 import {
-  deleteLibraryLanguage,
-  ensureLibraryLanguageStore,
-  listLibraryLanguages,
-  upsertLibraryLanguageFromParsed,
-} from './libraryLanguageStore.mjs'
-import { parseLibraryLanguageText } from './libraryLanguageTextParse.mjs'
+  deleteSkill,
+  ensureSkillStore,
+  listSkills,
+  upsertSkillFromParsed,
+} from './skillStore.mjs'
+import { parseSkillText } from './skillTextParse.mjs'
 import {
   createUser,
   deleteSessionByToken,
@@ -153,7 +155,7 @@ async function ensureStore() {
   await ensureQuestStore()
   await ensurePortStore()
   await ensureDiscoveryStore()
-  await ensureLibraryLanguageStore()
+  await ensureSkillStore()
   await ensureFieldStore()
   await ensureConsumableStore()
   await ensureCatalogStats()
@@ -1310,6 +1312,47 @@ export async function handleRequest(req, res) {
       return
     }
 
+    if (discoveryMatch && req.method === 'PATCH') {
+      const authUser = await getAuthUser(req)
+      if (!authUser) {
+        sendJson(res, 401, { error: '로그인이 필요합니다.' })
+        return
+      }
+      if (!requireAdmin(authUser, res)) return
+      const discoveryId = Number(decodeURIComponent(discoveryMatch[1]))
+      if (!Number.isFinite(discoveryId)) {
+        sendJson(res, 400, { error: '잘못된 발견물 ID입니다.' })
+        return
+      }
+      const existing = await getDiscoveryById(discoveryId)
+      if (!existing) {
+        sendJson(res, 404, { error: '발견물을 찾을 수 없습니다.' })
+        return
+      }
+      const body = await readBody(req)
+      const patch = {}
+      if ('rank' in body) {
+        patch.rank =
+          body.rank === null || body.rank === '' ? null : body.rank
+      }
+      if (!('rank' in patch)) {
+        sendJson(res, 400, { error: '변경할 필드가 없습니다.' })
+        return
+      }
+      try {
+        const discovery = await updateDiscoveryFields(discoveryId, patch)
+        sendJson(res, 200, { discovery })
+      } catch (err) {
+        sendJson(res, 400, {
+          error:
+            err instanceof Error
+              ? err.message
+              : '발견물 수정에 실패했습니다.',
+        })
+      }
+      return
+    }
+
     if (discoveryMatch && req.method === 'DELETE') {
       const authUser = await getAuthUser(req)
       if (!authUser) {
@@ -1337,21 +1380,18 @@ export async function handleRequest(req, res) {
       return
     }
 
-    if (req.method === 'GET' && pathname === '/api/library-languages') {
+    if (req.method === 'GET' && pathname === '/api/skills') {
       const authUser = await getAuthUser(req)
       if (!authUser) {
         sendJson(res, 401, { error: '로그인이 필요합니다.' })
         return
       }
-      const languages = await listLibraryLanguages()
-      sendJson(res, 200, { languages })
+      const skills = await listSkills()
+      sendJson(res, 200, { skills })
       return
     }
 
-    if (
-      req.method === 'POST' &&
-      pathname === '/api/library-languages/import-text'
-    ) {
+    if (req.method === 'POST' && pathname === '/api/skills/import-text') {
       const authUser = await getAuthUser(req)
       if (!authUser) {
         sendJson(res, 401, { error: '로그인이 필요합니다.' })
@@ -1361,39 +1401,39 @@ export async function handleRequest(req, res) {
       const body = await readBody(req)
       const text = typeof body.text === 'string' ? body.text : ''
       try {
-        const parsed = parseLibraryLanguageText(text)
-        const language = await upsertLibraryLanguageFromParsed(parsed)
-        sendJson(res, 201, { language })
+        const parsed = parseSkillText(text)
+        const skill = await upsertSkillFromParsed(parsed)
+        sendJson(res, 201, { skill })
       } catch (err) {
         sendJson(res, 400, {
           error:
             err instanceof Error
               ? err.message
-              : '언어 텍스트 파싱에 실패했습니다.',
+              : '스킬 텍스트 파싱에 실패했습니다.',
         })
       }
       return
     }
 
-    const languageMatch = pathname.match(/^\/api\/library-languages\/([^/]+)$/)
-    if (languageMatch && req.method === 'DELETE') {
+    const skillMatch = pathname.match(/^\/api\/skills\/([^/]+)$/)
+    if (skillMatch && req.method === 'DELETE') {
       const authUser = await getAuthUser(req)
       if (!authUser) {
         sendJson(res, 401, { error: '로그인이 필요합니다.' })
         return
       }
       if (!requireAdmin(authUser, res)) return
-      const languageId = Number(decodeURIComponent(languageMatch[1]))
-      if (!Number.isFinite(languageId)) {
-        sendJson(res, 400, { error: '잘못된 언어 ID입니다.' })
+      const skillId = Number(decodeURIComponent(skillMatch[1]))
+      if (!Number.isFinite(skillId)) {
+        sendJson(res, 400, { error: '잘못된 스킬 ID입니다.' })
         return
       }
       try {
-        await deleteLibraryLanguage(languageId)
+        await deleteSkill(skillId)
         sendJson(res, 200, { ok: true })
       } catch (err) {
         const message =
-          err instanceof Error ? err.message : '언어 삭제에 실패했습니다.'
+          err instanceof Error ? err.message : '스킬 삭제에 실패했습니다.'
         sendJson(
           res,
           message.includes('찾을 수 없') ? 404 : 400,

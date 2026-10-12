@@ -5,7 +5,7 @@ import type {
   MessageItem,
   DiscoveryCategoryGroup,
   DiscoveryDetail,
-  LibraryLanguageDetail,
+  SkillDetail,
   FieldDetail,
   ConsumableDetail,
   PortDetail,
@@ -454,6 +454,21 @@ export function importDiscoveryText(token: string, text: string) {
   )
 }
 
+export function updateDiscovery(
+  token: string,
+  discoveryId: number,
+  patch: { rank?: number | null },
+) {
+  return request<{ discovery: DiscoveryDetail }>(
+    `/api/discoveries/${encodeURIComponent(String(discoveryId))}`,
+    {
+      method: 'PATCH',
+      token,
+      body: patch,
+    },
+  )
+}
+
 export function deleteDiscovery(token: string, discoveryId: number) {
   return request<{ ok: boolean }>(
     `/api/discoveries/${encodeURIComponent(String(discoveryId))}`,
@@ -461,26 +476,20 @@ export function deleteDiscovery(token: string, discoveryId: number) {
   )
 }
 
-export function fetchLibraryLanguages(token: string) {
-  return request<{ languages: LibraryLanguageDetail[] }>(
-    '/api/library-languages',
-    { token },
-  )
+export function fetchSkills(token: string) {
+  return request<{ skills: SkillDetail[] }>('/api/skills', { token })
 }
 
-export function importLibraryLanguageText(token: string, text: string) {
-  return request<{ language: LibraryLanguageDetail }>(
-    '/api/library-languages/import-text',
-    {
-      token,
-      body: { text },
-    },
-  )
+export function importSkillText(token: string, text: string) {
+  return request<{ skill: SkillDetail }>('/api/skills/import-text', {
+    token,
+    body: { text },
+  })
 }
 
-export function deleteLibraryLanguage(token: string, languageId: number) {
+export function deleteSkill(token: string, skillId: number) {
   return request<{ ok: boolean }>(
-    `/api/library-languages/${encodeURIComponent(String(languageId))}`,
+    `/api/skills/${encodeURIComponent(String(skillId))}`,
     { method: 'DELETE', token },
   )
 }
@@ -516,7 +525,7 @@ export function fetchAdminStats(token: string) {
       quests: number
       ports: number
       discoveries: number
-      languages: number
+      skills: number
       fields: number
       materials: number
       featureRequests: number

@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useState, type FormEvent, type KeyboardEvent } from 'react'
+﻿import { useCallback, useEffect, useState, type FormEvent, type KeyboardEvent } from 'react'
 import {
   deleteAdminUser,
   deleteConsumable,
   deleteDiscovery,
   deleteField,
-  deleteLibraryLanguage,
+  deleteSkill,
   deletePort,
   deleteQuest,
   deleteShip,
@@ -13,7 +13,7 @@ import {
   fetchConsumables,
   fetchDiscoveries,
   fetchFields,
-  fetchLibraryLanguages,
+  fetchSkills,
   fetchPorts,
   fetchQuest,
   fetchQuests,
@@ -22,12 +22,13 @@ import {
   importConsumableText,
   importDiscoveryText,
   importFieldText,
-  importLibraryLanguageText,
+  importSkillText,
   importPortText,
   importQuestText,
   importShipMaterialText,
   importShipText,
   updateAdminUserRole,
+  updateDiscovery,
   updateQuest,
 } from '../lib/api'
 import type {
@@ -36,7 +37,7 @@ import type {
   DiscoveryDetail,
   DiscoveryQuestRef,
   FieldDetail,
-  LibraryLanguageDetail,
+  SkillDetail,
   PortDetail,
   QuestDetail,
   ShipDetail,
@@ -44,11 +45,12 @@ import type {
   User,
 } from '../types'
 import { AdminDashboard } from './AdminDashboard'
+import { BrandMark } from './BrandMark'
 import { ConsumableDetailView } from './ConsumableDetailView'
 import { DetailModal } from './DetailModal'
 import { DiscoveryDetailView } from './DiscoveryDetailView'
 import { FieldDetailView } from './FieldDetailView'
-import { LibraryLanguageDetailView } from './LibraryLanguageDetailView'
+import { SkillDetailView } from './SkillDetailView'
 import { PortDetailView } from './PortDetailView'
 import { QuestDiscoveryLabel } from './DiscoveryRankMark'
 import { QuestDetailView } from './QuestDetailView'
@@ -57,10 +59,11 @@ import { ShipMaterialDetailView } from './ShipMaterialDetailView'
 import { ShipList } from './ShipList'
 import { ShipMaterialList } from './ShipMaterialList'
 import { SortableTh } from './SortableTh'
+import { formatDiscoveryAcquire } from '../lib/discoveryAcquire'
 import { matchesPortQuery } from '../lib/portSearch'
 import { useTableSort } from '../lib/tableSort'
 
-const LANGUAGE_PAGE_SIZE = 15
+const SKILL_PAGE_SIZE = 15
 const USER_PAGE_SIZE = 15
 const QUEST_PAGE_SIZE = 15
 
@@ -90,7 +93,12 @@ type DiscoverySortKey =
   | 'rank'
   | 'cardPoints'
   | 'acquire'
-type LanguageSortKey = 'name' | 'rangeScope' | 'learnCost' | 'useCities'
+type SkillSortKey =
+  | 'name'
+  | 'category'
+  | 'rangeScope'
+  | 'learnCost'
+  | 'useCities'
 
 type AdminNav =
   | 'dashboard'
@@ -99,7 +107,7 @@ type AdminNav =
   | 'quests'
   | 'ports'
   | 'discoveries'
-  | 'languages'
+  | 'skills'
   | 'fields'
   | 'materials'
   | 'consumables'
@@ -129,7 +137,10 @@ function formatDate(value: string | null | undefined) {
 export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) {
   const [nav, setNav] = useState<AdminNav>('dashboard')
   const [shipsMenuOpen, setShipsMenuOpen] = useState(false)
+  const [atlasMenuOpen, setAtlasMenuOpen] = useState(false)
+  const [regionsMenuOpen, setRegionsMenuOpen] = useState(false)
   const [itemsMenuOpen, setItemsMenuOpen] = useState(false)
+  const [captainMenuOpen, setCaptainMenuOpen] = useState(false)
   const [users, setUsers] = useState<AdminUser[]>([])
   const [loadingUsers, setLoadingUsers] = useState(false)
   const [usersError, setUsersError] = useState('')
@@ -143,8 +154,17 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
     if (next === 'ships' || next === 'materials') {
       setShipsMenuOpen(true)
     }
+    if (next === 'quests' || next === 'discoveries') {
+      setAtlasMenuOpen(true)
+    }
+    if (next === 'ports' || next === 'fields') {
+      setRegionsMenuOpen(true)
+    }
     if (next === 'consumables') {
       setItemsMenuOpen(true)
+    }
+    if (next === 'skills') {
+      setCaptainMenuOpen(true)
     }
   }
 
@@ -166,6 +186,7 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
   const [questImportNote, setQuestImportNote] = useState('')
   const [detailQuest, setDetailQuest] = useState<QuestDetail | null>(null)
   const [busyQuestId, setBusyQuestId] = useState<number | null>(null)
+  const [busyDiscoveryId, setBusyDiscoveryId] = useState<number | null>(null)
   const [questQuery, setQuestQuery] = useState('')
   const [questQueryDebounced, setQuestQueryDebounced] = useState('')
   const [questPage, setQuestPage] = useState(0)
@@ -192,16 +213,16 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
   const [detailDiscovery, setDetailDiscovery] =
     useState<DiscoveryDetail | null>(null)
 
-  const [languages, setLanguages] = useState<LibraryLanguageDetail[]>([])
-  const [loadingLanguages, setLoadingLanguages] = useState(false)
-  const [languagesError, setLanguagesError] = useState('')
-  const [showLanguageImport, setShowLanguageImport] = useState(false)
-  const [languageImportText, setLanguageImportText] = useState('')
-  const [importingLanguage, setImportingLanguage] = useState(false)
-  const [languageImportNote, setLanguageImportNote] = useState('')
-  const [detailLanguage, setDetailLanguage] =
-    useState<LibraryLanguageDetail | null>(null)
-  const [languagePage, setLanguagePage] = useState(0)
+  const [skills, setSkills] = useState<SkillDetail[]>([])
+  const [loadingSkills, setLoadingSkills] = useState(false)
+  const [skillsError, setSkillsError] = useState('')
+  const [showSkillImport, setShowSkillImport] = useState(false)
+  const [skillImportText, setSkillImportText] = useState('')
+  const [importingSkill, setImportingSkill] = useState(false)
+  const [skillImportNote, setSkillImportNote] = useState('')
+  const [detailSkill, setDetailSkill] =
+    useState<SkillDetail | null>(null)
+  const [skillPage, setSkillPage] = useState(0)
 
   const [fields, setFields] = useState<FieldDetail[]>([])
   const [loadingFields, setLoadingFields] = useState(false)
@@ -326,21 +347,21 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
     }
   }, [token])
 
-  const loadLanguages = useCallback(async () => {
-    setLoadingLanguages(true)
-    setLanguagesError('')
+  const loadSkills = useCallback(async () => {
+    setLoadingSkills(true)
+    setSkillsError('')
     try {
-      const res = await fetchLibraryLanguages(token)
-      setLanguages(res.languages)
-      setLanguagePage(0)
+      const res = await fetchSkills(token)
+      setSkills(res.skills)
+      setSkillPage(0)
     } catch (err) {
-      setLanguagesError(
+      setSkillsError(
         err instanceof Error
           ? err.message
-          : '언어 목록을 불러오지 못했습니다.',
+          : '스킬 목록을 불러오지 못했습니다.',
       )
     } finally {
-      setLoadingLanguages(false)
+      setLoadingSkills(false)
     }
   }, [token])
 
@@ -379,7 +400,7 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
   const usersSort = useTableSort<UserSortKey>()
   const portsSort = useTableSort<PortSortKey>()
   const discoveriesSort = useTableSort<DiscoverySortKey>()
-  const languagesSort = useTableSort<LanguageSortKey>()
+  const skillsSort = useTableSort<SkillSortKey>()
 
   const userQueryLower = userQuery.trim().toLowerCase()
   const filteredUsers = users.filter((row) => {
@@ -427,37 +448,33 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
     discoveries,
     (discovery, key) => {
       if (key === 'acquire') {
-        if (discovery.acquireQuest) return discovery.acquireQuest.name
-        if (discovery.acquireType) {
-          return `[${discovery.acquireType}] ${discovery.acquireName || ''}`.trim()
-        }
-        return discovery.acquireName || ''
+        return formatDiscoveryAcquire(discovery)
       }
       return discovery[key]
     },
     (a, b) => a.id - b.id,
   )
-  const sortedLanguages = languagesSort.sortRows(
-    languages,
-    (language, key) => {
+  const sortedSkills = skillsSort.sortRows(
+    skills,
+    (skill, key) => {
       if (key === 'useCities') {
-        return language.useCities?.length
-          ? language.useCities.map((c) => c.city).join(', ')
+        return skill.useCities?.length
+          ? skill.useCities.map((c) => c.city).join(', ')
           : ''
       }
-      return language[key]
+      return skill[key]
     },
     (a, b) => a.id - b.id,
   )
 
-  const languageTotalPages = Math.max(
+  const skillTotalPages = Math.max(
     1,
-    Math.ceil(sortedLanguages.length / LANGUAGE_PAGE_SIZE),
+    Math.ceil(sortedSkills.length / SKILL_PAGE_SIZE),
   )
-  const languageSafePage = Math.min(languagePage, languageTotalPages - 1)
-  const languagePageItems = sortedLanguages.slice(
-    languageSafePage * LANGUAGE_PAGE_SIZE,
-    languageSafePage * LANGUAGE_PAGE_SIZE + LANGUAGE_PAGE_SIZE,
+  const skillSafePage = Math.min(skillPage, skillTotalPages - 1)
+  const skillPageItems = sortedSkills.slice(
+    skillSafePage * SKILL_PAGE_SIZE,
+    skillSafePage * SKILL_PAGE_SIZE + SKILL_PAGE_SIZE,
   )
 
   const loadMaterials = useCallback(async () => {
@@ -484,7 +501,7 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
     if (nav === 'discoveries') {
       void loadDiscoveries()
     }
-    if (nav === 'languages') void loadLanguages()
+    if (nav === 'skills') void loadSkills()
     if (nav === 'fields') void loadFields()
     if (nav === 'consumables') void loadConsumables()
     if (nav === 'materials') void loadMaterials()
@@ -494,7 +511,7 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
     loadShips,
     loadPorts,
     loadDiscoveries,
-    loadLanguages,
+    loadSkills,
     loadFields,
     loadConsumables,
     loadMaterials,
@@ -667,15 +684,15 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
     }
   }
 
-  async function handleDeleteLanguage(language: LibraryLanguageDetail) {
-    if (!window.confirm(`「${language.name}」 언어를 삭제할까요?`)) return
-    const key = `language:${language.id}`
+  async function handleDeleteSkill(skill: SkillDetail) {
+    if (!window.confirm(`「${skill.name}」 스킬을 삭제할까요?`)) return
+    const key = `skill:${skill.id}`
     setDeletingKey(key)
     try {
-      await deleteLibraryLanguage(token, language.id)
-      setLanguages((prev) => prev.filter((l) => l.id !== language.id))
-      if (detailLanguage?.id === language.id) setDetailLanguage(null)
-      onToast(`언어 「${language.name}」을(를) 삭제했습니다.`)
+      await deleteSkill(token, skill.id)
+      setSkills((prev) => prev.filter((l) => l.id !== skill.id))
+      if (detailSkill?.id === skill.id) setDetailSkill(null)
+      onToast(`스킬 「${skill.name}」을(를) 삭제했습니다.`)
     } catch (err) {
       onToast(err instanceof Error ? err.message : '삭제에 실패했습니다.')
     } finally {
@@ -825,29 +842,29 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
     }
   }
 
-  async function handleLanguageImport(e: FormEvent) {
+  async function handleSkillImport(e: FormEvent) {
     e.preventDefault()
-    if (!languageImportText.trim()) {
-      setLanguageImportNote('텍스트를 붙여넣어 주세요.')
+    if (!skillImportText.trim()) {
+      setSkillImportNote('텍스트를 붙여넣어 주세요.')
       return
     }
-    setImportingLanguage(true)
-    setLanguageImportNote('')
+    setImportingSkill(true)
+    setSkillImportNote('')
     try {
-      const res = await importLibraryLanguageText(token, languageImportText)
-      setLanguageImportText('')
-      setShowLanguageImport(false)
-      setLanguageImportNote(
-        `「${res.language.name}」을(를) 저장했습니다. (동일 이름이면 내용이 갱신됩니다)`,
+      const res = await importSkillText(token, skillImportText)
+      setSkillImportText('')
+      setShowSkillImport(false)
+      setSkillImportNote(
+        `「${res.skill.name}」을(를) 저장했습니다. (동일 이름이면 내용이 갱신됩니다)`,
       )
-      onToast(`언어 「${res.language.name}」 저장 완료`)
-      await loadLanguages()
+      onToast(`스킬 「${res.skill.name}」 저장 완료`)
+      await loadSkills()
     } catch (err) {
-      setLanguageImportNote(
+      setSkillImportNote(
         err instanceof Error ? err.message : '저장에 실패했습니다.',
       )
     } finally {
-      setImportingLanguage(false)
+      setImportingSkill(false)
     }
   }
 
@@ -929,6 +946,36 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
     }
   }
 
+  function applyDiscoveryUpdate(discovery: DiscoveryDetail) {
+    setDiscoveries((prev) =>
+      prev.map((d) => (d.id === discovery.id ? discovery : d)),
+    )
+    setDetailDiscovery((prev) =>
+      prev?.id === discovery.id ? discovery : prev,
+    )
+  }
+
+  async function handleDiscoveryRankChange(
+    discovery: DiscoveryDetail,
+    value: string,
+  ) {
+    const rank = value === '' ? null : Number(value)
+    if (rank !== null && (!Number.isInteger(rank) || rank < 0 || rank > 10)) {
+      return
+    }
+    if (rank === discovery.rank) return
+    setBusyDiscoveryId(discovery.id)
+    try {
+      const res = await updateDiscovery(token, discovery.id, { rank })
+      applyDiscoveryUpdate(res.discovery)
+      onToast(`「${res.discovery.name}」 난이도 저장`)
+    } catch (err) {
+      onToast(err instanceof Error ? err.message : '난이도 저장에 실패했습니다.')
+    } finally {
+      setBusyDiscoveryId(null)
+    }
+  }
+
   const adminCount = users.filter((u) => u.role === 'admin').length
 
   return (
@@ -938,7 +985,7 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
 
         <div className="admin-sidebar-brand">
           <p className="admin-sidebar-mark">
-            DHO <em>Light</em>
+            <BrandMark />
           </p>
           <p className="admin-sidebar-sub">관리자 콘솔</p>
         </div>
@@ -998,46 +1045,80 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
               </button>
             </div>
           </div>
-          <button
-            type="button"
-            className={nav === 'quests' ? 'active' : ''}
-            onClick={() => setNav('quests')}
+          <div
+            className={`admin-nav-group${
+              nav === 'quests' || nav === 'discoveries' ? ' is-active' : ''
+            }${atlasMenuOpen ? ' is-open' : ''}`}
           >
-            <span className="admin-nav-index">03</span>
-            <span className="admin-nav-text">퀘스트 리스트</span>
-          </button>
-          <button
-            type="button"
-            className={nav === 'ports' ? 'active' : ''}
-            onClick={() => setNav('ports')}
+            <button
+              type="button"
+              className="admin-nav-group-toggle"
+              aria-expanded={atlasMenuOpen}
+              aria-controls="admin-nav-atlas"
+              onClick={() => setAtlasMenuOpen((open) => !open)}
+            >
+              <span className="admin-nav-index">03</span>
+              <span className="admin-nav-text">도감</span>
+              <span className="admin-nav-chevron" aria-hidden="true" />
+            </button>
+            <div
+              id="admin-nav-atlas"
+              className="admin-nav-group-items"
+              hidden={!atlasMenuOpen}
+            >
+              <button
+                type="button"
+                className={nav === 'quests' ? 'active' : ''}
+                onClick={() => goNav('quests')}
+              >
+                <span className="admin-nav-text">퀘스트 리스트</span>
+              </button>
+              <button
+                type="button"
+                className={nav === 'discoveries' ? 'active' : ''}
+                onClick={() => goNav('discoveries')}
+              >
+                <span className="admin-nav-text">발견물 리스트</span>
+              </button>
+            </div>
+          </div>
+          <div
+            className={`admin-nav-group${
+              nav === 'ports' || nav === 'fields' ? ' is-active' : ''
+            }${regionsMenuOpen ? ' is-open' : ''}`}
           >
-            <span className="admin-nav-index">04</span>
-            <span className="admin-nav-text">항구(도시) 리스트</span>
-          </button>
-          <button
-            type="button"
-            className={nav === 'discoveries' ? 'active' : ''}
-            onClick={() => setNav('discoveries')}
-          >
-            <span className="admin-nav-index">05</span>
-            <span className="admin-nav-text">발견물 리스트</span>
-          </button>
-          <button
-            type="button"
-            className={nav === 'languages' ? 'active' : ''}
-            onClick={() => setNav('languages')}
-          >
-            <span className="admin-nav-index">06</span>
-            <span className="admin-nav-text">언어 리스트</span>
-          </button>
-          <button
-            type="button"
-            className={nav === 'fields' ? 'active' : ''}
-            onClick={() => setNav('fields')}
-          >
-            <span className="admin-nav-index">07</span>
-            <span className="admin-nav-text">필드 리스트</span>
-          </button>
+            <button
+              type="button"
+              className="admin-nav-group-toggle"
+              aria-expanded={regionsMenuOpen}
+              aria-controls="admin-nav-regions"
+              onClick={() => setRegionsMenuOpen((open) => !open)}
+            >
+              <span className="admin-nav-index">04</span>
+              <span className="admin-nav-text">개척</span>
+              <span className="admin-nav-chevron" aria-hidden="true" />
+            </button>
+            <div
+              id="admin-nav-regions"
+              className="admin-nav-group-items"
+              hidden={!regionsMenuOpen}
+            >
+              <button
+                type="button"
+                className={nav === 'ports' ? 'active' : ''}
+                onClick={() => goNav('ports')}
+              >
+                <span className="admin-nav-text">항구(도시) 리스트</span>
+              </button>
+              <button
+                type="button"
+                className={nav === 'fields' ? 'active' : ''}
+                onClick={() => goNav('fields')}
+              >
+                <span className="admin-nav-text">필드 리스트</span>
+              </button>
+            </div>
+          </div>
           <div
             className={`admin-nav-group${
               nav === 'consumables' ? ' is-active' : ''
@@ -1050,7 +1131,7 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
               aria-controls="admin-nav-items"
               onClick={() => setItemsMenuOpen((open) => !open)}
             >
-              <span className="admin-nav-index">08</span>
+              <span className="admin-nav-index">05</span>
               <span className="admin-nav-text">아이템</span>
               <span className="admin-nav-chevron" aria-hidden="true" />
             </button>
@@ -1065,6 +1146,36 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
                 onClick={() => goNav('consumables')}
               >
                 <span className="admin-nav-text">소비품 리스트</span>
+              </button>
+            </div>
+          </div>
+          <div
+            className={`admin-nav-group${
+              nav === 'skills' ? ' is-active' : ''
+            }${captainMenuOpen ? ' is-open' : ''}`}
+          >
+            <button
+              type="button"
+              className="admin-nav-group-toggle"
+              aria-expanded={captainMenuOpen}
+              aria-controls="admin-nav-captain"
+              onClick={() => setCaptainMenuOpen((open) => !open)}
+            >
+              <span className="admin-nav-index">06</span>
+              <span className="admin-nav-text">함장</span>
+              <span className="admin-nav-chevron" aria-hidden="true" />
+            </button>
+            <div
+              id="admin-nav-captain"
+              className="admin-nav-group-items"
+              hidden={!captainMenuOpen}
+            >
+              <button
+                type="button"
+                className={nav === 'skills' ? 'active' : ''}
+                onClick={() => goNav('skills')}
+              >
+                <span className="admin-nav-text">스킬 리스트</span>
               </button>
             </div>
           </div>
@@ -1901,7 +2012,7 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
                     rows={16}
                     value={discoveryImportText}
                     onChange={(e) => setDiscoveryImportText(e.target.value)}
-                    placeholder={`발견물 | 비단뱀\n대형 뱀으로 특히 큰 것은 10m나 된다. …\n분류\t생물 » 대형생물\n난이도\t5\n카드 포인트\t6\n발견 경험치\t1,118\n카드 획득 경험치\t559\n보고시 명성\t559\n발견 방법\t[퀘스트] 모험 | 인도의 큰 뱀 …`}
+                    placeholder={`발견물 | 비단뱀\n대형 뱀으로 특히 큰 것은 10m나 된다. …\n분류\t생물 » 대형생물\n난이도\t5\n카드 포인트\t6\n발견 경험치\t1,118\n카드 획득 경험치\t559\n보고시 명성\t559\n발견 방법\t[퀘스트] 모험 | 악어냐 물고기냐 (7 생태 조사 8, 생물학 10, 프랑스어 1) - 마르세이유`}
                     disabled={importingDiscovery}
                   />
                 </label>
@@ -2002,10 +2113,30 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
                       >
                         <td>{discovery.name}</td>
                         <td className="col-desk">{discovery.category || '-'}</td>
-                        <td className="col-desk">
-                          {discovery.rank != null
-                            ? `${discovery.rank}성`
-                            : '-'}
+                        <td
+                          className="admin-cell-control col-desk col-diff"
+                          onClick={(e) => e.stopPropagation()}
+                          onKeyDown={(e) => e.stopPropagation()}
+                        >
+                          <select
+                            className="quest-diff-select"
+                            value={discovery.rank ?? ''}
+                            disabled={busyDiscoveryId === discovery.id}
+                            aria-label={`${discovery.name} 난이도`}
+                            onChange={(e) =>
+                              void handleDiscoveryRankChange(
+                                discovery,
+                                e.target.value,
+                              )
+                            }
+                          >
+                            <option value="">-</option>
+                            {Array.from({ length: 11 }, (_, n) => (
+                              <option key={n} value={n}>
+                                {n}
+                              </option>
+                            ))}
+                          </select>
                         </td>
                         <td className="col-desk">
                           {discovery.cardPoints != null
@@ -2027,12 +2158,10 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
                                 void openQuestByRef(discovery.acquireQuest!)
                               }}
                             >
-                              [퀘스트] {discovery.acquireQuest.name}
+                              {formatDiscoveryAcquire(discovery) || '-'}
                             </button>
-                          ) : discovery.acquireType ? (
-                            `[${discovery.acquireType}] ${discovery.acquireName || ''}`.trim()
                           ) : (
-                            discovery.acquireName || '-'
+                            formatDiscoveryAcquire(discovery) || '-'
                           )}
                         </td>
                         <td
@@ -2065,21 +2194,22 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
           </section>
         )}
 
-        {nav === 'languages' && (
+        {nav === 'skills' && (
           <section className="admin-section">
             <div className="admin-page-head">
               <div>
-                <h1>언어 리스트</h1>
+                <h1>스킬 리스트</h1>
                 <p>
-                  위키 스킬 텍스트로 추가·갱신합니다. 같은 이름이면 내용을 덮어씁니다.
+                  위키 스킬 텍스트로 추가·갱신합니다. 분류(언어 등)는 텍스트의 분류 칸을
+                  따릅니다. 같은 이름이면 내용을 덮어씁니다.
                 </p>
               </div>
               <div className="admin-page-actions">
                 <button
                   type="button"
                   className="admin-btn"
-                  onClick={() => void loadLanguages()}
-                  disabled={loadingLanguages}
+                  onClick={() => void loadSkills()}
+                  disabled={loadingSkills}
                 >
                   새로고침
                 </button>
@@ -2087,62 +2217,62 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
                   type="button"
                   className="admin-btn admin-btn-primary"
                   onClick={() => {
-                    setShowLanguageImport((v) => !v)
-                    setLanguageImportNote('')
+                    setShowSkillImport((v) => !v)
+                    setSkillImportNote('')
                   }}
                 >
-                  {showLanguageImport ? '닫기' : '언어 추가'}
+                  {showSkillImport ? '닫기' : '스킬 추가'}
                 </button>
               </div>
             </div>
 
-            {showLanguageImport && (
+            {showSkillImport && (
               <form
                 className="admin-import-form"
-                onSubmit={handleLanguageImport}
+                onSubmit={handleSkillImport}
               >
                 <label className="field">
-                  <span>언어 텍스트</span>
+                  <span>스킬 텍스트</span>
                   <textarea
                     className="quest-import-textarea"
                     rows={14}
-                    value={languageImportText}
-                    onChange={(e) => setLanguageImportText(e.target.value)}
-                    placeholder={`스킬북극어\n회화나 서적열람이 가능.\n러시아와 북극에서 사용한다.\n분류\t언어\t행동력\t자동효과\n범위\t함대\t습득 비용\t1,000,000두캇\n스킬 습득\n지역\t도시\t도시 인물\n유럽 북부\t상트 페테르부르크\t다이고쿠야 코다로\n사용 도시\n지역\t도시\n유럽 북부\t상트 페테르부르크`}
-                    disabled={importingLanguage}
+                    value={skillImportText}
+                    onChange={(e) => setSkillImportText(e.target.value)}
+                    placeholder={`스킬생태 조사\n동식물의 생태를 연구하고 발견한다.\n\n분류\t모험\t부관담당\t감시\n행동력\t5\t범위\t자신\n습득 비용\t3,000두캇\t연성 효과\t발견 시 피로 회복\n우대 직업\t궁정 정원사*, 레인저, 바이킹, 브리더, 사냥꾼*, 생물학자\n습득 조건\n종류\t내용\n레벨\t모험 Lv3\n스킬 습득\n지역\t도시\t도시 인물\n유럽 북부\t런던\t모험가 조합 마스터`}
+                    disabled={importingSkill}
                   />
                 </label>
                 <div className="form-actions">
                   <button
                     type="submit"
                     className="admin-btn admin-btn-primary"
-                    disabled={importingLanguage}
+                    disabled={importingSkill}
                   >
-                    {importingLanguage ? '저장 중…' : '저장'}
+                    {importingSkill ? '저장 중…' : '저장'}
                   </button>
                 </div>
               </form>
             )}
 
-            {languageImportNote && (
+            {skillImportNote && (
               <p
                 className={`form-note${
-                  /실패|못|오류|에러|중복/.test(languageImportNote)
+                  /실패|못|오류|에러|중복/.test(skillImportNote)
                     ? ' error'
                     : ''
                 }`}
               >
-                {languageImportNote}
+                {skillImportNote}
               </p>
             )}
 
-            {languagesError && (
+            {skillsError && (
               <p className="form-note error" role="alert">
-                {languagesError}
+                {skillsError}
               </p>
             )}
 
-            {loadingLanguages ? (
+            {loadingSkills ? (
               <p className="form-note">불러오는 중…</p>
             ) : (
               <>
@@ -2153,75 +2283,89 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
                         <SortableTh
                           label="이름"
                           sortKey="name"
-                          activeKey={languagesSort.sortKey}
-                          dir={languagesSort.sortDir}
+                          activeKey={skillsSort.sortKey}
+                          dir={skillsSort.sortDir}
                           onSort={(key) => {
-                            languagesSort.toggleSort(key)
-                            setLanguagePage(0)
+                            skillsSort.toggleSort(key)
+                            setSkillPage(0)
+                          }}
+                        />
+                        <SortableTh
+                          className="col-desk"
+                          label="분류"
+                          sortKey="category"
+                          activeKey={skillsSort.sortKey}
+                          dir={skillsSort.sortDir}
+                          onSort={(key) => {
+                            skillsSort.toggleSort(key)
+                            setSkillPage(0)
                           }}
                         />
                         <SortableTh
                           className="col-desk"
                           label="범위"
                           sortKey="rangeScope"
-                          activeKey={languagesSort.sortKey}
-                          dir={languagesSort.sortDir}
+                          activeKey={skillsSort.sortKey}
+                          dir={skillsSort.sortDir}
                           onSort={(key) => {
-                            languagesSort.toggleSort(key)
-                            setLanguagePage(0)
+                            skillsSort.toggleSort(key)
+                            setSkillPage(0)
                           }}
                         />
                         <SortableTh
                           className="col-desk"
                           label="습득 비용"
                           sortKey="learnCost"
-                          activeKey={languagesSort.sortKey}
-                          dir={languagesSort.sortDir}
+                          activeKey={skillsSort.sortKey}
+                          dir={skillsSort.sortDir}
                           onSort={(key) => {
-                            languagesSort.toggleSort(key)
-                            setLanguagePage(0)
+                            skillsSort.toggleSort(key)
+                            setSkillPage(0)
                           }}
                         />
                         <SortableTh
                           className="col-desk"
                           label="사용 도시"
                           sortKey="useCities"
-                          activeKey={languagesSort.sortKey}
-                          dir={languagesSort.sortDir}
+                          activeKey={skillsSort.sortKey}
+                          dir={skillsSort.sortDir}
                           onSort={(key) => {
-                            languagesSort.toggleSort(key)
-                            setLanguagePage(0)
+                            skillsSort.toggleSort(key)
+                            setSkillPage(0)
                           }}
                         />
                         <th className="col-desk">삭제</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {languagePageItems.map((language, index) => (
+                      {skillPageItems.map((skill, index) => (
                         <tr
-                          key={language.id}
+                          key={skill.id}
                           className={`admin-row-clickable${index % 2 === 0 ? ' is-even' : ' is-odd'}`}
                           tabIndex={0}
-                          onClick={() => setDetailLanguage(language)}
+                          onClick={() => setDetailSkill(skill)}
                           onKeyDown={(
                             event: KeyboardEvent<HTMLTableRowElement>,
                           ) => {
                             if (event.key === 'Enter' || event.key === ' ') {
                               event.preventDefault()
-                              setDetailLanguage(language)
+                              setDetailSkill(skill)
                             }
                           }}
                         >
-                          <td>{language.name}</td>
-                          <td className="col-desk">{language.rangeScope || '-'}</td>
+                          <td>{skill.name}</td>
                           <td className="col-desk">
-                            {language.learnCost != null
-                              ? `${language.learnCost.toLocaleString('ko-KR')}두캇`
+                            {skill.category || '언어'}
+                          </td>
+                          <td className="col-desk">{skill.rangeScope || '-'}</td>
+                          <td className="col-desk">
+                            {skill.learnCost != null
+                              ? `${skill.learnCost.toLocaleString('ko-KR')}두캇`
                               : '-'}
                           </td>
                           <td className="admin-table-wrap-cell col-desk">
-                            {language.useCities?.length
-                              ? language.useCities.map((c) => c.city).join(', ')
+                            {skill.useCities?.length
+                              ? skill.useCities.map((c) => c.city).join(', ')
                               : '-'}
                           </td>
                           <td
@@ -2233,47 +2377,47 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
                               type="button"
                               className="admin-danger-btn"
                               disabled={
-                                deletingKey === `language:${language.id}`
+                                deletingKey === `skill:${skill.id}`
                               }
-                              onClick={() => void handleDeleteLanguage(language)}
+                              onClick={() => void handleDeleteSkill(skill)}
                             >
                               삭제
                             </button>
                           </td>
                         </tr>
                       ))}
-                      {sortedLanguages.length === 0 && (
+                      {sortedSkills.length === 0 && (
                         <tr>
-                          <td colSpan={5}>등록된 언어가 없습니다.</td>
+                          <td colSpan={6}>등록된 스킬이 없습니다.</td>
                         </tr>
                       )}
                     </tbody>
                   </table>
                 </div>
 
-                {sortedLanguages.length > 0 && (
-                  <div className="catalog-pager" aria-label="언어 목록 페이지">
+                {sortedSkills.length > 0 && (
+                  <div className="catalog-pager" aria-label="스킬 목록 페이지">
                     <button
                       type="button"
                       className="admin-btn"
-                      disabled={languageSafePage <= 0}
+                      disabled={skillSafePage <= 0}
                       onClick={() =>
-                        setLanguagePage((p) => Math.max(0, p - 1))
+                        setSkillPage((p) => Math.max(0, p - 1))
                       }
                     >
                       이전
                     </button>
                     <span>
-                      {languageSafePage + 1} / {languageTotalPages}
-                      <em>· {sortedLanguages.length}개</em>
+                      {skillSafePage + 1} / {skillTotalPages}
+                      <em>· {sortedSkills.length}개</em>
                     </span>
                     <button
                       type="button"
                       className="admin-btn"
-                      disabled={languageSafePage >= languageTotalPages - 1}
+                      disabled={skillSafePage >= skillTotalPages - 1}
                       onClick={() =>
-                        setLanguagePage((p) =>
-                          Math.min(languageTotalPages - 1, p + 1),
+                        setSkillPage((p) =>
+                          Math.min(skillTotalPages - 1, p + 1),
                         )
                       }
                     >
@@ -2327,7 +2471,7 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
                     rows={20}
                     value={fieldImportText}
                     onChange={(e) => setFieldImportText(e.target.value)}
-                    placeholder={`필드 | 북미 대륙 서해안\n필드 종류\t상륙지\t지역\t북미 서해안\n해역\t알렉산더 제도 앞바다\t좌표\t10616, 2776\n육지 조사\n단계\t필수\t종류\t조사 항목\t횟수\t획득 완성도\t완성도 제한\n1\t\t채집\t\t20\t10%\t10%\n…\n육지 재조사 보상\n종류\t아이템\n소비품\t…`}
+                    placeholder={`필드 | 조선 반도 서쪽 해안\n필드 종류\t상륙지\t지역\t동아시아\n해역\t동아시아 동부\t좌표\t5776, 3292\n연결된 장소\n종류\t내용\n2차 필드\t공주 북쪽\n육지 조사\n단계\t필수\t종류\t조사 항목\t횟수\t획득 완성도\t완성도 제한\n1\t\t인식\t301ac\t1\t10%\t10%\n…\n육지 재조사 보상\n종류\t아이템\n소비품\t…`}
                     disabled={importingField}
                   />
                 </label>
@@ -2810,13 +2954,13 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
         </DetailModal>
       )}
 
-      {detailLanguage && (
+      {detailSkill && (
         <DetailModal
-          title="언어 상세"
-          label={`${detailLanguage.name} 상세`}
-          onClose={() => setDetailLanguage(null)}
+          title="스킬 상세"
+          label={`${detailSkill.name} 상세`}
+          onClose={() => setDetailSkill(null)}
         >
-          <LibraryLanguageDetailView language={detailLanguage} />
+          <SkillDetailView skill={detailSkill} />
         </DetailModal>
       )}
 

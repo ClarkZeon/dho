@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { formatDiscoveryAcquire } from '../lib/discoveryAcquire'
 import type {
   DiscoveryDetail,
   DiscoveryQuestRef,
@@ -58,12 +59,7 @@ export function DiscoveryDetailView({
   const linked = discovery.linkedQuests || []
   const debate = discovery.debateCombo
   const acquireQuest = discovery.acquireQuest
-
-  const acquireLabel = discovery.acquireType
-    ? `[${discovery.acquireType}] ${
-        acquireQuest?.name || discovery.acquireName || ''
-      }`.trim()
-    : discovery.acquireName
+  const acquireLabel = formatDiscoveryAcquire(discovery)
 
   return (
     <div className="quest-detail">

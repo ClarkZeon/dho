@@ -1,36 +1,42 @@
-import { useEffect, useState, type KeyboardEvent } from 'react'
-import { fetchLibraryLanguages } from '../lib/api'
+﻿import { useEffect, useState, type KeyboardEvent } from 'react'
+import { fetchSkills } from '../lib/api'
 import { useTableSort } from '../lib/tableSort'
-import type { LibraryLanguageDetail } from '../types'
+import type { SkillDetail } from '../types'
 import { DetailModal } from './DetailModal'
-import { LibraryLanguageDetailView } from './LibraryLanguageDetailView'
+import { SkillDetailView } from './SkillDetailView'
 import { SortableTh } from './SortableTh'
 
 const PAGE_SIZE = 15
 
-type LanguageCatalogProps = {
+type SkillCatalogProps = {
   token: string
 }
 
-type LanguageSortKey = 'name' | 'rangeScope' | 'learnCost' | 'useCities'
+type SkillSortKey = 'name' | 'category' | 'rangeScope' | 'learnCost' | 'useCities'
 
-function matchesLanguage(language: LibraryLanguageDetail, query: string) {
+function matchesSkill(skill: SkillDetail, query: string) {
   const q = query.trim().toLowerCase()
   if (!q) return true
 
-  const cities = (language.useCities || [])
+  const cities = (skill.useCities || [])
     .map((c) => `${c.region} ${c.city}`)
     .join(' ')
-  const places = (language.learnPlaces || [])
+  const places = (skill.learnPlaces || [])
     .map((p) => `${p.region} ${p.city} ${p.npc || ''}`)
     .join(' ')
   const haystack = [
-    language.name,
-    language.slug,
-    language.description,
-    language.category,
-    language.rangeScope,
-    language.prerequisite,
+    skill.name,
+    skill.slug,
+    skill.description,
+    skill.category,
+    skill.officerDuty,
+    skill.rangeScope,
+    skill.refineEffect,
+    skill.prerequisite,
+    (skill.preferredJobs || []).join(' '),
+    (skill.acquireConditions || [])
+      .map((c) => `${c.kind} ${c.content}`)
+      .join(' '),
     cities,
     places,
   ]
@@ -41,21 +47,40 @@ function matchesLanguage(language: LibraryLanguageDetail, query: string) {
   return haystack.includes(q)
 }
 
-function useCitiesLabel(language: LibraryLanguageDetail) {
-  return language.useCities?.length
-    ? language.useCities.map((c) => c.city).join(', ')
+function useCitiesLabel(skill: SkillDetail) {
+  return skill.useCities?.length
+    ? skill.useCities.map((c) => c.city).join(', ')
     : ''
 }
 
-export function LanguageCatalog({ token }: LanguageCatalogProps) {
-  const [languages, setLanguages] = useState<LibraryLanguageDetail[]>([])
+function skillCategory(skill: SkillDetail) {
+  return String(skill.category || '').trim() || '언어'
+}
+
+function collectCategories(skills: SkillDetail[]) {
+  const set = new Set<string>()
+  for (const skill of skills) set.add(skillCategory(skill))
+  return [...set].sort((a, b) => a.localeCompare(b, 'ko'))
+}
+
+function matchesSkillCategory(skill: SkillDetail, categories: Set<string>) {
+  if (categories.size === 0) return true
+  return categories.has(skillCategory(skill))
+}
+
+/** 유저 사이트 스킬 목록 (분류: 언어 등) */
+export function SkillCatalog({ token }: SkillCatalogProps) {
+  const [skills, setSkills] = useState<SkillDetail[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [detail, setDetail] = useState<LibraryLanguageDetail | null>(null)
+  const [detail, setDetail] = useState<SkillDetail | null>(null)
   const [query, setQuery] = useState('')
+  const [selectedCategories, setSelectedCategories] = useState<Set<string>>(
+    () => new Set(),
+  )
   const [page, setPage] = useState(0)
   const { sortKey, sortDir, toggleSort, sortRows } =
-    useTableSort<LanguageSortKey>()
+    useTableSort<SkillSortKey>()
 
   useEffect(() => {
     let alive = true
@@ -63,16 +88,16 @@ export function LanguageCatalog({ token }: LanguageCatalogProps) {
       try {
         setLoading(true)
         setError('')
-        const res = await fetchLibraryLanguages(token)
+        const res = await fetchSkills(token)
         if (!alive) return
-        setLanguages(res.languages)
+        setSkills(res.skills)
         setPage(0)
       } catch (err) {
         if (!alive) return
         setError(
           err instanceof Error
             ? err.message
-            : '언어 목록을 불러오지 못했습니다.',
+            : '스킬 목록을 불러오지 못했습니다.',
         )
       } finally {
         if (alive) setLoading(false)
@@ -83,22 +108,40 @@ export function LanguageCatalog({ token }: LanguageCatalogProps) {
     }
   }, [token])
 
+  const categories = collectCategories(skills)
+
   const filtered = sortRows(
-    languages.filter((language) => matchesLanguage(language, query)),
-    (language, key) => {
+    skills.filter(
+      (skill) =>
+        matchesSkillCategory(skill, selectedCategories) &&
+        matchesSkill(skill, query),
+    ),
+    (skill, key) => {
       switch (key) {
         case 'name':
-          return language.name
+          return skill.name
+        case 'category':
+          return skillCategory(skill)
         case 'rangeScope':
-          return language.rangeScope
+          return skill.rangeScope
         case 'learnCost':
-          return language.learnCost
+          return skill.learnCost
         case 'useCities':
-          return useCitiesLabel(language)
+          return useCitiesLabel(skill)
       }
     },
     (a, b) => a.id - b.id,
   )
+
+  function toggleCategory(category: string) {
+    setSelectedCategories((prev) => {
+      const next = new Set(prev)
+      if (next.has(category)) next.delete(category)
+      else next.add(category)
+      return next
+    })
+    setPage(0)
+  }
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const safePage = Math.min(page, totalPages - 1)
   const pageItems = filtered.slice(
@@ -106,7 +149,7 @@ export function LanguageCatalog({ token }: LanguageCatalogProps) {
     safePage * PAGE_SIZE + PAGE_SIZE,
   )
 
-  function handleSort(key: LanguageSortKey) {
+  function handleSort(key: SkillSortKey) {
     toggleSort(key)
     setPage(0)
   }
@@ -115,10 +158,30 @@ export function LanguageCatalog({ token }: LanguageCatalogProps) {
     <section className="tool-page">
       <div className="messages-head">
         <div>
-          <h1>언어</h1>
-          <p>등록된 언어 스킬을 확인하고 상세를 엽니다.</p>
+          <h1>스킬</h1>
+          <p>등록된 스킬을 확인하고 상세를 엽니다. 언어는 분류 중 하나입니다.</p>
         </div>
       </div>
+
+      {!loading && categories.length > 0 && (
+        <div
+          className="material-list-kinds catalog-category-filters"
+          role="group"
+          aria-label="분류 필터"
+        >
+          <span className="material-list-tag">분류</span>
+          {categories.map((category) => (
+            <label key={category} className="material-list-check">
+              <input
+                type="checkbox"
+                checked={selectedCategories.has(category)}
+                onChange={() => toggleCategory(category)}
+              />
+              <span>{category}</span>
+            </label>
+          ))}
+        </div>
+      )}
 
       <label className="field catalog-search">
         <input
@@ -128,8 +191,8 @@ export function LanguageCatalog({ token }: LanguageCatalogProps) {
             setQuery(e.target.value)
             setPage(0)
           }}
-          placeholder="언어 이름·도시·범위로 검색"
-          aria-label="언어 검색"
+          placeholder="이름·도시·범위로 검색"
+          aria-label="스킬 검색"
           autoComplete="off"
           disabled={loading}
         />
@@ -152,6 +215,14 @@ export function LanguageCatalog({ token }: LanguageCatalogProps) {
                   <SortableTh
                     label="이름"
                     sortKey="name"
+                    activeKey={sortKey}
+                    dir={sortDir}
+                    onSort={handleSort}
+                  />
+                  <SortableTh
+                    className="col-desk"
+                    label="분류"
+                    sortKey="category"
                     activeKey={sortKey}
                     dir={sortDir}
                     onSort={handleSort}
@@ -183,36 +254,37 @@ export function LanguageCatalog({ token }: LanguageCatalogProps) {
                 </tr>
               </thead>
               <tbody>
-                {pageItems.map((language, index) => (
+                {pageItems.map((skill, index) => (
                   <tr
-                    key={language.id}
+                    key={skill.id}
                     className={`admin-row-clickable${index % 2 === 0 ? ' is-even' : ' is-odd'}`}
                     tabIndex={0}
-                    onClick={() => setDetail(language)}
+                    onClick={() => setDetail(skill)}
                     onKeyDown={(event: KeyboardEvent<HTMLTableRowElement>) => {
                       if (event.key === 'Enter' || event.key === ' ') {
                         event.preventDefault()
-                        setDetail(language)
+                        setDetail(skill)
                       }
                     }}
                   >
-                    <td>{language.name}</td>
-                    <td className="col-desk">{language.rangeScope || '-'}</td>
+                    <td>{skill.name}</td>
+                    <td className="col-desk">{skillCategory(skill)}</td>
+                    <td className="col-desk">{skill.rangeScope || '-'}</td>
                     <td className="col-desk">
-                      {language.learnCost != null
-                        ? `${language.learnCost.toLocaleString('ko-KR')}두캇`
+                      {skill.learnCost != null
+                        ? `${skill.learnCost.toLocaleString('ko-KR')}두캇`
                         : '-'}
                     </td>
                     <td className="admin-table-wrap-cell col-desk">
-                      {useCitiesLabel(language) || '-'}
+                      {useCitiesLabel(skill) || '-'}
                     </td>
                   </tr>
                 ))}
                 {filtered.length === 0 && (
                   <tr>
-                    <td colSpan={4}>
-                      {languages.length === 0
-                        ? '등록된 언어가 없습니다.'
+                    <td colSpan={5}>
+                      {skills.length === 0
+                        ? '등록된 스킬이 없습니다.'
                         : '검색 결과가 없습니다.'}
                     </td>
                   </tr>
@@ -222,7 +294,7 @@ export function LanguageCatalog({ token }: LanguageCatalogProps) {
           </div>
 
           {filtered.length > 0 && (
-            <div className="catalog-pager" aria-label="언어 목록 페이지">
+            <div className="catalog-pager" aria-label="스킬 목록 페이지">
               <button
                 type="button"
                 className="admin-btn"
@@ -235,7 +307,9 @@ export function LanguageCatalog({ token }: LanguageCatalogProps) {
                 {safePage + 1} / {totalPages}
                 <em>
                   · {filtered.length}개
-                  {query.trim() ? ` (전체 ${languages.length})` : ''}
+                  {query.trim() || selectedCategories.size > 0
+                    ? ` (전체 ${skills.length})`
+                    : ''}
                 </em>
               </span>
               <button
@@ -255,11 +329,11 @@ export function LanguageCatalog({ token }: LanguageCatalogProps) {
 
       {detail && (
         <DetailModal
-          title="언어 상세"
+          title="스킬 상세"
           label={`${detail.name} 상세`}
           onClose={() => setDetail(null)}
         >
-          <LibraryLanguageDetailView language={detail} />
+          <SkillDetailView skill={detail} />
         </DetailModal>
       )}
     </section>

@@ -251,6 +251,61 @@ export async function getDiscoveryBySlug(slug) {
   return rows[0] ? withQuestLinks(decorateDiscovery(rows[0])) : null
 }
 
+export async function getDiscoveryById(id) {
+  const sql = getSql()
+  const discoveryId = Number(id)
+  if (!Number.isFinite(discoveryId)) return null
+  const rows = await sql`
+    SELECT
+      d.*,
+      c.id AS category_id,
+      g.name AS category_group
+    FROM discoveries d
+    LEFT JOIN discovery_categories c
+      ON c.enabled = TRUE
+      AND (
+        c.name = d.category
+        OR (d.category = '항구-마을' AND c.name = '항구·마을')
+        OR (d.category = '기상현상' AND c.name = '기상 현상')
+      )
+    LEFT JOIN discovery_category_groups g
+      ON g.id = c.group_id AND g.enabled = TRUE
+    WHERE d.id = ${discoveryId} AND d.enabled = TRUE
+    LIMIT 1
+  `
+  return rows[0] ? withQuestLinks(decorateDiscovery(rows[0])) : null
+}
+
+/**
+ * 발견물 부분 갱신
+ * @param {number} id
+ * @param {{ rank?: number | null }} patch
+ */
+export async function updateDiscoveryFields(id, patch) {
+  const sql = getSql()
+  const discoveryId = Number(id)
+  if (!Number.isFinite(discoveryId)) throw new Error('잘못된 발견물 ID입니다.')
+
+  const current = await getDiscoveryById(discoveryId)
+  if (!current) throw new Error('발견물을 찾을 수 없습니다.')
+
+  if ('rank' in patch) {
+    let rank = current.rank
+    if (patch.rank == null || patch.rank === '') {
+      rank = null
+    } else {
+      const n = Number(patch.rank)
+      if (!Number.isInteger(n) || n < 0 || n > 10) {
+        throw new Error('난이도는 0~10 정수여야 합니다.')
+      }
+      rank = n
+    }
+    await sql`UPDATE discoveries SET rank = ${rank} WHERE id = ${discoveryId}`
+  }
+
+  return getDiscoveryById(discoveryId)
+}
+
 async function findIdByName(sql, name) {
   const dup = await sql`
     SELECT id, slug, enabled FROM discoveries

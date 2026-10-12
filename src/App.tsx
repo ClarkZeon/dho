@@ -6,6 +6,7 @@ import {
   type ReactNode,
 } from 'react'
 import { AdminForbidden, AdminPanel } from './components/AdminPanel'
+import { BrandMark } from './components/BrandMark'
 import { Dashboard } from './components/Dashboard'
 import { Toast } from './components/Toast'
 import {
@@ -221,7 +222,7 @@ function App() {
 
           <header className="topbar">
             <span className="topbar-mark">
-              DHO <em>Light</em>
+              <BrandMark />
             </span>
             <span className="topbar-meta">
               {adminRoute ? '관리자 로그인' : '빛 · 희망'}

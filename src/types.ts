@@ -263,6 +263,11 @@ export type FieldResurveyReward = {
   raw: string
 }
 
+export type FieldLinkedPlace = {
+  kind: string
+  name: string
+}
+
 export type FieldDetail = {
   id: number
   slug: string
@@ -272,6 +277,7 @@ export type FieldDetail = {
   seaArea: string | null
   coordX: number | null
   coordY: number | null
+  linkedPlaces: FieldLinkedPlace[]
   landSurveys: FieldLandSurvey[]
   resurveyRewards: FieldResurveyReward[]
 }
@@ -327,30 +333,39 @@ export type DiscoveryDebateCombo = {
   cards: string[]
 }
 
-export type LibraryLanguagePlace = {
+export type SkillPlace = {
   region: string
   city: string
   npc: string | null
 }
 
-export type LibraryLanguageCity = {
+export type SkillCity = {
   region: string
   city: string
 }
 
-export type LibraryLanguageDetail = {
+export type SkillAcquireCondition = {
+  kind: string
+  content: string
+}
+
+export type SkillDetail = {
   id: number
   slug: string
   name: string
   description: string | null
   category: string | null
+  officerDuty: string | null
   rangeScope: string | null
   actionPower: string | null
   autoEffect: string | null
+  refineEffect: string | null
   learnCost: number | null
   prerequisite: string | null
-  learnPlaces: LibraryLanguagePlace[]
-  useCities: LibraryLanguageCity[]
+  preferredJobs: string[]
+  acquireConditions: SkillAcquireCondition[]
+  learnPlaces: SkillPlace[]
+  useCities: SkillCity[]
 }
 
 export type ShipMaterialEffect = {

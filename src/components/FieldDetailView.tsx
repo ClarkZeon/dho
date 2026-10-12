@@ -90,6 +90,30 @@ export function FieldDetailView({ field, requiredEdit }: FieldDetailViewProps) {
         </div>
       </section>
 
+      {(field.linkedPlaces || []).length > 0 && (
+        <section className="quest-detail-section">
+          <h3>연결된 장소</h3>
+          <div className="admin-table-wrap">
+            <table className="admin-table">
+              <thead>
+                <tr>
+                  <th>종류</th>
+                  <th>내용</th>
+                </tr>
+              </thead>
+              <tbody>
+                {field.linkedPlaces.map((place, idx) => (
+                  <tr key={`${place.kind}-${place.name}-${idx}`}>
+                    <td>{place.kind || '-'}</td>
+                    <td>{place.name || '-'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+
       {surveys.length > 0 && (
         <section className="quest-detail-section">
           <h3>육지 조사</h3>

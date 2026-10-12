@@ -12,7 +12,7 @@ INSERT INTO catalog_stats (stat_key, count) VALUES
   ('quests', 0),
   ('ports', 0),
   ('discoveries', 0),
-  ('languages', 0),
+  ('skills', 0),
   ('materials', 0),
   ('feature_requests', 0)
 ON CONFLICT (stat_key) DO NOTHING;
