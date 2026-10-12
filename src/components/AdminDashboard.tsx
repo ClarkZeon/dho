@@ -9,6 +9,7 @@ export type AdminDashboardNav =
   | 'ports'
   | 'discoveries'
   | 'languages'
+  | 'fields'
   | 'materials'
 
 type AdminDashboardProps = {
@@ -23,6 +24,7 @@ type CatalogCounts = {
   ports: number
   discoveries: number
   languages: number
+  fields: number
   materials: number
   featureRequests: number
 }
@@ -176,6 +178,7 @@ export function AdminDashboard({ token, onNavigate }: AdminDashboardProps) {
                   ['ports', '항구', counts?.ports],
                   ['discoveries', '발견물', counts?.discoveries],
                   ['languages', '언어', counts?.languages],
+                  ['fields', '필드', counts?.fields],
                   ['materials', '선박 재료', counts?.materials],
                 ] as const
               ).map(([nav, label, value]) => (

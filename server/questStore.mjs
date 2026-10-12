@@ -2,8 +2,35 @@ import {
   bumpCatalogStat,
   bumpCatalogStatIfGrew,
 } from './adminStats.mjs'
+import { lookupDiscoveriesByNames } from './discoveryStore.mjs'
 import { getSql, hasDatabaseUrl, runSqlFile } from './db.mjs'
 import { splitChainAndLinked, stripWikiMapNoise } from './questTextParse.mjs'
+
+function normalizeDiscoveryName(name) {
+  return String(name || '')
+    .trim()
+    .replace(/\s+/g, ' ')
+}
+
+/**
+ * @param {Array<Record<string, unknown>>} quests
+ */
+async function withDiscoveryRefs(quests) {
+  const map = await lookupDiscoveriesByNames(
+    quests.map((q) =>
+      q.discoveryName == null ? '' : String(q.discoveryName),
+    ),
+  )
+  return quests.map((quest) => {
+    const key = normalizeDiscoveryName(
+      quest.discoveryName == null ? '' : String(quest.discoveryName),
+    )
+    return {
+      ...quest,
+      discoveryRef: key ? map.get(key) || null : null,
+    }
+  })
+}
 
 export async function ensureQuestStore() {
   if (!hasDatabaseUrl()) throw new Error('DATABASE_URL 이 없습니다.')
@@ -79,24 +106,88 @@ function decorateQuest(row) {
   }
 }
 
+const QUEST_SORT_COLS = {
+  name: 'name',
+  category: 'category',
+  difficulty: 'difficulty',
+  requestPlaces: 'request_places',
+  destination: 'destination',
+  discovery: 'discovery_name',
+}
+
+function questOrderClause(sort, dir) {
+  const col = QUEST_SORT_COLS[sort]
+  const d = dir === 'desc' ? 'DESC' : 'ASC'
+  if (!col) return 'ORDER BY sort_order ASC, id ASC'
+  return `ORDER BY ${col} ${d} NULLS LAST, id ${d}`
+}
+
 /**
  * @param {string | null | undefined} userId
+ * @param {{ q?: string, limit?: number, offset?: number, sort?: string | null, dir?: string }} [opts]
  */
-export async function listQuests(userId = null) {
+export async function listQuestsPage(userId = null, opts = {}) {
   const sql = getSql()
-  const rows = await sql`
-    SELECT * FROM quests WHERE enabled = TRUE ORDER BY sort_order, id
-  `
+  const q = String(opts.q || '')
+    .trim()
+    .slice(0, 80)
+    .replace(/[%_]/g, '')
+  const limit = Math.min(100, Math.max(1, Number(opts.limit) || 15))
+  const offset = Math.max(0, Number(opts.offset) || 0)
+  const order = questOrderClause(opts.sort, opts.dir)
+
+  const params = []
+  let where = 'enabled = TRUE'
+  if (q) {
+    params.push(`%${q}%`)
+    const p = `$${params.length}`
+    where += ` AND (
+      name ILIKE ${p}
+      OR COALESCE(request_places, '') ILIKE ${p}
+      OR COALESCE(destination, '') ILIKE ${p}
+      OR COALESCE(discovery_name, '') ILIKE ${p}
+      OR COALESCE(category, '') ILIKE ${p}
+      OR COALESCE(quest_type, '') ILIKE ${p}
+    )`
+  }
+
+  const countRows = await sql.query(
+    `SELECT COUNT(*)::int AS n FROM quests WHERE ${where}`,
+    params,
+  )
+  const total = Number(countRows[0]?.n) || 0
+
+  params.push(limit)
+  const limitP = `$${params.length}`
+  params.push(offset)
+  const offsetP = `$${params.length}`
+  const rows = await sql.query(
+    `SELECT * FROM quests WHERE ${where} ${order} LIMIT ${limitP} OFFSET ${offsetP}`,
+    params,
+  )
 
   /** @type {Map<number, string>} */
   const completedAtByQuestId = new Map()
+  let completedCount = 0
   if (userId) {
-    const completions = await sql`
-      SELECT quest_id, completed_at
-      FROM user_quest_completions
-      WHERE user_id = ${userId}
-    `
-    for (const row of completions) {
+    const ids = rows.map((row) => Number(row.id)).filter(Number.isFinite)
+    const [pageCompletions, totalCompleted] = await Promise.all([
+      ids.length
+        ? sql`
+            SELECT quest_id, completed_at
+            FROM user_quest_completions
+            WHERE user_id = ${userId}
+              AND quest_id = ANY(${ids})
+          `
+        : Promise.resolve([]),
+      sql`
+        SELECT COUNT(*)::int AS n
+        FROM user_quest_completions c
+        INNER JOIN quests q ON q.id = c.quest_id AND q.enabled = TRUE
+        WHERE c.user_id = ${userId}
+      `,
+    ])
+    for (const row of pageCompletions) {
       const questId = Number(row.quest_id)
       if (!Number.isFinite(questId)) continue
       completedAtByQuestId.set(
@@ -104,9 +195,10 @@ export async function listQuests(userId = null) {
         new Date(/** @type {string|Date} */ (row.completed_at)).toISOString(),
       )
     }
+    completedCount = Number(totalCompleted[0]?.n) || 0
   }
 
-  return rows.map((row) => {
+  const quests = rows.map((row) => {
     const quest = decorateQuest(row)
     const completedAt = completedAtByQuestId.get(quest.id) || null
     return {
@@ -115,6 +207,21 @@ export async function listQuests(userId = null) {
       completedAt,
     }
   })
+  return {
+    quests: await withDiscoveryRefs(quests),
+    total,
+    completedCount,
+    limit,
+    offset,
+  }
+}
+
+/**
+ * @param {string | null | undefined} userId
+ */
+export async function listQuests(userId = null) {
+  const page = await listQuestsPage(userId, { limit: 100, offset: 0 })
+  return page.quests
 }
 
 /**
@@ -163,17 +270,36 @@ export async function getQuestBySlug(slug) {
   const rows = await sql`
     SELECT * FROM quests WHERE slug = ${slug} AND enabled = TRUE LIMIT 1
   `
-  return rows[0] ? decorateQuest(rows[0]) : null
+  if (!rows[0]) return null
+  const [quest] = await withDiscoveryRefs([decorateQuest(rows[0])])
+  return quest
 }
 
-export async function getQuestById(id) {
+export async function getQuestById(id, userId = null) {
   const sql = getSql()
   const questId = Number(id)
   if (!Number.isFinite(questId)) return null
   const rows = await sql`
     SELECT * FROM quests WHERE id = ${questId} AND enabled = TRUE LIMIT 1
   `
-  return rows[0] ? decorateQuest(rows[0]) : null
+  if (!rows[0]) return null
+  const [quest] = await withDiscoveryRefs([decorateQuest(rows[0])])
+  if (!userId) return quest
+  const completions = await sql`
+    SELECT completed_at FROM user_quest_completions
+    WHERE user_id = ${userId} AND quest_id = ${questId}
+    LIMIT 1
+  `
+  const completedAt = completions[0]
+    ? new Date(
+        /** @type {string|Date} */ (completions[0].completed_at),
+      ).toISOString()
+    : null
+  return {
+    ...quest,
+    completed: Boolean(completedAt),
+    completedAt,
+  }
 }
 
 /** @param {number} id */

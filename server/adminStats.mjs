@@ -7,7 +7,9 @@ export const CATALOG_STAT_KEYS = [
   'ports',
   'discoveries',
   'languages',
+  'fields',
   'materials',
+  'consumables',
   'feature_requests',
 ]
 
@@ -24,7 +26,9 @@ function toResponseCounts(map) {
     ports: map.ports || 0,
     discoveries: map.discoveries || 0,
     languages: map.languages || 0,
+    fields: map.fields || 0,
     materials: map.materials || 0,
+    consumables: map.consumables || 0,
     featureRequests: map.feature_requests || 0,
   }
 }
@@ -39,7 +43,9 @@ export async function reconcileCatalogStats() {
     ports,
     discoveries,
     languages,
+    fields,
     materials,
+    consumables,
     featureRequests,
   ] = await Promise.all([
     sql`SELECT COUNT(*)::int AS n FROM users`,
@@ -48,7 +54,9 @@ export async function reconcileCatalogStats() {
     sql`SELECT COUNT(*)::int AS n FROM ports WHERE enabled = TRUE`,
     sql`SELECT COUNT(*)::int AS n FROM discoveries WHERE enabled = TRUE`,
     sql`SELECT COUNT(*)::int AS n FROM library_languages WHERE enabled = TRUE`,
+    sql`SELECT COUNT(*)::int AS n FROM fields WHERE enabled = TRUE`,
     sql`SELECT COUNT(*)::int AS n FROM ship_materials WHERE enabled = TRUE`,
+    sql`SELECT COUNT(*)::int AS n FROM consumables WHERE enabled = TRUE`,
     sql`
       SELECT COUNT(*)::int AS n FROM posts
       WHERE board_id = 'feature' AND is_deleted = FALSE
@@ -62,7 +70,9 @@ export async function reconcileCatalogStats() {
     ports: asCount(ports),
     discoveries: asCount(discoveries),
     languages: asCount(languages),
+    fields: asCount(fields),
     materials: asCount(materials),
+    consumables: asCount(consumables),
     feature_requests: asCount(featureRequests),
   }
 

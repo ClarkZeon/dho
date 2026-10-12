@@ -444,6 +444,7 @@
 
 .ship-search-select {
   position: relative;
+  z-index: 3;
 }
 
 .ship-search-control {
@@ -496,7 +497,7 @@
 
 .ship-search-list {
   position: absolute;
-  z-index: 20;
+  z-index: 30;
   left: 0;
   right: 0;
   top: calc(100% - 1px);
@@ -790,12 +791,15 @@
 }
 
 .accel-form {
+  position: relative;
+  z-index: 2;
   display: grid;
   gap: 0.85rem;
   padding: 1.1rem 1rem;
   border: 1px solid var(--is-grey-lighter);
   border-radius: 14px;
   background: var(--is-white);
+  overflow: visible;
 }
 
 .accel-load-row {
@@ -903,6 +907,8 @@
 }
 
 .accel-result {
+  position: relative;
+  z-index: 1;
   padding: 1.2rem 1.1rem;
   border: 1px solid var(--is-grey-lighter);
   border-radius: 14px;
@@ -2585,6 +2591,21 @@
   overflow-wrap: normal;
 }
 
+.quest-catalog .admin-table th.col-diff,
+.quest-catalog .admin-table td.col-diff {
+  width: 4.25rem;
+  max-width: 4.25rem;
+  text-align: left;
+  white-space: nowrap;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
+.quest-catalog .admin-table td.col-diff .quest-diff-select {
+  display: block;
+  margin: 0;
+}
+
 .admin-dash {
   display: grid;
   gap: 1.25rem;
@@ -3140,6 +3161,7 @@
   width: min(960px, 100%);
   max-width: 100%;
   min-width: 0;
+  min-height: 0;
   max-height: min(92dvh, 920px);
   border-radius: 12px;
   background: var(--is-light);
@@ -3169,7 +3191,10 @@
 }
 
 .admin-modal-body {
+  flex: 1 1 auto;
   min-width: 0;
+  min-height: 0;
+  max-width: 100%;
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -3203,6 +3228,31 @@
 .admin-modal-body .quest-detail {
   min-width: 0;
   max-width: 100%;
+}
+
+.admin-modal-body .quest-detail > * {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.admin-modal-body .quest-detail-section,
+.admin-modal-body .quest-detail-hero {
+  box-sizing: border-box;
+}
+
+.admin-modal-body .admin-table-wrap {
+  max-width: 100%;
+}
+
+.admin-modal-body .admin-table {
+  min-width: 0;
+}
+
+.admin-modal-body .admin-table th,
+.admin-modal-body .admin-table td {
+  white-space: normal;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
 }
 
 .admin-modal-body .quest-detail-hero-top {
@@ -3350,6 +3400,40 @@
   font-weight: 700;
 }
 
+.field-required-mark {
+  display: inline-block;
+  padding: 0.1rem 0.4rem;
+  border-radius: 999px;
+  background: rgba(196, 92, 42, 0.12);
+  color: #b45309;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.field-required-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--is-dark);
+  user-select: none;
+}
+
+.field-required-toggle input {
+  width: 1rem;
+  height: 1rem;
+  accent-color: #b45309;
+  cursor: pointer;
+}
+
+.field-required-toggle:has(input:disabled) {
+  opacity: 0.55;
+  cursor: wait;
+}
+
 .quest-detail-hero h2 {
   margin: 0 0 0.45rem;
   font-family: var(--font-brand);
@@ -3442,6 +3526,24 @@
 .quest-walkthrough-textarea:focus {
   outline: 2px solid color-mix(in srgb, var(--is-dark) 25%, transparent);
   outline-offset: 1px;
+}
+
+.quest-kv-grid .field input {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 2.2rem;
+  padding: 0.4rem 0.55rem;
+  border: 1px solid var(--is-grey-lighter);
+  border-radius: 8px;
+  background: var(--is-white);
+  color: var(--is-dark);
+  font: inherit;
+}
+
+.quest-kv-grid .quest-walkthrough-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.45rem;
 }
 
 .quest-walkthrough-actions {
@@ -3853,7 +3955,11 @@
 }
 
 .quest-diff-select {
-  min-width: 3.5rem;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  padding: 0.25rem 0.2rem 0.25rem 0.35rem;
+  text-align: left;
 }
 
 .admin-danger-btn {

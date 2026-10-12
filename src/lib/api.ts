@@ -6,6 +6,8 @@ import type {
   DiscoveryCategoryGroup,
   DiscoveryDetail,
   LibraryLanguageDetail,
+  FieldDetail,
+  ConsumableDetail,
   PortDetail,
   QuestDetail,
   Session,
@@ -251,8 +253,37 @@ export function deleteShip(token: string, shipId: number) {
   )
 }
 
-export function fetchQuests(token: string) {
-  return request<{ quests: QuestDetail[] }>('/api/quests', { token })
+export function fetchQuests(
+  token: string,
+  opts?: {
+    q?: string
+    limit?: number
+    offset?: number
+    sort?: string | null
+    dir?: 'asc' | 'desc'
+  },
+) {
+  const params = new URLSearchParams()
+  if (opts?.q) params.set('q', opts.q)
+  if (opts?.limit != null) params.set('limit', String(opts.limit))
+  if (opts?.offset != null) params.set('offset', String(opts.offset))
+  if (opts?.sort) params.set('sort', opts.sort)
+  if (opts?.dir) params.set('dir', opts.dir)
+  const query = params.toString()
+  return request<{
+    quests: QuestDetail[]
+    total: number
+    completedCount: number
+    limit: number
+    offset: number
+  }>(`/api/quests${query ? `?${query}` : ''}`, { token })
+}
+
+export function fetchQuest(token: string, questId: number) {
+  return request<{ quest: QuestDetail }>(
+    `/api/quests/${encodeURIComponent(String(questId))}`,
+    { token },
+  )
 }
 
 export function importQuestText(token: string, text: string) {
@@ -318,10 +349,92 @@ export function deletePort(token: string, portId: number) {
   )
 }
 
+export function fetchFields(token: string) {
+  return request<{ fields: FieldDetail[] }>('/api/fields', { token })
+}
+
+export function importFieldText(token: string, text: string) {
+  return request<{ field: FieldDetail }>('/api/fields/import-text', {
+    token,
+    body: { text },
+  })
+}
+
+export function deleteField(token: string, fieldId: number) {
+  return request<{ ok: boolean }>(
+    `/api/fields/${encodeURIComponent(String(fieldId))}`,
+    { method: 'DELETE', token },
+  )
+}
+
+export function updateField(
+  token: string,
+  fieldId: number,
+  patch: { landSurveys?: FieldDetail['landSurveys'] },
+) {
+  return request<{ field: FieldDetail }>(
+    `/api/fields/${encodeURIComponent(String(fieldId))}`,
+    {
+      method: 'PATCH',
+      token,
+      body: patch,
+    },
+  )
+}
+
+export function fetchConsumables(token: string) {
+  return request<{ consumables: ConsumableDetail[] }>('/api/consumables', {
+    token,
+  })
+}
+
+export function importConsumableText(token: string, text: string) {
+  return request<{ consumable: ConsumableDetail }>(
+    '/api/consumables/import-text',
+    {
+      token,
+      body: { text },
+    },
+  )
+}
+
+export function deleteConsumable(token: string, consumableId: number) {
+  return request<{ ok: boolean }>(
+    `/api/consumables/${encodeURIComponent(String(consumableId))}`,
+    { method: 'DELETE', token },
+  )
+}
+
+export function updateConsumable(
+  token: string,
+  consumableId: number,
+  patch: {
+    category?: string | null
+    useEffect?: string | null
+    acquireMethods?: string[] | string
+  },
+) {
+  return request<{ consumable: ConsumableDetail }>(
+    `/api/consumables/${encodeURIComponent(String(consumableId))}`,
+    {
+      method: 'PATCH',
+      token,
+      body: patch,
+    },
+  )
+}
+
 export function fetchDiscoveries(token: string) {
   return request<{ discoveries: DiscoveryDetail[] }>('/api/discoveries', {
     token,
   })
+}
+
+export function fetchDiscovery(token: string, slug: string) {
+  return request<{ discovery: DiscoveryDetail }>(
+    `/api/discoveries/${encodeURIComponent(slug)}`,
+    { token },
+  )
 }
 
 export function fetchDiscoveryCategories(token: string) {
@@ -404,6 +517,7 @@ export function fetchAdminStats(token: string) {
       ports: number
       discoveries: number
       languages: number
+      fields: number
       materials: number
       featureRequests: number
     }

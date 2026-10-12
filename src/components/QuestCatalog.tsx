@@ -1,12 +1,13 @@
-import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
+import { useEffect, useState, type KeyboardEvent } from 'react'
 import { fetchQuests, setQuestCompletion } from '../lib/api'
-import { matchesQuestQuery } from '../lib/questSearch'
 import { useTableSort } from '../lib/tableSort'
 import type { QuestDetail } from '../types'
 import { DetailModal } from './DetailModal'
 import { QuestDiscoveryLabel } from './DiscoveryRankMark'
 import { QuestDetailView } from './QuestDetailView'
 import { SortableTh } from './SortableTh'
+
+const PAGE_SIZE = 15
 
 type QuestCatalogProps = {
   token: string
@@ -21,18 +22,6 @@ type QuestSortKey =
   | 'destination'
   | 'discovery'
 
-function discoveryLabel(quest: QuestDetail) {
-  return (
-    [
-      quest.discoveryCategory ? `[${quest.discoveryCategory}]` : null,
-      quest.discoveryRank,
-      quest.discoveryName,
-    ]
-      .filter((v) => v != null && v !== '')
-      .join(' ') || ''
-  )
-}
-
 function categoryLabel(quest: QuestDetail) {
   return quest.category
     ? `[${quest.category}] ${quest.questType || ''}`.trim()
@@ -41,30 +30,51 @@ function categoryLabel(quest: QuestDetail) {
 
 export function QuestCatalog({ token, isAdmin = false }: QuestCatalogProps) {
   const [quests, setQuests] = useState<QuestDetail[]>([])
+  const [total, setTotal] = useState(0)
+  const [completedCount, setCompletedCount] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [detail, setDetail] = useState<QuestDetail | null>(null)
   const [query, setQuery] = useState('')
+  const [debouncedQuery, setDebouncedQuery] = useState('')
+  const [page, setPage] = useState(0)
   const [busyId, setBusyId] = useState<number | null>(null)
-  const hasQuestsRef = useRef(false)
-  const { sortKey, sortDir, toggleSort, sortRows } =
-    useTableSort<QuestSortKey>()
+  const { sortKey, sortDir, toggleSort } = useTableSort<QuestSortKey>()
+
+  useEffect(() => {
+    const next = query.trim()
+    const timer = window.setTimeout(() => {
+      setDebouncedQuery((prev) => {
+        if (prev !== next) setPage(0)
+        return next
+      })
+    }, 300)
+    return () => window.clearTimeout(timer)
+  }, [query])
 
   useEffect(() => {
     let alive = true
     ;(async () => {
       try {
         setError('')
-        // 이미 목록이 있으면 로딩 UI로 표를 숨기지 않음 (StrictMode 이중 fetch 깜빡임 방지)
-        if (!hasQuestsRef.current) setLoading(true)
-        const res = await fetchQuests(token)
+        setLoading(true)
+        const res = await fetchQuests(token, {
+          q: debouncedQuery,
+          limit: PAGE_SIZE,
+          offset: page * PAGE_SIZE,
+          sort: sortKey,
+          dir: sortKey ? sortDir : undefined,
+        })
         if (!alive) return
         setQuests(res.quests)
-        hasQuestsRef.current = res.quests.length > 0
+        setTotal(res.total)
+        setCompletedCount(res.completedCount)
       } catch (err) {
         if (!alive) return
         setError(
-          err instanceof Error ? err.message : '퀘스트 목록을 불러오지 못했습니다.',
+          err instanceof Error
+            ? err.message
+            : '퀘스트 목록을 불러오지 못했습니다.',
         )
       } finally {
         if (alive) setLoading(false)
@@ -73,31 +83,14 @@ export function QuestCatalog({ token, isAdmin = false }: QuestCatalogProps) {
     return () => {
       alive = false
     }
-  }, [token])
+  }, [token, debouncedQuery, page, sortKey, sortDir])
 
-  const filtered = quests.filter((quest) => matchesQuestQuery(quest, query))
-  const rows = sortRows(
-    filtered,
-    (quest, key) => {
-      switch (key) {
-        case 'name':
-          return quest.name
-        case 'category':
-          return categoryLabel(quest)
-        case 'difficulty':
-          return quest.difficulty
-        case 'requestPlaces':
-          return quest.requestPlaces
-        case 'destination':
-          return quest.destination
-        case 'discovery':
-          return discoveryLabel(quest)
-      }
-    },
-    (a, b) => a.id - b.id,
-  )
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
+  const safePage = Math.min(page, totalPages - 1)
 
-  const completedCount = quests.filter((q) => q.completed).length
+  useEffect(() => {
+    if (page > safePage) setPage(safePage)
+  }, [page, safePage])
 
   async function toggleCompleted(quest: QuestDetail, next: boolean) {
     if (busyId === quest.id) return
@@ -125,6 +118,11 @@ export function QuestCatalog({ token, isAdmin = false }: QuestCatalogProps) {
             }
           : prev,
       )
+      setCompletedCount((n) => {
+        if (res.completed && !quest.completed) return n + 1
+        if (!res.completed && quest.completed) return Math.max(0, n - 1)
+        return n
+      })
     } catch (err) {
       setError(
         err instanceof Error
@@ -136,6 +134,19 @@ export function QuestCatalog({ token, isAdmin = false }: QuestCatalogProps) {
     }
   }
 
+  function handleSort(key: QuestSortKey) {
+    toggleSort(key)
+    setPage(0)
+  }
+
+  const countLabel = !loading
+    ? debouncedQuery
+      ? `검색 ${total}개`
+      : total > 0
+        ? `완료 ${completedCount}/${total}`
+        : ''
+    : ''
+
   return (
     <section className="tool-page quest-catalog">
       <div className="messages-head">
@@ -143,9 +154,7 @@ export function QuestCatalog({ token, isAdmin = false }: QuestCatalogProps) {
           <h1>퀘스트</h1>
           <p>
             등록된 퀘스트를 확인하고 상세에서 완료를 표시합니다.
-            {!loading && quests.length > 0
-              ? ` (완료 ${completedCount}/${quests.length})`
-              : ''}
+            {countLabel ? ` (${countLabel})` : ''}
           </p>
         </div>
       </div>
@@ -158,7 +167,6 @@ export function QuestCatalog({ token, isAdmin = false }: QuestCatalogProps) {
           placeholder="이름·장소·발견물로 검색"
           aria-label="퀘스트 검색"
           autoComplete="off"
-          disabled={loading}
         />
       </label>
 
@@ -171,95 +179,126 @@ export function QuestCatalog({ token, isAdmin = false }: QuestCatalogProps) {
       {loading && quests.length === 0 ? (
         <p className="form-note">불러오는 중…</p>
       ) : (
-        <div className="admin-table-wrap">
-          <table className="admin-table">
-            <thead>
-              <tr>
-                <SortableTh
-                  label="이름"
-                  sortKey="name"
-                  activeKey={sortKey}
-                  dir={sortDir}
-                  onSort={toggleSort}
-                />
-                <SortableTh
-                  className="col-desk"
-                  label="분류"
-                  sortKey="category"
-                  activeKey={sortKey}
-                  dir={sortDir}
-                  onSort={toggleSort}
-                />
-                <SortableTh
-                  className="col-desk"
-                  label="난이도"
-                  sortKey="difficulty"
-                  activeKey={sortKey}
-                  dir={sortDir}
-                  onSort={toggleSort}
-                />
-                <SortableTh
-                  className="col-desk"
-                  label="의뢰 장소"
-                  sortKey="requestPlaces"
-                  activeKey={sortKey}
-                  dir={sortDir}
-                  onSort={toggleSort}
-                />
-                <SortableTh
-                  className="col-desk"
-                  label="목적지"
-                  sortKey="destination"
-                  activeKey={sortKey}
-                  dir={sortDir}
-                  onSort={toggleSort}
-                />
-                <SortableTh
-                  className="col-desk"
-                  label="발견물"
-                  sortKey="discovery"
-                  activeKey={sortKey}
-                  dir={sortDir}
-                  onSort={toggleSort}
-                />
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((quest, index) => (
-                <tr
-                  key={quest.id}
-                  className={`admin-row-clickable${quest.completed ? ' is-quest-done' : ''}${index % 2 === 0 ? ' is-even' : ' is-odd'}`}
-                  tabIndex={0}
-                  onClick={() => setDetail(quest)}
-                  onKeyDown={(event: KeyboardEvent<HTMLTableRowElement>) => {
-                    if (event.key === 'Enter' || event.key === ' ') {
-                      event.preventDefault()
-                      setDetail(quest)
-                    }
-                  }}
-                >
-                  <td>{quest.name}</td>
-                  <td className="col-desk">{categoryLabel(quest) || '-'}</td>
-                  <td className="col-desk">{quest.difficulty ?? '-'}</td>
-                  <td className="col-desk">{quest.requestPlaces || '-'}</td>
-                  <td className="col-desk">{quest.destination || '-'}</td>
-                  <td className="col-desk">
-                    <QuestDiscoveryLabel quest={quest} />
-                  </td>
-                </tr>
-              ))}
-              {rows.length === 0 && (
+        <>
+          <div className="admin-table-wrap">
+            <table className="admin-table">
+              <thead>
                 <tr>
-                  <td colSpan={6}>
-                    {quests.length === 0
-                      ? '등록된 퀘스트가 없습니다.'
-                      : '검색 결과가 없습니다.'}
-                  </td>
+                  <SortableTh
+                    label="이름"
+                    sortKey="name"
+                    activeKey={sortKey}
+                    dir={sortDir}
+                    onSort={handleSort}
+                  />
+                  <SortableTh
+                    className="col-desk"
+                    label="분류"
+                    sortKey="category"
+                    activeKey={sortKey}
+                    dir={sortDir}
+                    onSort={handleSort}
+                  />
+                  <SortableTh
+                    className="col-desk col-diff"
+                    label="난이도"
+                    sortKey="difficulty"
+                    activeKey={sortKey}
+                    dir={sortDir}
+                    onSort={handleSort}
+                  />
+                  <SortableTh
+                    className="col-desk"
+                    label="의뢰 장소"
+                    sortKey="requestPlaces"
+                    activeKey={sortKey}
+                    dir={sortDir}
+                    onSort={handleSort}
+                  />
+                  <SortableTh
+                    className="col-desk"
+                    label="목적지"
+                    sortKey="destination"
+                    activeKey={sortKey}
+                    dir={sortDir}
+                    onSort={handleSort}
+                  />
+                  <SortableTh
+                    className="col-desk"
+                    label="발견물"
+                    sortKey="discovery"
+                    activeKey={sortKey}
+                    dir={sortDir}
+                    onSort={handleSort}
+                  />
                 </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {quests.map((quest, index) => (
+                  <tr
+                    key={quest.id}
+                    className={`admin-row-clickable${quest.completed ? ' is-quest-done' : ''}${index % 2 === 0 ? ' is-even' : ' is-odd'}`}
+                    tabIndex={0}
+                    onClick={() => setDetail(quest)}
+                    onKeyDown={(event: KeyboardEvent<HTMLTableRowElement>) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault()
+                        setDetail(quest)
+                      }
+                    }}
+                  >
+                    <td>{quest.name}</td>
+                    <td className="col-desk">{categoryLabel(quest) || '-'}</td>
+                    <td className="col-desk col-diff">
+                      {quest.difficulty ?? '-'}
+                    </td>
+                    <td className="col-desk">{quest.requestPlaces || '-'}</td>
+                    <td className="col-desk">{quest.destination || '-'}</td>
+                    <td className="col-desk">
+                      <QuestDiscoveryLabel quest={quest} />
+                    </td>
+                  </tr>
+                ))}
+                {quests.length === 0 && (
+                  <tr>
+                    <td colSpan={6}>
+                      {debouncedQuery
+                        ? '검색 결과가 없습니다.'
+                        : '등록된 퀘스트가 없습니다.'}
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {total > 0 && (
+            <div className="catalog-pager" aria-label="퀘스트 목록 페이지">
+              <button
+                type="button"
+                className="admin-btn"
+                disabled={safePage <= 0 || loading}
+                onClick={() => setPage((p) => Math.max(0, p - 1))}
+              >
+                이전
+              </button>
+              <span>
+                {safePage + 1} / {totalPages}
+                <em>· {total}개</em>
+              </span>
+              <button
+                type="button"
+                className="admin-btn"
+                disabled={safePage >= totalPages - 1 || loading}
+                onClick={() =>
+                  setPage((p) => Math.min(totalPages - 1, p + 1))
+                }
+              >
+                다음
+              </button>
+            </div>
+          )}
+        </>
       )}
 
       {detail && (
@@ -270,6 +309,7 @@ export function QuestCatalog({ token, isAdmin = false }: QuestCatalogProps) {
         >
           <QuestDetailView
             quest={detail}
+            token={token}
             completionBusy={busyId === detail.id}
             onToggleCompleted={(completed) =>
               void toggleCompleted(detail, completed)

@@ -266,6 +266,40 @@ async function findIdByName(sql, name) {
     : null
 }
 
+/**
+ * 정규화된 이름으로 발견물 참조 일괄 조회
+ * @param {string[]} names
+ * @returns {Promise<Map<string, { id: number, slug: string, name: string }>>}
+ */
+export async function lookupDiscoveriesByNames(names) {
+  /** @type {Map<string, { id: number, slug: string, name: string }>} */
+  const map = new Map()
+  const normalized = [
+    ...new Set(
+      (names || [])
+        .map((n) => normalizeName(n))
+        .filter(Boolean),
+    ),
+  ]
+  if (!normalized.length) return map
+
+  const sql = getSql()
+  const rows = await sql`
+    SELECT id, slug, name FROM discoveries
+    WHERE enabled = TRUE
+      AND TRIM(BOTH FROM regexp_replace(name, '\\s+', ' ', 'g')) = ANY(${normalized})
+  `
+  for (const row of rows) {
+    const key = normalizeName(row.name)
+    map.set(key, {
+      id: Number(row.id),
+      slug: String(row.slug),
+      name: String(row.name),
+    })
+  }
+  return map
+}
+
 export async function upsertDiscoveryFromParsed(parsed) {
   const sql = getSql()
   const name = normalizeName(parsed.name)

@@ -67,6 +67,7 @@ function applyShip(
 
 export function ShipAccel({ token }: ShipAccelProps) {
   const [ships, setShips] = useState<ShipDetail[]>([])
+  const [shipsLoading, setShipsLoading] = useState(true)
   const [shipSlug, setShipSlug] = useState('')
   const [shipsError, setShipsError] = useState('')
   const [form, setForm] = useState<AccelShipForm>('sail')
@@ -85,6 +86,7 @@ export function ShipAccel({ token }: ShipAccelProps) {
     let alive = true
     ;(async () => {
       try {
+        setShipsLoading(true)
         setShipsError('')
         const res = await fetchShips(token)
         if (!alive) return
@@ -94,6 +96,8 @@ export function ShipAccel({ token }: ShipAccelProps) {
         setShipsError(
           err instanceof Error ? err.message : '선박 목록을 불러오지 못했습니다.',
         )
+      } finally {
+        if (alive) setShipsLoading(false)
       }
     })()
     return () => {
@@ -164,8 +168,15 @@ export function ShipAccel({ token }: ShipAccelProps) {
             <ShipSearchSelect
               label="선박 정보 불러오기"
               value={shipSlug}
-              disabled={ships.length === 0}
-              placeholder="선박 이름 검색…"
+              disabled={shipsLoading}
+              placeholder={
+                shipsLoading ? '선박 목록 불러오는 중…' : '선박 이름 검색…'
+              }
+              emptyText={
+                shipsError
+                  ? '선박 목록을 불러오지 못했습니다'
+                  : '검색 결과 없음'
+              }
               options={ships.map((ship) => ({
                 value: ship.slug,
                 label: ship.name,

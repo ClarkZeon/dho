@@ -10,7 +10,9 @@ export type MenuTarget =
   | { name: 'ship-compare' }
   | { name: 'quests' }
   | { name: 'ports' }
+  | { name: 'discoveries' }
   | { name: 'languages' }
+  | { name: 'fields' }
   | { name: 'ship-materials' }
 
 type MenuSectionId = 'community' | 'ships' | 'voyage'
@@ -39,7 +41,9 @@ function sectionForActive(active: MenuTarget): MenuSectionId | null {
   if (
     active.name === 'quests' ||
     active.name === 'ports' ||
-    active.name === 'languages'
+    active.name === 'discoveries' ||
+    active.name === 'languages' ||
+    active.name === 'fields'
   ) {
     return 'voyage'
   }
@@ -141,7 +145,9 @@ export function SlideMenu({
   const voyageActive =
     active.name === 'quests' ||
     active.name === 'ports' ||
-    active.name === 'languages'
+    active.name === 'discoveries' ||
+    active.name === 'languages' ||
+    active.name === 'fields'
 
   return (
     <div className={`slide-menu ${open ? 'open' : ''}`} aria-hidden={!open}>
@@ -279,10 +285,24 @@ export function SlideMenu({
             </button>
             <button
               type="button"
+              className={active.name === 'discoveries' ? 'active' : ''}
+              onClick={() => go({ name: 'discoveries' })}
+            >
+              발견물
+            </button>
+            <button
+              type="button"
               className={active.name === 'languages' ? 'active' : ''}
               onClick={() => go({ name: 'languages' })}
             >
               언어
+            </button>
+            <button
+              type="button"
+              className={active.name === 'fields' ? 'active' : ''}
+              onClick={() => go({ name: 'fields' })}
+            >
+              필드
             </button>
           </MenuSection>
         </nav>

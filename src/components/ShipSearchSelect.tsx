@@ -43,10 +43,12 @@ export function ShipSearchSelect({
   const selected = options.find((o) => o.value === value) ?? null
 
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase()
+    const q = query.trim().toLowerCase().replace(/\s+/g, '')
     const list = q
       ? options.filter((o) => {
-          const hay = `${o.label} ${o.meta ?? ''}`.toLowerCase()
+          const hay = `${o.label} ${o.meta ?? ''}`
+            .toLowerCase()
+            .replace(/\s+/g, '')
           return hay.includes(q)
         })
       : options
@@ -105,7 +107,9 @@ export function ShipSearchSelect({
       <div className={`ship-search-control ${open ? 'is-open' : ''}`}>
         <input
           ref={inputRef}
-          type="search"
+          type="text"
+          autoComplete="off"
+          spellCheck={false}
           role="combobox"
           aria-expanded={open}
           aria-controls={listId}

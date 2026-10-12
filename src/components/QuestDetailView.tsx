@@ -1,7 +1,14 @@
 import { useEffect, useState } from 'react'
-import { updateQuest } from '../lib/api'
+import { fetchDiscovery, updateQuest } from '../lib/api'
 import { splitChainAndLinked } from '../lib/questChain'
-import type { QuestChainItem, QuestDetail } from '../types'
+import type {
+  DiscoveryDetail,
+  DiscoveryQuestRef,
+  QuestChainItem,
+  QuestDetail,
+} from '../types'
+import { DetailModal } from './DetailModal'
+import { DiscoveryDetailView } from './DiscoveryDetailView'
 import { QuestDiscoveryLabel } from './DiscoveryRankMark'
 
 function formatNum(n: number | null | undefined) {
@@ -70,6 +77,8 @@ function DifficultyStars({ value }: { value: number | null }) {
 
 type QuestDetailViewProps = {
   quest: QuestDetail
+  /** 발견물 상세 조회용 (있으면 이름 매칭 시 링크) */
+  token?: string
   completionBusy?: boolean
   onToggleCompleted?: (completed: boolean) => void
   /** 어드민만: 공략 인라인 편집 */
@@ -155,10 +164,12 @@ function QuestRelatedList({
 
 export function QuestDetailView({
   quest,
+  token,
   completionBusy = false,
   onToggleCompleted,
   walkthroughEdit,
 }: QuestDetailViewProps) {
+  const authToken = token || walkthroughEdit?.token || ''
   const canEditWalkthrough = Boolean(walkthroughEdit)
   const [editingWalkthrough, setEditingWalkthrough] = useState(false)
   const [walkthroughDraft, setWalkthroughDraft] = useState(
@@ -166,12 +177,37 @@ export function QuestDetailView({
   )
   const [walkthroughBusy, setWalkthroughBusy] = useState(false)
   const [walkthroughError, setWalkthroughError] = useState('')
+  const [discoveryDetail, setDiscoveryDetail] = useState<DiscoveryDetail | null>(
+    null,
+  )
+  const [discoveryLoading, setDiscoveryLoading] = useState(false)
+  const [discoveryError, setDiscoveryError] = useState('')
 
   useEffect(() => {
     setEditingWalkthrough(false)
     setWalkthroughDraft(quest.walkthrough || '')
     setWalkthroughError('')
+    setDiscoveryDetail(null)
+    setDiscoveryError('')
   }, [quest.id, quest.walkthrough])
+
+  async function openMatchedDiscovery(ref: DiscoveryQuestRef) {
+    if (!authToken) return
+    setDiscoveryLoading(true)
+    setDiscoveryError('')
+    try {
+      const res = await fetchDiscovery(authToken, ref.slug)
+      setDiscoveryDetail(res.discovery)
+    } catch (err) {
+      setDiscoveryError(
+        err instanceof Error
+          ? err.message
+          : '발견물 상세를 불러오지 못했습니다.',
+      )
+    } finally {
+      setDiscoveryLoading(false)
+    }
+  }
 
   const split = splitChainAndLinked(quest.chainQuests)
   const chainQuests = split.chainQuests
@@ -243,8 +279,23 @@ export function QuestDetailView({
           <div className="quest-kv-wide">
             <span>발견물</span>
             <strong>
-              <QuestDiscoveryLabel quest={quest} />
+              <QuestDiscoveryLabel
+                quest={quest}
+                onOpenDiscovery={
+                  authToken && quest.discoveryRef
+                    ? (ref) => void openMatchedDiscovery(ref)
+                    : undefined
+                }
+              />
             </strong>
+            {discoveryLoading ? (
+              <p className="form-note">발견물 불러오는 중…</p>
+            ) : null}
+            {discoveryError ? (
+              <p className="form-note error" role="alert">
+                {discoveryError}
+              </p>
+            ) : null}
           </div>
         </div>
       </section>
@@ -467,6 +518,20 @@ export function QuestDetailView({
           )}
         </div>
       )}
+
+      {discoveryDetail ? (
+        <DetailModal
+          title="발견물 상세"
+          label={`${discoveryDetail.name} 상세`}
+          onClose={() => {
+            setDiscoveryDetail(null)
+            setDiscoveryError('')
+          }}
+          stack={1}
+        >
+          <DiscoveryDetailView discovery={discoveryDetail} />
+        </DetailModal>
+      ) : null}
     </div>
   )
 }

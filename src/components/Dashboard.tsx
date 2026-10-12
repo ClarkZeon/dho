@@ -3,6 +3,8 @@ import { fetchBoards, fetchUnreadCount } from '../lib/api'
 import type { BoardSummary, User } from '../types'
 import { BoardView } from './BoardView'
 import { Messages } from './Messages'
+import { DiscoveryCatalog } from './DiscoveryCatalog'
+import { FieldCatalog } from './FieldCatalog'
 import { LanguageCatalog } from './LanguageCatalog'
 import { PortCatalog } from './PortCatalog'
 import { QuestCatalog } from './QuestCatalog'
@@ -22,7 +24,9 @@ type View =
   | { name: 'ship-materials' }
   | { name: 'quests' }
   | { name: 'ports' }
+  | { name: 'discoveries' }
   | { name: 'languages' }
+  | { name: 'fields' }
 
 type DashboardProps = {
   user: User
@@ -48,8 +52,12 @@ function viewToHash(view: View): string {
       return '#/quests'
     case 'ports':
       return '#/ports'
+    case 'discoveries':
+      return '#/discoveries'
     case 'languages':
       return '#/languages'
+    case 'fields':
+      return '#/fields'
     case 'board':
       return view.postId
         ? `#/board/${encodeURIComponent(view.boardId)}/${encodeURIComponent(view.postId)}`
@@ -85,7 +93,9 @@ function hashToView(hash: string): View {
   if (parts[0] === 'ship-materials') return { name: 'ship-materials' }
   if (parts[0] === 'quests') return { name: 'quests' }
   if (parts[0] === 'ports') return { name: 'ports' }
+  if (parts[0] === 'discoveries') return { name: 'discoveries' }
   if (parts[0] === 'languages') return { name: 'languages' }
+  if (parts[0] === 'fields') return { name: 'fields' }
   if (parts[0] === 'board' && parts[1]) {
     return {
       name: 'board',
@@ -169,7 +179,9 @@ function toMenuTarget(view: View): MenuTarget {
   if (view.name === 'ship-materials') return { name: 'ship-materials' }
   if (view.name === 'quests') return { name: 'quests' }
   if (view.name === 'ports') return { name: 'ports' }
+  if (view.name === 'discoveries') return { name: 'discoveries' }
   if (view.name === 'languages') return { name: 'languages' }
+  if (view.name === 'fields') return { name: 'fields' }
   return { name: 'home' }
 }
 
@@ -279,8 +291,16 @@ export function Dashboard({ user, token, onLogout, onToast }: DashboardProps) {
       go({ name: 'ports' })
       return
     }
+    if (target.name === 'discoveries') {
+      go({ name: 'discoveries' })
+      return
+    }
     if (target.name === 'languages') {
       go({ name: 'languages' })
+      return
+    }
+    if (target.name === 'fields') {
+      go({ name: 'fields' })
       return
     }
     go({ name: 'board', boardId: target.boardId })
@@ -439,10 +459,26 @@ export function Dashboard({ user, token, onLogout, onToast }: DashboardProps) {
                     <button
                       type="button"
                       className="dash-link"
+                      onClick={() => go({ name: 'discoveries' })}
+                    >
+                      <strong>발견물</strong>
+                      <span>발견물 목록·상세</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="dash-link"
                       onClick={() => go({ name: 'languages' })}
                     >
                       <strong>언어</strong>
                       <span>언어·습득 정보</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="dash-link"
+                      onClick={() => go({ name: 'fields' })}
+                    >
+                      <strong>필드</strong>
+                      <span>필드·육지 조사</span>
                     </button>
                   </div>
                 </div>
@@ -517,7 +553,11 @@ export function Dashboard({ user, token, onLogout, onToast }: DashboardProps) {
 
         {view.name === 'ports' && <PortCatalog token={token} />}
 
+        {view.name === 'discoveries' && <DiscoveryCatalog token={token} />}
+
         {view.name === 'languages' && <LanguageCatalog token={token} />}
+
+        {view.name === 'fields' && <FieldCatalog token={token} />}
 
       </main>
     </div>

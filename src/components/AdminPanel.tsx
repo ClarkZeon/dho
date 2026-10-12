@@ -1,20 +1,27 @@
 import { useCallback, useEffect, useState, type FormEvent, type KeyboardEvent } from 'react'
 import {
   deleteAdminUser,
+  deleteConsumable,
   deleteDiscovery,
+  deleteField,
   deleteLibraryLanguage,
   deletePort,
   deleteQuest,
   deleteShip,
   deleteShipMaterial,
   fetchAdminUsers,
+  fetchConsumables,
   fetchDiscoveries,
+  fetchFields,
   fetchLibraryLanguages,
   fetchPorts,
+  fetchQuest,
   fetchQuests,
   fetchShipMaterials,
   fetchShips,
+  importConsumableText,
   importDiscoveryText,
+  importFieldText,
   importLibraryLanguageText,
   importPortText,
   importQuestText,
@@ -25,8 +32,10 @@ import {
 } from '../lib/api'
 import type {
   AdminUser,
+  ConsumableDetail,
   DiscoveryDetail,
   DiscoveryQuestRef,
+  FieldDetail,
   LibraryLanguageDetail,
   PortDetail,
   QuestDetail,
@@ -35,8 +44,10 @@ import type {
   User,
 } from '../types'
 import { AdminDashboard } from './AdminDashboard'
+import { ConsumableDetailView } from './ConsumableDetailView'
 import { DetailModal } from './DetailModal'
 import { DiscoveryDetailView } from './DiscoveryDetailView'
+import { FieldDetailView } from './FieldDetailView'
 import { LibraryLanguageDetailView } from './LibraryLanguageDetailView'
 import { PortDetailView } from './PortDetailView'
 import { QuestDiscoveryLabel } from './DiscoveryRankMark'
@@ -47,11 +58,11 @@ import { ShipList } from './ShipList'
 import { ShipMaterialList } from './ShipMaterialList'
 import { SortableTh } from './SortableTh'
 import { matchesPortQuery } from '../lib/portSearch'
-import { matchesQuestQuery } from '../lib/questSearch'
 import { useTableSort } from '../lib/tableSort'
 
 const LANGUAGE_PAGE_SIZE = 15
 const USER_PAGE_SIZE = 15
+const QUEST_PAGE_SIZE = 15
 
 type UserSortKey =
   | 'username'
@@ -89,7 +100,9 @@ type AdminNav =
   | 'ports'
   | 'discoveries'
   | 'languages'
+  | 'fields'
   | 'materials'
+  | 'consumables'
 
 type AdminPanelProps = {
   user: User
@@ -116,6 +129,7 @@ function formatDate(value: string | null | undefined) {
 export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) {
   const [nav, setNav] = useState<AdminNav>('dashboard')
   const [shipsMenuOpen, setShipsMenuOpen] = useState(false)
+  const [itemsMenuOpen, setItemsMenuOpen] = useState(false)
   const [users, setUsers] = useState<AdminUser[]>([])
   const [loadingUsers, setLoadingUsers] = useState(false)
   const [usersError, setUsersError] = useState('')
@@ -128,6 +142,9 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
     setNav(next)
     if (next === 'ships' || next === 'materials') {
       setShipsMenuOpen(true)
+    }
+    if (next === 'consumables') {
+      setItemsMenuOpen(true)
     }
   }
 
@@ -150,6 +167,10 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
   const [detailQuest, setDetailQuest] = useState<QuestDetail | null>(null)
   const [busyQuestId, setBusyQuestId] = useState<number | null>(null)
   const [questQuery, setQuestQuery] = useState('')
+  const [questQueryDebounced, setQuestQueryDebounced] = useState('')
+  const [questPage, setQuestPage] = useState(0)
+  const [questTotal, setQuestTotal] = useState(0)
+  const questsSort = useTableSort<QuestSortKey>()
 
   const [ports, setPorts] = useState<PortDetail[]>([])
   const [loadingPorts, setLoadingPorts] = useState(false)
@@ -181,6 +202,27 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
   const [detailLanguage, setDetailLanguage] =
     useState<LibraryLanguageDetail | null>(null)
   const [languagePage, setLanguagePage] = useState(0)
+
+  const [fields, setFields] = useState<FieldDetail[]>([])
+  const [loadingFields, setLoadingFields] = useState(false)
+  const [fieldsError, setFieldsError] = useState('')
+  const [showFieldImport, setShowFieldImport] = useState(false)
+  const [fieldImportText, setFieldImportText] = useState('')
+  const [importingField, setImportingField] = useState(false)
+  const [fieldImportNote, setFieldImportNote] = useState('')
+  const [detailField, setDetailField] = useState<FieldDetail | null>(null)
+  const [fieldQuery, setFieldQuery] = useState('')
+
+  const [consumables, setConsumables] = useState<ConsumableDetail[]>([])
+  const [loadingConsumables, setLoadingConsumables] = useState(false)
+  const [consumablesError, setConsumablesError] = useState('')
+  const [showConsumableImport, setShowConsumableImport] = useState(false)
+  const [consumableImportText, setConsumableImportText] = useState('')
+  const [importingConsumable, setImportingConsumable] = useState(false)
+  const [consumableImportNote, setConsumableImportNote] = useState('')
+  const [detailConsumable, setDetailConsumable] =
+    useState<ConsumableDetail | null>(null)
+  const [consumableQuery, setConsumableQuery] = useState('')
 
   const [materials, setMaterials] = useState<ShipMaterialDetail[]>([])
   const [loadingMaterials, setLoadingMaterials] = useState(false)
@@ -226,8 +268,15 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
     setQuestsError('')
     if (!opts?.quiet) setLoadingQuests(true)
     try {
-      const res = await fetchQuests(token)
+      const res = await fetchQuests(token, {
+        q: questQueryDebounced,
+        limit: QUEST_PAGE_SIZE,
+        offset: questPage * QUEST_PAGE_SIZE,
+        sort: questsSort.sortKey,
+        dir: questsSort.sortKey ? questsSort.sortDir : undefined,
+      })
       setQuests(res.quests)
+      setQuestTotal(res.total)
     } catch (err) {
       setQuestsError(
         err instanceof Error ? err.message : '퀘스트 목록을 불러오지 못했습니다.',
@@ -235,7 +284,13 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
     } finally {
       setLoadingQuests(false)
     }
-  }, [token])
+  }, [
+    token,
+    questQueryDebounced,
+    questPage,
+    questsSort.sortKey,
+    questsSort.sortDir,
+  ])
 
   const loadPorts = useCallback(async () => {
     setLoadingPorts(true)
@@ -289,8 +344,39 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
     }
   }, [token])
 
+  const loadFields = useCallback(async () => {
+    setLoadingFields(true)
+    setFieldsError('')
+    try {
+      const res = await fetchFields(token)
+      setFields(res.fields)
+    } catch (err) {
+      setFieldsError(
+        err instanceof Error ? err.message : '필드 목록을 불러오지 못했습니다.',
+      )
+    } finally {
+      setLoadingFields(false)
+    }
+  }, [token])
+
+  const loadConsumables = useCallback(async () => {
+    setLoadingConsumables(true)
+    setConsumablesError('')
+    try {
+      const res = await fetchConsumables(token)
+      setConsumables(res.consumables)
+    } catch (err) {
+      setConsumablesError(
+        err instanceof Error
+          ? err.message
+          : '소비품 목록을 불러오지 못했습니다.',
+      )
+    } finally {
+      setLoadingConsumables(false)
+    }
+  }, [token])
+
   const usersSort = useTableSort<UserSortKey>()
-  const questsSort = useTableSort<QuestSortKey>()
   const portsSort = useTableSort<PortSortKey>()
   const discoveriesSort = useTableSort<DiscoverySortKey>()
   const languagesSort = useTableSort<LanguageSortKey>()
@@ -327,29 +413,11 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
     userSafePage * USER_PAGE_SIZE,
     userSafePage * USER_PAGE_SIZE + USER_PAGE_SIZE,
   )
-  const sortedQuests = questsSort.sortRows(
-    quests.filter((quest) => matchesQuestQuery(quest, questQuery)),
-    (quest, key) => {
-      if (key === 'category') {
-        return quest.category
-          ? `[${quest.category}] ${quest.questType || ''}`.trim()
-          : ''
-      }
-      if (key === 'discovery') {
-        return (
-          [
-            quest.discoveryCategory ? `[${quest.discoveryCategory}]` : null,
-            quest.discoveryRank,
-            quest.discoveryName,
-          ]
-            .filter((v) => v != null && v !== '')
-            .join(' ') || ''
-        )
-      }
-      return quest[key]
-    },
-    (a, b) => a.id - b.id,
+  const questTotalPages = Math.max(
+    1,
+    Math.ceil(questTotal / QUEST_PAGE_SIZE),
   )
+  const questSafePage = Math.min(questPage, questTotalPages - 1)
   const sortedPorts = portsSort.sortRows(
     ports.filter((port) => matchesPortQuery(port, portQuery)),
     (port, key) => port[key],
@@ -412,43 +480,58 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
   useEffect(() => {
     if (nav === 'users') void loadUsers()
     if (nav === 'ships') void loadShips()
-    if (nav === 'quests') void loadQuests()
     if (nav === 'ports') void loadPorts()
     if (nav === 'discoveries') {
       void loadDiscoveries()
-      // quests.length를 deps에 넣으면 첫 로드 직후 effect가 다시 돌아 목록이 깜빡임
-      void loadQuests({ quiet: true })
     }
     if (nav === 'languages') void loadLanguages()
+    if (nav === 'fields') void loadFields()
+    if (nav === 'consumables') void loadConsumables()
     if (nav === 'materials') void loadMaterials()
   }, [
     nav,
     loadUsers,
     loadShips,
-    loadQuests,
     loadPorts,
     loadDiscoveries,
     loadLanguages,
+    loadFields,
+    loadConsumables,
     loadMaterials,
   ])
 
+  useEffect(() => {
+    const next = questQuery.trim()
+    const timer = window.setTimeout(() => {
+      setQuestQueryDebounced((prev) => {
+        if (prev !== next) setQuestPage(0)
+        return next
+      })
+    }, 300)
+    return () => window.clearTimeout(timer)
+  }, [questQuery])
+
+  useEffect(() => {
+    if (nav !== 'quests') return
+    void loadQuests()
+  }, [nav, loadQuests])
+
+  useEffect(() => {
+    if (questPage > questSafePage) setQuestPage(questSafePage)
+  }, [questPage, questSafePage])
+
   async function openQuestByRef(ref: DiscoveryQuestRef) {
-    let quest = quests.find((q) => q.id === ref.id)
-    if (!quest) {
-      try {
-        const res = await fetchQuests(token)
-        setQuests(res.quests)
-        quest = res.quests.find((q) => q.id === ref.id)
-      } catch {
-        onToast('퀘스트 목록을 불러오지 못했습니다.')
-        return
-      }
-    }
-    if (!quest) {
-      onToast(`「${ref.name}」 퀘스트가 아직 등록되지 않았습니다.`)
+    const cached = quests.find((q) => q.id === ref.id)
+    if (cached) {
+      setDetailQuest(cached)
       return
     }
-    setDetailQuest(quest)
+    try {
+      const res = await fetchQuest(token, ref.id)
+      setDetailQuest(res.quest)
+    } catch {
+      onToast(`「${ref.name}」 퀘스트가 아직 등록되지 않았습니다.`)
+    }
   }
 
   async function handleRoleChange(target: AdminUser, role: 'admin' | 'member') {
@@ -510,9 +593,9 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
     setDeletingKey(key)
     try {
       await deleteQuest(token, quest.id)
-      setQuests((prev) => prev.filter((q) => q.id !== quest.id))
       if (detailQuest?.id === quest.id) setDetailQuest(null)
       onToast(`퀘스트 「${quest.name}」을(를) 삭제했습니다.`)
+      await loadQuests({ quiet: true })
     } catch (err) {
       onToast(err instanceof Error ? err.message : '삭제에 실패했습니다.')
     } finally {
@@ -529,6 +612,38 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
       setPorts((prev) => prev.filter((p) => p.id !== port.id))
       if (detailPort?.id === port.id) setDetailPort(null)
       onToast(`항구 「${port.name}」을(를) 삭제했습니다.`)
+    } catch (err) {
+      onToast(err instanceof Error ? err.message : '삭제에 실패했습니다.')
+    } finally {
+      setDeletingKey(null)
+    }
+  }
+
+  async function handleDeleteField(field: FieldDetail) {
+    if (!window.confirm(`「${field.name}」 필드를 삭제할까요?`)) return
+    const key = `field:${field.id}`
+    setDeletingKey(key)
+    try {
+      await deleteField(token, field.id)
+      setFields((prev) => prev.filter((f) => f.id !== field.id))
+      if (detailField?.id === field.id) setDetailField(null)
+      onToast(`필드 「${field.name}」을(를) 삭제했습니다.`)
+    } catch (err) {
+      onToast(err instanceof Error ? err.message : '삭제에 실패했습니다.')
+    } finally {
+      setDeletingKey(null)
+    }
+  }
+
+  async function handleDeleteConsumable(consumable: ConsumableDetail) {
+    if (!window.confirm(`「${consumable.name}」 소비품을 삭제할까요?`)) return
+    const key = `consumable:${consumable.id}`
+    setDeletingKey(key)
+    try {
+      await deleteConsumable(token, consumable.id)
+      setConsumables((prev) => prev.filter((c) => c.id !== consumable.id))
+      if (detailConsumable?.id === consumable.id) setDetailConsumable(null)
+      onToast(`소비품 「${consumable.name}」을(를) 삭제했습니다.`)
     } catch (err) {
       onToast(err instanceof Error ? err.message : '삭제에 실패했습니다.')
     } finally {
@@ -629,6 +744,32 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
       )
     } finally {
       setImportingQuest(false)
+    }
+  }
+
+  async function handleFieldImport(e: FormEvent) {
+    e.preventDefault()
+    if (!fieldImportText.trim()) {
+      setFieldImportNote('텍스트를 붙여넣어 주세요.')
+      return
+    }
+    setImportingField(true)
+    setFieldImportNote('')
+    try {
+      const res = await importFieldText(token, fieldImportText)
+      setFieldImportText('')
+      setShowFieldImport(false)
+      setFieldImportNote(
+        `「${res.field.name}」을(를) 저장했습니다. (동일 이름이면 내용이 갱신됩니다)`,
+      )
+      onToast(`필드 「${res.field.name}」 저장 완료`)
+      await loadFields()
+    } catch (err) {
+      setFieldImportNote(
+        err instanceof Error ? err.message : '저장에 실패했습니다.',
+      )
+    } finally {
+      setImportingField(false)
     }
   }
 
@@ -733,6 +874,32 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
       )
     } finally {
       setImportingMaterial(false)
+    }
+  }
+
+  async function handleConsumableImport(e: FormEvent) {
+    e.preventDefault()
+    if (!consumableImportText.trim()) {
+      setConsumableImportNote('텍스트를 붙여넣어 주세요.')
+      return
+    }
+    setImportingConsumable(true)
+    setConsumableImportNote('')
+    try {
+      const res = await importConsumableText(token, consumableImportText)
+      setConsumableImportText('')
+      setShowConsumableImport(false)
+      setConsumableImportNote(
+        `「${res.consumable.name}」을(를) 저장했습니다. (동일 이름이면 내용이 갱신됩니다)`,
+      )
+      onToast(`소비품 「${res.consumable.name}」 저장 완료`)
+      await loadConsumables()
+    } catch (err) {
+      setConsumableImportNote(
+        err instanceof Error ? err.message : '저장에 실패했습니다.',
+      )
+    } finally {
+      setImportingConsumable(false)
     }
   }
 
@@ -863,6 +1030,44 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
             <span className="admin-nav-index">06</span>
             <span className="admin-nav-text">언어 리스트</span>
           </button>
+          <button
+            type="button"
+            className={nav === 'fields' ? 'active' : ''}
+            onClick={() => setNav('fields')}
+          >
+            <span className="admin-nav-index">07</span>
+            <span className="admin-nav-text">필드 리스트</span>
+          </button>
+          <div
+            className={`admin-nav-group${
+              nav === 'consumables' ? ' is-active' : ''
+            }${itemsMenuOpen ? ' is-open' : ''}`}
+          >
+            <button
+              type="button"
+              className="admin-nav-group-toggle"
+              aria-expanded={itemsMenuOpen}
+              aria-controls="admin-nav-items"
+              onClick={() => setItemsMenuOpen((open) => !open)}
+            >
+              <span className="admin-nav-index">08</span>
+              <span className="admin-nav-text">아이템</span>
+              <span className="admin-nav-chevron" aria-hidden="true" />
+            </button>
+            <div
+              id="admin-nav-items"
+              className="admin-nav-group-items"
+              hidden={!itemsMenuOpen}
+            >
+              <button
+                type="button"
+                className={nav === 'consumables' ? 'active' : ''}
+                onClick={() => goNav('consumables')}
+              >
+                <span className="admin-nav-text">소비품 리스트</span>
+              </button>
+            </div>
+          </div>
         </nav>
 
         <div className="admin-sidebar-foot">
@@ -1271,13 +1476,13 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
                 placeholder="이름·장소·발견물로 검색"
                 aria-label="퀘스트 검색"
                 autoComplete="off"
-                disabled={loadingQuests}
               />
             </label>
 
             {loadingQuests && quests.length === 0 ? (
               <p className="form-note">불러오는 중…</p>
             ) : (
+              <>
               <div className="admin-table-wrap">
                 <table className="admin-table">
                   <thead>
@@ -1287,7 +1492,10 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
                         sortKey="name"
                         activeKey={questsSort.sortKey}
                         dir={questsSort.sortDir}
-                        onSort={questsSort.toggleSort}
+                        onSort={(key) => {
+                          questsSort.toggleSort(key)
+                          setQuestPage(0)
+                        }}
                       />
                       <SortableTh
                         className="col-desk"
@@ -1295,15 +1503,21 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
                         sortKey="category"
                         activeKey={questsSort.sortKey}
                         dir={questsSort.sortDir}
-                        onSort={questsSort.toggleSort}
+                        onSort={(key) => {
+                          questsSort.toggleSort(key)
+                          setQuestPage(0)
+                        }}
                       />
                       <SortableTh
-                        className="col-desk"
+                        className="col-desk col-diff"
                         label="난이도"
                         sortKey="difficulty"
                         activeKey={questsSort.sortKey}
                         dir={questsSort.sortDir}
-                        onSort={questsSort.toggleSort}
+                        onSort={(key) => {
+                          questsSort.toggleSort(key)
+                          setQuestPage(0)
+                        }}
                       />
                       <SortableTh
                         className="col-desk"
@@ -1311,7 +1525,10 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
                         sortKey="requestPlaces"
                         activeKey={questsSort.sortKey}
                         dir={questsSort.sortDir}
-                        onSort={questsSort.toggleSort}
+                        onSort={(key) => {
+                          questsSort.toggleSort(key)
+                          setQuestPage(0)
+                        }}
                       />
                       <SortableTh
                         className="col-desk"
@@ -1319,7 +1536,10 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
                         sortKey="destination"
                         activeKey={questsSort.sortKey}
                         dir={questsSort.sortDir}
-                        onSort={questsSort.toggleSort}
+                        onSort={(key) => {
+                          questsSort.toggleSort(key)
+                          setQuestPage(0)
+                        }}
                       />
                       <SortableTh
                         className="col-desk"
@@ -1327,13 +1547,16 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
                         sortKey="discovery"
                         activeKey={questsSort.sortKey}
                         dir={questsSort.sortDir}
-                        onSort={questsSort.toggleSort}
+                        onSort={(key) => {
+                          questsSort.toggleSort(key)
+                          setQuestPage(0)
+                        }}
                       />
                       <th className="col-desk col-action">삭제</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {sortedQuests.map((quest, index) => (
+                    {quests.map((quest, index) => (
                       <tr
                         key={quest.id}
                         className={`admin-row-clickable${index % 2 === 0 ? ' is-even' : ' is-odd'}`}
@@ -1353,7 +1576,7 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
                             : '-'}
                         </td>
                         <td
-                          className="admin-cell-control col-desk"
+                          className="admin-cell-control col-desk col-diff"
                           onClick={(e) => e.stopPropagation()}
                           onKeyDown={(e) => e.stopPropagation()}
                         >
@@ -1395,18 +1618,49 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
                         </td>
                       </tr>
                     ))}
-                    {sortedQuests.length === 0 && (
+                    {quests.length === 0 && (
                       <tr>
                         <td colSpan={7}>
-                          {quests.length === 0
-                            ? '등록된 퀘스트가 없습니다.'
-                            : '검색 결과가 없습니다.'}
+                          {questQueryDebounced
+                            ? '검색 결과가 없습니다.'
+                            : '등록된 퀘스트가 없습니다.'}
                         </td>
                       </tr>
                     )}
                   </tbody>
                 </table>
               </div>
+              {questTotal > 0 && (
+                <div className="catalog-pager" aria-label="퀘스트 목록 페이지">
+                  <button
+                    type="button"
+                    className="admin-btn"
+                    disabled={questSafePage <= 0 || loadingQuests}
+                    onClick={() => setQuestPage((p) => Math.max(0, p - 1))}
+                  >
+                    이전
+                  </button>
+                  <span>
+                    {questSafePage + 1} / {questTotalPages}
+                    <em>· {questTotal}개</em>
+                  </span>
+                  <button
+                    type="button"
+                    className="admin-btn"
+                    disabled={
+                      questSafePage >= questTotalPages - 1 || loadingQuests
+                    }
+                    onClick={() =>
+                      setQuestPage((p) =>
+                        Math.min(questTotalPages - 1, p + 1),
+                      )
+                    }
+                  >
+                    다음
+                  </button>
+                </div>
+              )}
+              </>
             )}
           </section>
         )}
@@ -2032,6 +2286,342 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
           </section>
         )}
 
+        {nav === 'fields' && (
+          <section className="admin-section">
+            <div className="admin-page-head">
+              <div>
+                <h1>필드 리스트</h1>
+                <p>
+                  위키 텍스트로 추가·갱신합니다. 같은 이름이면 기본 정보·육지
+                  조사·재조사 보상을 덮어씁니다.
+                </p>
+              </div>
+              <div className="admin-page-actions">
+                <button
+                  type="button"
+                  className="admin-btn"
+                  onClick={() => void loadFields()}
+                  disabled={loadingFields}
+                >
+                  새로고침
+                </button>
+                <button
+                  type="button"
+                  className="admin-btn admin-btn-primary"
+                  onClick={() => {
+                    setShowFieldImport((v) => !v)
+                    setFieldImportNote('')
+                  }}
+                >
+                  {showFieldImport ? '닫기' : '필드 추가'}
+                </button>
+              </div>
+            </div>
+
+            {showFieldImport && (
+              <form className="admin-import-form" onSubmit={handleFieldImport}>
+                <label className="field">
+                  <span>필드 텍스트 (기본 정보·육지 조사·재조사 보상)</span>
+                  <textarea
+                    className="quest-import-textarea"
+                    rows={20}
+                    value={fieldImportText}
+                    onChange={(e) => setFieldImportText(e.target.value)}
+                    placeholder={`필드 | 북미 대륙 서해안\n필드 종류\t상륙지\t지역\t북미 서해안\n해역\t알렉산더 제도 앞바다\t좌표\t10616, 2776\n육지 조사\n단계\t필수\t종류\t조사 항목\t횟수\t획득 완성도\t완성도 제한\n1\t\t채집\t\t20\t10%\t10%\n…\n육지 재조사 보상\n종류\t아이템\n소비품\t…`}
+                    disabled={importingField}
+                  />
+                </label>
+                <div className="form-actions">
+                  <button
+                    type="submit"
+                    className="admin-btn admin-btn-primary"
+                    disabled={importingField}
+                  >
+                    {importingField ? '저장 중…' : '저장'}
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {fieldImportNote && (
+              <p
+                className={`form-note${
+                  /실패|못|오류|에러|중복/.test(fieldImportNote) ? ' error' : ''
+                }`}
+              >
+                {fieldImportNote}
+              </p>
+            )}
+
+            {fieldsError && (
+              <p className="form-note error" role="alert">
+                {fieldsError}
+              </p>
+            )}
+
+            <label className="field catalog-search">
+              <input
+                type="search"
+                value={fieldQuery}
+                onChange={(e) => setFieldQuery(e.target.value)}
+                placeholder="이름·종류·지역·해역으로 검색"
+                aria-label="필드 검색"
+                autoComplete="off"
+                disabled={loadingFields}
+              />
+            </label>
+
+            {loadingFields && fields.length === 0 ? (
+              <p className="form-note">불러오는 중…</p>
+            ) : (
+              <div className="admin-table-wrap">
+                <table className="admin-table">
+                  <thead>
+                    <tr>
+                      <th>이름</th>
+                      <th className="col-desk">종류</th>
+                      <th className="col-desk">지역</th>
+                      <th className="col-desk">해역</th>
+                      <th className="col-desk">좌표</th>
+                      <th className="col-desk col-action">삭제</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {fields
+                      .filter((field) => {
+                        const q = fieldQuery.trim().toLowerCase()
+                        if (!q) return true
+                        const hay = [
+                          field.name,
+                          field.fieldKind,
+                          field.region,
+                          field.seaArea,
+                          field.coordX,
+                          field.coordY,
+                        ]
+                          .filter((v) => v != null && v !== '')
+                          .join(' ')
+                          .toLowerCase()
+                        return hay.includes(q)
+                      })
+                      .map((field, index) => (
+                        <tr
+                          key={field.id}
+                          className={`admin-row-clickable${index % 2 === 0 ? ' is-even' : ' is-odd'}`}
+                          tabIndex={0}
+                          onClick={() => setDetailField(field)}
+                          onKeyDown={(
+                            event: KeyboardEvent<HTMLTableRowElement>,
+                          ) => {
+                            if (event.key === 'Enter' || event.key === ' ') {
+                              event.preventDefault()
+                              setDetailField(field)
+                            }
+                          }}
+                        >
+                          <td>{field.name}</td>
+                          <td className="col-desk">{field.fieldKind || '-'}</td>
+                          <td className="col-desk">{field.region || '-'}</td>
+                          <td className="col-desk">{field.seaArea || '-'}</td>
+                          <td className="col-desk">
+                            {field.coordX != null && field.coordY != null
+                              ? `${field.coordX}, ${field.coordY}`
+                              : '-'}
+                          </td>
+                          <td
+                            className="admin-cell-control col-desk col-action"
+                            onClick={(e) => e.stopPropagation()}
+                            onKeyDown={(e) => e.stopPropagation()}
+                          >
+                            <button
+                              type="button"
+                              className="admin-danger-btn"
+                              disabled={deletingKey === `field:${field.id}`}
+                              onClick={() => void handleDeleteField(field)}
+                            >
+                              삭제
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    {fields.length === 0 && (
+                      <tr>
+                        <td colSpan={6}>등록된 필드가 없습니다.</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+        )}
+
+        {nav === 'consumables' && (
+          <section className="admin-section">
+            <div className="admin-page-head">
+              <div>
+                <h1>소비품 리스트</h1>
+                <p>
+                  위키 텍스트로 추가·갱신합니다. 같은 이름이면 내용을 덮어씁니다.
+                </p>
+              </div>
+              <div className="admin-page-actions">
+                <button
+                  type="button"
+                  className="admin-btn"
+                  onClick={() => void loadConsumables()}
+                  disabled={loadingConsumables}
+                >
+                  새로고침
+                </button>
+                <button
+                  type="button"
+                  className="admin-btn admin-btn-primary"
+                  onClick={() => {
+                    setShowConsumableImport((v) => !v)
+                    setConsumableImportNote('')
+                  }}
+                >
+                  {showConsumableImport ? '닫기' : '소비품 추가'}
+                </button>
+              </div>
+            </div>
+
+            {showConsumableImport && (
+              <form
+                className="admin-import-form"
+                onSubmit={handleConsumableImport}
+              >
+                <label className="field">
+                  <span>소비품 텍스트</span>
+                  <textarea
+                    className="quest-import-textarea"
+                    rows={16}
+                    value={consumableImportText}
+                    onChange={(e) => setConsumableImportText(e.target.value)}
+                    placeholder={`소비품의뢰 알선서\n조합의 의뢰를 새롭게 제시받을 수 있다.\n\n분류\t아이템 획득\t사용효과\t의뢰 알선\n획득 방법\n구입생산퀘스트…\n판매 NPC\t지역\t장소\n모험가조합 마스터\t유럽 북부\t런던 모험가조합, …`}
+                    disabled={importingConsumable}
+                  />
+                </label>
+                <div className="form-actions">
+                  <button
+                    type="submit"
+                    className="admin-btn admin-btn-primary"
+                    disabled={importingConsumable}
+                  >
+                    {importingConsumable ? '저장 중…' : '저장'}
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {consumableImportNote && (
+              <p
+                className={`form-note${
+                  /실패|못|오류|에러|중복/.test(consumableImportNote)
+                    ? ' error'
+                    : ''
+                }`}
+              >
+                {consumableImportNote}
+              </p>
+            )}
+
+            {consumablesError && (
+              <p className="form-note error" role="alert">
+                {consumablesError}
+              </p>
+            )}
+
+            <label className="field catalog-search">
+              <input
+                type="search"
+                value={consumableQuery}
+                onChange={(e) => setConsumableQuery(e.target.value)}
+                placeholder="이름·분류·사용효과로 검색"
+                aria-label="소비품 검색"
+                autoComplete="off"
+                disabled={loadingConsumables}
+              />
+            </label>
+
+            {loadingConsumables && consumables.length === 0 ? (
+              <p className="form-note">불러오는 중…</p>
+            ) : (
+              <div className="admin-table-wrap">
+                <table className="admin-table">
+                  <thead>
+                    <tr>
+                      <th>이름</th>
+                      <th className="col-desk">분류</th>
+                      <th className="col-desk">사용효과</th>
+                      <th className="col-desk col-action">삭제</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {consumables
+                      .filter((item) => {
+                        const q = consumableQuery.trim().toLowerCase()
+                        if (!q) return true
+                        const hay = [
+                          item.name,
+                          item.category,
+                          item.useEffect,
+                          item.description,
+                        ]
+                          .filter((v) => v != null && v !== '')
+                          .join(' ')
+                          .toLowerCase()
+                        return hay.includes(q)
+                      })
+                      .map((item, index) => (
+                        <tr
+                          key={item.id}
+                          className={`admin-row-clickable${index % 2 === 0 ? ' is-even' : ' is-odd'}`}
+                          tabIndex={0}
+                          onClick={() => setDetailConsumable(item)}
+                          onKeyDown={(
+                            event: KeyboardEvent<HTMLTableRowElement>,
+                          ) => {
+                            if (event.key === 'Enter' || event.key === ' ') {
+                              event.preventDefault()
+                              setDetailConsumable(item)
+                            }
+                          }}
+                        >
+                          <td>{item.name}</td>
+                          <td className="col-desk">{item.category || '-'}</td>
+                          <td className="col-desk">{item.useEffect || '-'}</td>
+                          <td
+                            className="admin-cell-control col-desk col-action"
+                            onClick={(e) => e.stopPropagation()}
+                            onKeyDown={(e) => e.stopPropagation()}
+                          >
+                            <button
+                              type="button"
+                              className="admin-danger-btn"
+                              disabled={
+                                deletingKey === `consumable:${item.id}`
+                              }
+                              onClick={() => void handleDeleteConsumable(item)}
+                            >
+                              삭제
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    {consumables.length === 0 && (
+                      <tr>
+                        <td colSpan={4}>등록된 소비품이 없습니다.</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+        )}
+
         {nav === 'materials' && (
           <section className="admin-section">
             <div className="admin-page-head">
@@ -2147,6 +2737,48 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
         </DetailModal>
       )}
 
+      {detailField && (
+        <DetailModal
+          title="필드 상세"
+          label={`${detailField.name} 상세`}
+          onClose={() => setDetailField(null)}
+        >
+          <FieldDetailView
+            field={detailField}
+            requiredEdit={{
+              token,
+              onSaved: (next) => {
+                setFields((prev) =>
+                  prev.map((f) => (f.id === next.id ? next : f)),
+                )
+                setDetailField(next)
+              },
+            }}
+          />
+        </DetailModal>
+      )}
+
+      {detailConsumable && (
+        <DetailModal
+          title="소비품 상세"
+          label={`${detailConsumable.name} 상세`}
+          onClose={() => setDetailConsumable(null)}
+        >
+          <ConsumableDetailView
+            consumable={detailConsumable}
+            basicInfoEdit={{
+              token,
+              onSaved: (next) => {
+                setConsumables((prev) =>
+                  prev.map((c) => (c.id === next.id ? next : c)),
+                )
+                setDetailConsumable(next)
+              },
+            }}
+          />
+        </DetailModal>
+      )}
+
       {detailDiscovery && (
         <DetailModal
           title="발견물 상세"
@@ -2169,6 +2801,7 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
         >
           <QuestDetailView
             quest={detailQuest}
+            token={token}
             walkthroughEdit={{
               token,
               onSaved: applyQuestUpdate,

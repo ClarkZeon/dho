@@ -189,6 +189,8 @@ export type QuestDetail = {
   discoveryCategory: string | null
   discoveryRank: number | null
   discoveryName: string | null
+  /** 발견물 DB 이름 매칭 시 참조 (없으면 null, 표시는 discoveryName 유지) */
+  discoveryRef?: DiscoveryQuestRef | null
   skills: QuestSkillReq[]
   rewardDucat: number | null
   rewardAdvance: number | null
@@ -234,6 +236,61 @@ export type PortDetail = {
   language: string | null
   rewards: PortReward[]
   collectItems: PortCollectItem[]
+}
+
+export type FieldSurveyTask = {
+  required: boolean
+  kind: string | null
+  item: string | null
+  count: number | null
+  completionGain: string | null
+}
+
+export type FieldLandSurvey = {
+  stage: number
+  completionLimit: string | null
+  tasks: FieldSurveyTask[]
+}
+
+export type FieldResurveyRewardItem = {
+  name: string
+  qty: number | null
+}
+
+export type FieldResurveyReward = {
+  kind: string
+  items: FieldResurveyRewardItem[]
+  raw: string
+}
+
+export type FieldDetail = {
+  id: number
+  slug: string
+  name: string
+  fieldKind: string | null
+  region: string | null
+  seaArea: string | null
+  coordX: number | null
+  coordY: number | null
+  landSurveys: FieldLandSurvey[]
+  resurveyRewards: FieldResurveyReward[]
+}
+
+export type ConsumablePurchase = {
+  npc: string
+  region: string
+  place: string
+}
+
+export type ConsumableDetail = {
+  id: number
+  slug: string
+  name: string
+  description: string | null
+  category: string | null
+  useEffect: string | null
+  acquireMethods: string[]
+  purchases: ConsumablePurchase[]
 }
 
 export type DiscoveryCategory = {

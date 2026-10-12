@@ -46,7 +46,7 @@ import {
   deleteQuest,
   ensureQuestStore,
   getQuestById,
-  listQuests,
+  listQuestsPage,
   setUserQuestCompleted,
   updateQuestFields,
   upsertQuestFromParsed,
@@ -60,8 +60,27 @@ import {
 } from './portStore.mjs'
 import { parsePortText } from './portTextParse.mjs'
 import {
+  deleteField,
+  ensureFieldStore,
+  getFieldById,
+  listFields,
+  updateFieldFields,
+  upsertFieldFromParsed,
+} from './fieldStore.mjs'
+import { parseFieldText } from './fieldTextParse.mjs'
+import {
+  deleteConsumable,
+  ensureConsumableStore,
+  getConsumableById,
+  listConsumables,
+  updateConsumableFields,
+  upsertConsumableFromParsed,
+} from './consumableStore.mjs'
+import { parseConsumableText } from './consumableTextParse.mjs'
+import {
   deleteDiscovery,
   ensureDiscoveryStore,
+  getDiscoveryBySlug,
   listDiscoveries,
   listDiscoveryCategoryTree,
   upsertDiscoveryFromParsed,
@@ -135,6 +154,8 @@ async function ensureStore() {
   await ensurePortStore()
   await ensureDiscoveryStore()
   await ensureLibraryLanguageStore()
+  await ensureFieldStore()
+  await ensureConsumableStore()
   await ensureCatalogStats()
 }
 
@@ -889,8 +910,19 @@ export async function handleRequest(req, res) {
         sendJson(res, 401, { error: '로그인이 필요합니다.' })
         return
       }
-      const quests = await listQuests(authUser.id)
-      sendJson(res, 200, { quests })
+      const q = String(url.searchParams.get('q') || '')
+      const sort = url.searchParams.get('sort') || ''
+      const dir = url.searchParams.get('dir') || ''
+      const limit = url.searchParams.get('limit')
+      const offset = url.searchParams.get('offset')
+      const page = await listQuestsPage(authUser.id, {
+        q,
+        sort,
+        dir,
+        limit: limit == null || limit === '' ? 15 : Number(limit),
+        offset: offset == null || offset === '' ? 0 : Number(offset),
+      })
+      sendJson(res, 200, page)
       return
     }
 
@@ -1013,6 +1045,208 @@ export async function handleRequest(req, res) {
       return
     }
 
+    if (req.method === 'GET' && pathname === '/api/fields') {
+      const authUser = await getAuthUser(req)
+      if (!authUser) {
+        sendJson(res, 401, { error: '로그인이 필요합니다.' })
+        return
+      }
+      const fields = await listFields()
+      sendJson(res, 200, { fields })
+      return
+    }
+
+    if (req.method === 'GET' && pathname === '/api/consumables') {
+      const authUser = await getAuthUser(req)
+      if (!authUser) {
+        sendJson(res, 401, { error: '로그인이 필요합니다.' })
+        return
+      }
+      const consumables = await listConsumables()
+      sendJson(res, 200, { consumables })
+      return
+    }
+
+    if (req.method === 'POST' && pathname === '/api/consumables/import-text') {
+      const authUser = await getAuthUser(req)
+      if (!authUser) {
+        sendJson(res, 401, { error: '로그인이 필요합니다.' })
+        return
+      }
+      if (!requireAdmin(authUser, res)) return
+      const body = await readBody(req)
+      const text = typeof body.text === 'string' ? body.text : ''
+      try {
+        const parsed = parseConsumableText(text)
+        const consumable = await upsertConsumableFromParsed(parsed)
+        sendJson(res, 201, { consumable })
+      } catch (err) {
+        sendJson(res, 400, {
+          error:
+            err instanceof Error
+              ? err.message
+              : '소비품 텍스트 파싱에 실패했습니다.',
+        })
+      }
+      return
+    }
+
+    const consumableMatch = pathname.match(/^\/api\/consumables\/([^/]+)$/)
+    if (consumableMatch && req.method === 'PATCH') {
+      const authUser = await getAuthUser(req)
+      if (!authUser) {
+        sendJson(res, 401, { error: '로그인이 필요합니다.' })
+        return
+      }
+      if (!requireAdmin(authUser, res)) return
+      const consumableId = Number(decodeURIComponent(consumableMatch[1]))
+      if (!Number.isFinite(consumableId)) {
+        sendJson(res, 400, { error: '잘못된 소비품 ID입니다.' })
+        return
+      }
+      const existing = await getConsumableById(consumableId)
+      if (!existing) {
+        sendJson(res, 404, { error: '소비품을 찾을 수 없습니다.' })
+        return
+      }
+      const body = await readBody(req)
+      const patch = {}
+      if ('category' in body) patch.category = body.category
+      if ('useEffect' in body) patch.useEffect = body.useEffect
+      if ('acquireMethods' in body) patch.acquireMethods = body.acquireMethods
+      if (!Object.keys(patch).length) {
+        sendJson(res, 400, { error: '변경할 필드가 없습니다.' })
+        return
+      }
+      try {
+        const consumable = await updateConsumableFields(consumableId, patch)
+        sendJson(res, 200, { consumable })
+      } catch (err) {
+        sendJson(res, 400, {
+          error:
+            err instanceof Error
+              ? err.message
+              : '소비품 수정에 실패했습니다.',
+        })
+      }
+      return
+    }
+
+    if (consumableMatch && req.method === 'DELETE') {
+      const authUser = await getAuthUser(req)
+      if (!authUser) {
+        sendJson(res, 401, { error: '로그인이 필요합니다.' })
+        return
+      }
+      if (!requireAdmin(authUser, res)) return
+      const consumableId = Number(decodeURIComponent(consumableMatch[1]))
+      if (!Number.isFinite(consumableId)) {
+        sendJson(res, 400, { error: '잘못된 소비품 ID입니다.' })
+        return
+      }
+      try {
+        await deleteConsumable(consumableId)
+        sendJson(res, 200, { ok: true })
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : '소비품 삭제에 실패했습니다.'
+        sendJson(
+          res,
+          message.includes('찾을 수 없') ? 404 : 400,
+          { error: message },
+        )
+      }
+      return
+    }
+
+    if (req.method === 'POST' && pathname === '/api/fields/import-text') {
+      const authUser = await getAuthUser(req)
+      if (!authUser) {
+        sendJson(res, 401, { error: '로그인이 필요합니다.' })
+        return
+      }
+      if (!requireAdmin(authUser, res)) return
+      const body = await readBody(req)
+      const text = typeof body.text === 'string' ? body.text : ''
+      try {
+        const parsed = parseFieldText(text)
+        const field = await upsertFieldFromParsed(parsed)
+        sendJson(res, 201, { field })
+      } catch (err) {
+        sendJson(res, 400, {
+          error:
+            err instanceof Error
+              ? err.message
+              : '필드 텍스트 파싱에 실패했습니다.',
+        })
+      }
+      return
+    }
+
+    const fieldMatch = pathname.match(/^\/api\/fields\/([^/]+)$/)
+    if (fieldMatch && req.method === 'PATCH') {
+      const authUser = await getAuthUser(req)
+      if (!authUser) {
+        sendJson(res, 401, { error: '로그인이 필요합니다.' })
+        return
+      }
+      if (!requireAdmin(authUser, res)) return
+      const fieldId = Number(decodeURIComponent(fieldMatch[1]))
+      if (!Number.isFinite(fieldId)) {
+        sendJson(res, 400, { error: '잘못된 필드 ID입니다.' })
+        return
+      }
+      const existing = await getFieldById(fieldId)
+      if (!existing) {
+        sendJson(res, 404, { error: '필드를 찾을 수 없습니다.' })
+        return
+      }
+      const body = await readBody(req)
+      const patch = {}
+      if ('landSurveys' in body) patch.landSurveys = body.landSurveys
+      if (!('landSurveys' in patch)) {
+        sendJson(res, 400, { error: '변경할 필드가 없습니다.' })
+        return
+      }
+      try {
+        const field = await updateFieldFields(fieldId, patch)
+        sendJson(res, 200, { field })
+      } catch (err) {
+        sendJson(res, 400, {
+          error:
+            err instanceof Error ? err.message : '필드 수정에 실패했습니다.',
+        })
+      }
+      return
+    }
+
+    if (fieldMatch && req.method === 'DELETE') {
+      const authUser = await getAuthUser(req)
+      if (!authUser) {
+        sendJson(res, 401, { error: '로그인이 필요합니다.' })
+        return
+      }
+      if (!requireAdmin(authUser, res)) return
+      const fieldId = Number(decodeURIComponent(fieldMatch[1]))
+      if (!Number.isFinite(fieldId)) {
+        sendJson(res, 400, { error: '잘못된 필드 ID입니다.' })
+        return
+      }
+      try {
+        await deleteField(fieldId)
+        sendJson(res, 200, { ok: true })
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : '필드 삭제에 실패했습니다.'
+        sendJson(
+          res,
+          message.includes('찾을 수 없') ? 404 : 400,
+          { error: message },
+        )
+      }
+      return
+    }
+
     if (req.method === 'GET' && pathname === '/api/discoveries') {
       const authUser = await getAuthUser(req)
       if (!authUser) {
@@ -1060,6 +1294,22 @@ export async function handleRequest(req, res) {
     }
 
     const discoveryMatch = pathname.match(/^\/api\/discoveries\/([^/]+)$/)
+    if (discoveryMatch && req.method === 'GET') {
+      const authUser = await getAuthUser(req)
+      if (!authUser) {
+        sendJson(res, 401, { error: '로그인이 필요합니다.' })
+        return
+      }
+      const slug = decodeURIComponent(discoveryMatch[1])
+      const discovery = await getDiscoveryBySlug(slug)
+      if (!discovery) {
+        sendJson(res, 404, { error: '발견물을 찾을 수 없습니다.' })
+        return
+      }
+      sendJson(res, 200, { discovery })
+      return
+    }
+
     if (discoveryMatch && req.method === 'DELETE') {
       const authUser = await getAuthUser(req)
       if (!authUser) {
@@ -1154,6 +1404,26 @@ export async function handleRequest(req, res) {
     }
 
     const questMatch = pathname.match(/^\/api\/quests\/([^/]+)$/)
+    if (questMatch && req.method === 'GET') {
+      const authUser = await getAuthUser(req)
+      if (!authUser) {
+        sendJson(res, 401, { error: '로그인이 필요합니다.' })
+        return
+      }
+      const questId = Number(decodeURIComponent(questMatch[1]))
+      if (!Number.isFinite(questId)) {
+        sendJson(res, 400, { error: '잘못된 퀘스트 ID입니다.' })
+        return
+      }
+      const quest = await getQuestById(questId, authUser.id)
+      if (!quest) {
+        sendJson(res, 404, { error: '퀘스트를 찾을 수 없습니다.' })
+        return
+      }
+      sendJson(res, 200, { quest })
+      return
+    }
+
     if (questMatch && req.method === 'DELETE') {
       const authUser = await getAuthUser(req)
       if (!authUser) {
