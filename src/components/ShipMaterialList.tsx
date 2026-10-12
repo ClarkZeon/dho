@@ -1,15 +1,16 @@
 import { useState, type FormEvent, type KeyboardEvent } from 'react'
 import {
-  compareMaterials,
+  effectNumeric,
   effectsByColumn,
   matchesMaterialKind,
   matchesMaterialQuery,
   MATERIAL_KIND_FILTERS,
   MATERIAL_STAT_COLUMNS,
-  type MaterialSortDir,
   type MaterialSortKey,
 } from '../lib/shipMaterialStats'
+import { useTableSort } from '../lib/tableSort'
 import type { ShipMaterialDetail } from '../types'
+import { SortableTh } from './SortableTh'
 
 const PAGE_SIZE = 15
 
@@ -32,36 +33,6 @@ function buildPageWindow(current: number, total: number, maxButtons = 10) {
   return Array.from({ length: end - start }, (_, i) => start + i)
 }
 
-function SortHeader({
-  label,
-  sortKey,
-  activeKey,
-  dir,
-  onSort,
-}: {
-  label: string
-  sortKey: MaterialSortKey
-  activeKey: MaterialSortKey
-  dir: MaterialSortDir
-  onSort: (key: MaterialSortKey) => void
-}) {
-  const active = activeKey === sortKey
-  return (
-    <th aria-sort={active ? (dir === 'asc' ? 'ascending' : 'descending') : 'none'}>
-      <button
-        type="button"
-        className={`material-list-sort${active ? ' is-active' : ''}`}
-        onClick={() => onSort(sortKey)}
-      >
-        <span>{label}</span>
-        <span className="material-list-sort-mark" aria-hidden="true">
-          {active ? (dir === 'asc' ? '▲' : '▼') : ''}
-        </span>
-      </button>
-    </th>
-  )
-}
-
 export function ShipMaterialList({ materials, onOpen }: ShipMaterialListProps) {
   const [selectedKinds, setSelectedKinds] = useState<Set<string>>(
     () => new Set(),
@@ -69,16 +40,22 @@ export function ShipMaterialList({ materials, onOpen }: ShipMaterialListProps) {
   const [draftQuery, setDraftQuery] = useState('')
   const [query, setQuery] = useState('')
   const [page, setPage] = useState(0)
-  const [sortKey, setSortKey] = useState<MaterialSortKey>('id')
-  const [sortDir, setSortDir] = useState<MaterialSortDir>('asc')
+  const { sortKey, sortDir, toggleSort, sortRows, setSortKey, setSortDir } =
+    useTableSort<MaterialSortKey>('id', 'asc')
 
-  const filtered = materials
-    .filter(
+  const filtered = sortRows(
+    materials.filter(
       (material) =>
         matchesMaterialKind(material, selectedKinds) &&
         matchesMaterialQuery(material, query),
-    )
-    .sort((a, b) => compareMaterials(a, b, sortKey, sortDir))
+    ),
+    (material, key) => {
+      if (key === 'id') return material.id
+      if (key === 'name') return material.name
+      return effectNumeric(material.effects, key)
+    },
+    (a, b) => a.id - b.id,
+  )
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const safePage = Math.min(page, totalPages - 1)
@@ -114,12 +91,7 @@ export function ShipMaterialList({ materials, onOpen }: ShipMaterialListProps) {
   }
 
   function handleSort(key: MaterialSortKey) {
-    if (sortKey === key) {
-      setSortDir((prev) => (prev === 'asc' ? 'desc' : 'asc'))
-    } else {
-      setSortKey(key)
-      setSortDir(key === 'id' || key === 'name' ? 'asc' : 'desc')
-    }
+    toggleSort(key)
     setPage(0)
   }
 
@@ -162,14 +134,15 @@ export function ShipMaterialList({ materials, onOpen }: ShipMaterialListProps) {
         <table className="admin-table material-list-table">
           <thead>
             <tr>
-              <SortHeader
+              <SortableTh
                 label="번호"
                 sortKey="id"
                 activeKey={sortKey}
                 dir={sortDir}
                 onSort={handleSort}
+                align="center"
               />
-              <SortHeader
+              <SortableTh
                 label="선박 재료"
                 sortKey="name"
                 activeKey={sortKey}
@@ -177,13 +150,14 @@ export function ShipMaterialList({ materials, onOpen }: ShipMaterialListProps) {
                 onSort={handleSort}
               />
               {MATERIAL_STAT_COLUMNS.map((stat) => (
-                <SortHeader
+                <SortableTh
                   key={stat}
                   label={stat}
                   sortKey={stat}
                   activeKey={sortKey}
                   dir={sortDir}
                   onSort={handleSort}
+                  align="center"
                 />
               ))}
             </tr>

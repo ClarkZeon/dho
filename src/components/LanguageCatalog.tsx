@@ -1,14 +1,18 @@
 import { useEffect, useState, type KeyboardEvent } from 'react'
 import { fetchLibraryLanguages } from '../lib/api'
+import { useTableSort } from '../lib/tableSort'
 import type { LibraryLanguageDetail } from '../types'
 import { DetailModal } from './DetailModal'
 import { LibraryLanguageDetailView } from './LibraryLanguageDetailView'
+import { SortableTh } from './SortableTh'
 
 const PAGE_SIZE = 15
 
 type LanguageCatalogProps = {
   token: string
 }
+
+type LanguageSortKey = 'name' | 'rangeScope' | 'learnCost' | 'useCities'
 
 function matchesLanguage(language: LibraryLanguageDetail, query: string) {
   const q = query.trim().toLowerCase()
@@ -37,6 +41,12 @@ function matchesLanguage(language: LibraryLanguageDetail, query: string) {
   return haystack.includes(q)
 }
 
+function useCitiesLabel(language: LibraryLanguageDetail) {
+  return language.useCities?.length
+    ? language.useCities.map((c) => c.city).join(', ')
+    : ''
+}
+
 export function LanguageCatalog({ token }: LanguageCatalogProps) {
   const [languages, setLanguages] = useState<LibraryLanguageDetail[]>([])
   const [loading, setLoading] = useState(true)
@@ -44,6 +54,8 @@ export function LanguageCatalog({ token }: LanguageCatalogProps) {
   const [detail, setDetail] = useState<LibraryLanguageDetail | null>(null)
   const [query, setQuery] = useState('')
   const [page, setPage] = useState(0)
+  const { sortKey, sortDir, toggleSort, sortRows } =
+    useTableSort<LanguageSortKey>('name')
 
   useEffect(() => {
     let alive = true
@@ -71,8 +83,21 @@ export function LanguageCatalog({ token }: LanguageCatalogProps) {
     }
   }, [token])
 
-  const filtered = languages.filter((language) =>
-    matchesLanguage(language, query),
+  const filtered = sortRows(
+    languages.filter((language) => matchesLanguage(language, query)),
+    (language, key) => {
+      switch (key) {
+        case 'name':
+          return language.name
+        case 'rangeScope':
+          return language.rangeScope
+        case 'learnCost':
+          return language.learnCost
+        case 'useCities':
+          return useCitiesLabel(language)
+      }
+    },
+    (a, b) => a.id - b.id,
   )
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const safePage = Math.min(page, totalPages - 1)
@@ -80,6 +105,11 @@ export function LanguageCatalog({ token }: LanguageCatalogProps) {
     safePage * PAGE_SIZE,
     safePage * PAGE_SIZE + PAGE_SIZE,
   )
+
+  function handleSort(key: LanguageSortKey) {
+    toggleSort(key)
+    setPage(0)
+  }
 
   return (
     <section className="tool-page">
@@ -119,10 +149,34 @@ export function LanguageCatalog({ token }: LanguageCatalogProps) {
             <table className="admin-table">
               <thead>
                 <tr>
-                  <th>이름</th>
-                  <th>범위</th>
-                  <th>습득 비용</th>
-                  <th>사용 도시</th>
+                  <SortableTh
+                    label="이름"
+                    sortKey="name"
+                    activeKey={sortKey}
+                    dir={sortDir}
+                    onSort={handleSort}
+                  />
+                  <SortableTh
+                    label="범위"
+                    sortKey="rangeScope"
+                    activeKey={sortKey}
+                    dir={sortDir}
+                    onSort={handleSort}
+                  />
+                  <SortableTh
+                    label="습득 비용"
+                    sortKey="learnCost"
+                    activeKey={sortKey}
+                    dir={sortDir}
+                    onSort={handleSort}
+                  />
+                  <SortableTh
+                    label="사용 도시"
+                    sortKey="useCities"
+                    activeKey={sortKey}
+                    dir={sortDir}
+                    onSort={handleSort}
+                  />
                 </tr>
               </thead>
               <tbody>
@@ -147,9 +201,7 @@ export function LanguageCatalog({ token }: LanguageCatalogProps) {
                         : '-'}
                     </td>
                     <td className="admin-table-wrap-cell">
-                      {language.useCities?.length
-                        ? language.useCities.map((c) => c.city).join(', ')
-                        : '-'}
+                      {useCitiesLabel(language) || '-'}
                     </td>
                   </tr>
                 ))}

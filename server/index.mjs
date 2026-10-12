@@ -14,6 +14,7 @@ import {
   validatePostBody,
   validatePostTitle,
 } from './boardStore.mjs'
+import { loadAdminCatalogCounts } from './adminStats.mjs'
 import { hasDatabaseUrl } from './db.mjs'
 import {
   countUnread,
@@ -503,6 +504,14 @@ export async function handleRequest(req, res) {
 
       const matched = await searchUsers(q, authUser.id, 10)
       sendJson(res, 200, { users: matched })
+      return
+    }
+
+    if (req.method === 'GET' && pathname === '/api/admin/stats') {
+      const authUser = await getAuthUser(req)
+      if (!requireAdmin(authUser, res)) return
+      const counts = await loadAdminCatalogCounts()
+      sendJson(res, 200, { counts })
       return
     }
 

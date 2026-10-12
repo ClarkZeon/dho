@@ -28,6 +28,7 @@ import type {
   ShipMaterialDetail,
   User,
 } from '../types'
+import { AdminDashboard } from './AdminDashboard'
 import { DetailModal } from './DetailModal'
 import { DiscoveryDetailView } from './DiscoveryDetailView'
 import { LibraryLanguageDetailView } from './LibraryLanguageDetailView'
@@ -36,10 +37,50 @@ import { QuestDetailView } from './QuestDetailView'
 import { ShipDetailView } from './ShipDetailView'
 import { ShipMaterialDetailView } from './ShipMaterialDetailView'
 import { ShipMaterialList } from './ShipMaterialList'
+import { SortableTh } from './SortableTh'
+import { matchesQuestQuery } from '../lib/questSearch'
+import { useTableSort } from '../lib/tableSort'
 
 const LANGUAGE_PAGE_SIZE = 15
 
+type UserSortKey =
+  | 'username'
+  | 'nickname'
+  | 'role'
+  | 'level'
+  | 'lastLoginAt'
+type ShipSortKey =
+  | 'name'
+  | 'category'
+  | 'size'
+  | 'form'
+  | 'level'
+  | 'acquireType'
+  | 'acquireMethod'
+type QuestSortKey =
+  | 'name'
+  | 'category'
+  | 'difficulty'
+  | 'requestPlaces'
+  | 'destination'
+  | 'discovery'
+type PortSortKey =
+  | 'name'
+  | 'category'
+  | 'region'
+  | 'seaArea'
+  | 'entryPermit'
+  | 'language'
+type DiscoverySortKey =
+  | 'name'
+  | 'category'
+  | 'rank'
+  | 'cardPoints'
+  | 'acquire'
+type LanguageSortKey = 'name' | 'rangeScope' | 'learnCost' | 'useCities'
+
 type AdminNav =
+  | 'dashboard'
   | 'users'
   | 'ships'
   | 'quests'
@@ -71,9 +112,9 @@ function formatDate(value: string | null | undefined) {
 }
 
 export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) {
-  const [nav, setNav] = useState<AdminNav>('users')
+  const [nav, setNav] = useState<AdminNav>('dashboard')
   const [users, setUsers] = useState<AdminUser[]>([])
-  const [loadingUsers, setLoadingUsers] = useState(true)
+  const [loadingUsers, setLoadingUsers] = useState(false)
   const [usersError, setUsersError] = useState('')
   const [busyId, setBusyId] = useState<string | null>(null)
 
@@ -95,6 +136,7 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
   const [questImportNote, setQuestImportNote] = useState('')
   const [detailQuest, setDetailQuest] = useState<QuestDetail | null>(null)
   const [busyQuestId, setBusyQuestId] = useState<number | null>(null)
+  const [questQuery, setQuestQuery] = useState('')
 
   const [ports, setPorts] = useState<PortDetail[]>([])
   const [loadingPorts, setLoadingPorts] = useState(false)
@@ -233,12 +275,92 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
     }
   }, [token])
 
+  const usersSort = useTableSort<UserSortKey>('username')
+  const shipsSort = useTableSort<ShipSortKey>('name')
+  const questsSort = useTableSort<QuestSortKey>('name')
+  const portsSort = useTableSort<PortSortKey>('name')
+  const discoveriesSort = useTableSort<DiscoverySortKey>('name')
+  const languagesSort = useTableSort<LanguageSortKey>('name')
+
+  const sortedUsers = usersSort.sortRows(
+    users,
+    (row, key) => {
+      if (key === 'lastLoginAt') return row.lastLoginAt || ''
+      return row[key]
+    },
+    (a, b) => a.username.localeCompare(b.username, 'ko'),
+  )
+  const sortedShips = shipsSort.sortRows(
+    ships,
+    (ship, key) => {
+      if (key === 'level') {
+        return ship.adventureLv * 1_000_000 + ship.tradeLv * 1_000 + ship.battleLv
+      }
+      return ship[key]
+    },
+    (a, b) => a.id - b.id,
+  )
+  const sortedQuests = questsSort.sortRows(
+    quests.filter((quest) => matchesQuestQuery(quest, questQuery)),
+    (quest, key) => {
+      if (key === 'category') {
+        return quest.category
+          ? `[${quest.category}] ${quest.questType || ''}`.trim()
+          : ''
+      }
+      if (key === 'discovery') {
+        return (
+          [
+            quest.discoveryCategory ? `[${quest.discoveryCategory}]` : null,
+            quest.discoveryRank,
+            quest.discoveryName,
+          ]
+            .filter((v) => v != null && v !== '')
+            .join(' ') || ''
+        )
+      }
+      return quest[key]
+    },
+    (a, b) => a.id - b.id,
+  )
+  const sortedPorts = portsSort.sortRows(
+    ports,
+    (port, key) => port[key],
+    (a, b) => a.id - b.id,
+  )
+  const sortedDiscoveries = discoveriesSort.sortRows(
+    discoveries,
+    (discovery, key) => {
+      if (key === 'acquire') {
+        if (discovery.acquireQuest) return discovery.acquireQuest.name
+        if (discovery.acquireType) {
+          return `[${discovery.acquireType}] ${discovery.acquireName || ''}`.trim()
+        }
+        return discovery.acquireName || ''
+      }
+      return discovery[key]
+    },
+    (a, b) => a.id - b.id,
+  )
+  const sortedLanguages = languagesSort.sortRows(
+    languages,
+    (language, key) => {
+      if (key === 'useCities') {
+        return language.useCities?.length
+          ? language.useCities.map((c) => c.city).join(', ')
+          : ''
+      }
+      return language[key]
+    },
+    (a, b) => a.id - b.id,
+  )
+
   const languageTotalPages = Math.max(
     1,
-    Math.ceil(languages.length / LANGUAGE_PAGE_SIZE),
+    Math.ceil(sortedLanguages.length / LANGUAGE_PAGE_SIZE),
   )
   const languageSafePage = Math.min(languagePage, languageTotalPages - 1)
-  const languagePageItems = languages.slice(
+  const languagePageItems = sortedLanguages.slice(
     languageSafePage * LANGUAGE_PAGE_SIZE,
     languageSafePage * LANGUAGE_PAGE_SIZE + LANGUAGE_PAGE_SIZE,
   )
@@ -351,7 +473,7 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
       setImportText('')
       setShowImport(false)
       setImportNote(`「${res.ship.name}」을(를) 등록했습니다.`)
-      onToast(`선박 「${res.ship.name}」 등록 완료`)
+      onToast(`선박 「${res.ship.name}」 저장 완료`)
       await loadShips()
     } catch (err) {
       setImportNote(err instanceof Error ? err.message : '등록에 실패했습니다.')
@@ -534,6 +656,14 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
           <p className="admin-sidebar-label">메뉴</p>
           <button
             type="button"
+            className={nav === 'dashboard' ? 'active' : ''}
+            onClick={() => setNav('dashboard')}
+          >
+            <span className="admin-nav-index">00</span>
+            <span className="admin-nav-text">대시보드</span>
+          </button>
+          <button
+            type="button"
             className={nav === 'users' ? 'active' : ''}
             onClick={() => setNav('users')}
           >
@@ -606,6 +736,10 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
       </aside>
 
       <div className="admin-workspace">
+        {nav === 'dashboard' && (
+          <AdminDashboard token={token} onNavigate={setNav} />
+        )}
+
         {nav === 'users' && (
           <section className="admin-section">
             <div className="admin-page-head">
@@ -639,16 +773,46 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
                 <table className="admin-table">
                   <thead>
                     <tr>
-                      <th>아이디</th>
-                      <th>닉네임</th>
-                      <th>역할</th>
-                      <th>레벨</th>
-                      <th>최근 로그인</th>
+                      <SortableTh
+                        label="아이디"
+                        sortKey="username"
+                        activeKey={usersSort.sortKey}
+                        dir={usersSort.sortDir}
+                        onSort={usersSort.toggleSort}
+                      />
+                      <SortableTh
+                        label="닉네임"
+                        sortKey="nickname"
+                        activeKey={usersSort.sortKey}
+                        dir={usersSort.sortDir}
+                        onSort={usersSort.toggleSort}
+                      />
+                      <SortableTh
+                        label="역할"
+                        sortKey="role"
+                        activeKey={usersSort.sortKey}
+                        dir={usersSort.sortDir}
+                        onSort={usersSort.toggleSort}
+                      />
+                      <SortableTh
+                        label="레벨"
+                        sortKey="level"
+                        activeKey={usersSort.sortKey}
+                        dir={usersSort.sortDir}
+                        onSort={usersSort.toggleSort}
+                      />
+                      <SortableTh
+                        label="최근 로그인"
+                        sortKey="lastLoginAt"
+                        activeKey={usersSort.sortKey}
+                        dir={usersSort.sortDir}
+                        onSort={usersSort.toggleSort}
+                      />
                       <th>작업</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {users.map((row) => {
+                    {sortedUsers.map((row) => {
                       const isSelf = row.id === user.id
                       const isLastAdmin = row.role === 'admin' && adminCount <= 1
                       const busy = busyId === row.id
@@ -708,7 +872,9 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
             <div className="admin-page-head">
               <div>
                 <h1>선박 리스트</h1>
-                <p>등록된 선박을 확인하고 텍스트로 추가합니다.</p>
+                <p>
+                  위키 텍스트로 추가·갱신합니다. 같은 이름이면 내용을 덮어씁니다.
+                </p>
               </div>
               <div className="admin-page-actions">
                 <button
@@ -782,17 +948,59 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
                 <table className="admin-table">
                   <thead>
                     <tr>
-                      <th>이름</th>
-                      <th>분류</th>
-                      <th>크기</th>
-                      <th>형태</th>
-                      <th>레벨</th>
-                      <th>획득 구분</th>
-                      <th>획득 방법</th>
+                      <SortableTh
+                        label="이름"
+                        sortKey="name"
+                        activeKey={shipsSort.sortKey}
+                        dir={shipsSort.sortDir}
+                        onSort={shipsSort.toggleSort}
+                      />
+                      <SortableTh
+                        label="분류"
+                        sortKey="category"
+                        activeKey={shipsSort.sortKey}
+                        dir={shipsSort.sortDir}
+                        onSort={shipsSort.toggleSort}
+                      />
+                      <SortableTh
+                        label="크기"
+                        sortKey="size"
+                        activeKey={shipsSort.sortKey}
+                        dir={shipsSort.sortDir}
+                        onSort={shipsSort.toggleSort}
+                      />
+                      <SortableTh
+                        label="형태"
+                        sortKey="form"
+                        activeKey={shipsSort.sortKey}
+                        dir={shipsSort.sortDir}
+                        onSort={shipsSort.toggleSort}
+                      />
+                      <SortableTh
+                        label="레벨"
+                        sortKey="level"
+                        activeKey={shipsSort.sortKey}
+                        dir={shipsSort.sortDir}
+                        onSort={shipsSort.toggleSort}
+                      />
+                      <SortableTh
+                        label="획득 구분"
+                        sortKey="acquireType"
+                        activeKey={shipsSort.sortKey}
+                        dir={shipsSort.sortDir}
+                        onSort={shipsSort.toggleSort}
+                      />
+                      <SortableTh
+                        label="획득 방법"
+                        sortKey="acquireMethod"
+                        activeKey={shipsSort.sortKey}
+                        dir={shipsSort.sortDir}
+                        onSort={shipsSort.toggleSort}
+                      />
                     </tr>
                   </thead>
                   <tbody>
-                    {ships.map((ship, index) => (
+                    {sortedShips.map((ship, index) => (
                       <tr
                         key={ship.id}
                         className={`admin-row-clickable${index % 2 === 0 ? ' is-even' : ' is-odd'}`}
@@ -816,7 +1024,7 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
                         <td>{ship.acquireMethod || '-'}</td>
                       </tr>
                     ))}
-                    {ships.length === 0 && (
+                    {sortedShips.length === 0 && (
                       <tr>
                         <td colSpan={7}>등록된 선박이 없습니다.</td>
                       </tr>
@@ -901,6 +1109,18 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
               </p>
             )}
 
+            <label className="field catalog-search">
+              <input
+                type="search"
+                value={questQuery}
+                onChange={(e) => setQuestQuery(e.target.value)}
+                placeholder="이름·분류·장소·발견물로 검색"
+                aria-label="퀘스트 검색"
+                autoComplete="off"
+                disabled={loadingQuests}
+              />
+            </label>
+
             {loadingQuests ? (
               <p className="form-note">불러오는 중…</p>
             ) : (
@@ -908,16 +1128,52 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
                 <table className="admin-table">
                   <thead>
                     <tr>
-                      <th>이름</th>
-                      <th>분류</th>
-                      <th>난이도</th>
-                      <th>의뢰 장소</th>
-                      <th>목적지</th>
-                      <th>발견물</th>
+                      <SortableTh
+                        label="이름"
+                        sortKey="name"
+                        activeKey={questsSort.sortKey}
+                        dir={questsSort.sortDir}
+                        onSort={questsSort.toggleSort}
+                      />
+                      <SortableTh
+                        label="분류"
+                        sortKey="category"
+                        activeKey={questsSort.sortKey}
+                        dir={questsSort.sortDir}
+                        onSort={questsSort.toggleSort}
+                      />
+                      <SortableTh
+                        label="난이도"
+                        sortKey="difficulty"
+                        activeKey={questsSort.sortKey}
+                        dir={questsSort.sortDir}
+                        onSort={questsSort.toggleSort}
+                      />
+                      <SortableTh
+                        label="의뢰 장소"
+                        sortKey="requestPlaces"
+                        activeKey={questsSort.sortKey}
+                        dir={questsSort.sortDir}
+                        onSort={questsSort.toggleSort}
+                      />
+                      <SortableTh
+                        label="목적지"
+                        sortKey="destination"
+                        activeKey={questsSort.sortKey}
+                        dir={questsSort.sortDir}
+                        onSort={questsSort.toggleSort}
+                      />
+                      <SortableTh
+                        label="발견물"
+                        sortKey="discovery"
+                        activeKey={questsSort.sortKey}
+                        dir={questsSort.sortDir}
+                        onSort={questsSort.toggleSort}
+                      />
                     </tr>
                   </thead>
                   <tbody>
-                    {quests.map((quest, index) => (
+                    {sortedQuests.map((quest, index) => (
                       <tr
                         key={quest.id}
                         className={`admin-row-clickable${index % 2 === 0 ? ' is-even' : ' is-odd'}`}
@@ -973,9 +1229,13 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
                         </td>
                       </tr>
                     ))}
-                    {quests.length === 0 && (
+                    {sortedQuests.length === 0 && (
                       <tr>
-                        <td colSpan={6}>등록된 퀘스트가 없습니다.</td>
+                        <td colSpan={6}>
+                          {quests.length === 0
+                            ? '등록된 퀘스트가 없습니다.'
+                            : '검색 결과가 없습니다.'}
+                        </td>
                       </tr>
                     )}
                   </tbody>
@@ -1064,16 +1324,52 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
                 <table className="admin-table">
                   <thead>
                     <tr>
-                      <th>이름</th>
-                      <th>분류</th>
-                      <th>지역</th>
-                      <th>해역</th>
-                      <th>입항허가</th>
-                      <th>언어</th>
+                      <SortableTh
+                        label="이름"
+                        sortKey="name"
+                        activeKey={portsSort.sortKey}
+                        dir={portsSort.sortDir}
+                        onSort={portsSort.toggleSort}
+                      />
+                      <SortableTh
+                        label="분류"
+                        sortKey="category"
+                        activeKey={portsSort.sortKey}
+                        dir={portsSort.sortDir}
+                        onSort={portsSort.toggleSort}
+                      />
+                      <SortableTh
+                        label="지역"
+                        sortKey="region"
+                        activeKey={portsSort.sortKey}
+                        dir={portsSort.sortDir}
+                        onSort={portsSort.toggleSort}
+                      />
+                      <SortableTh
+                        label="해역"
+                        sortKey="seaArea"
+                        activeKey={portsSort.sortKey}
+                        dir={portsSort.sortDir}
+                        onSort={portsSort.toggleSort}
+                      />
+                      <SortableTh
+                        label="입항허가"
+                        sortKey="entryPermit"
+                        activeKey={portsSort.sortKey}
+                        dir={portsSort.sortDir}
+                        onSort={portsSort.toggleSort}
+                      />
+                      <SortableTh
+                        label="언어"
+                        sortKey="language"
+                        activeKey={portsSort.sortKey}
+                        dir={portsSort.sortDir}
+                        onSort={portsSort.toggleSort}
+                      />
                     </tr>
                   </thead>
                   <tbody>
-                    {ports.map((port, index) => (
+                    {sortedPorts.map((port, index) => (
                       <tr
                         key={port.id}
                         className={`admin-row-clickable${index % 2 === 0 ? ' is-even' : ' is-odd'}`}
@@ -1094,7 +1390,7 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
                         <td>{port.language || '-'}</td>
                       </tr>
                     ))}
-                    {ports.length === 0 && (
+                    {sortedPorts.length === 0 && (
                       <tr>
                         <td colSpan={6}>등록된 항구(도시)가 없습니다.</td>
                       </tr>
@@ -1190,15 +1486,45 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
                 <table className="admin-table">
                   <thead>
                     <tr>
-                      <th>이름</th>
-                      <th>분류</th>
-                      <th>난이도</th>
-                      <th>카드P</th>
-                      <th>발견 방법</th>
+                      <SortableTh
+                        label="이름"
+                        sortKey="name"
+                        activeKey={discoveriesSort.sortKey}
+                        dir={discoveriesSort.sortDir}
+                        onSort={discoveriesSort.toggleSort}
+                      />
+                      <SortableTh
+                        label="분류"
+                        sortKey="category"
+                        activeKey={discoveriesSort.sortKey}
+                        dir={discoveriesSort.sortDir}
+                        onSort={discoveriesSort.toggleSort}
+                      />
+                      <SortableTh
+                        label="난이도"
+                        sortKey="rank"
+                        activeKey={discoveriesSort.sortKey}
+                        dir={discoveriesSort.sortDir}
+                        onSort={discoveriesSort.toggleSort}
+                      />
+                      <SortableTh
+                        label="카드P"
+                        sortKey="cardPoints"
+                        activeKey={discoveriesSort.sortKey}
+                        dir={discoveriesSort.sortDir}
+                        onSort={discoveriesSort.toggleSort}
+                      />
+                      <SortableTh
+                        label="발견 방법"
+                        sortKey="acquire"
+                        activeKey={discoveriesSort.sortKey}
+                        dir={discoveriesSort.sortDir}
+                        onSort={discoveriesSort.toggleSort}
+                      />
                     </tr>
                   </thead>
                   <tbody>
-                    {discoveries.map((discovery, index) => (
+                    {sortedDiscoveries.map((discovery, index) => (
                       <tr
                         key={discovery.id}
                         className={`admin-row-clickable${index % 2 === 0 ? ' is-even' : ' is-odd'}`}
@@ -1249,7 +1575,7 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
                         </td>
                       </tr>
                     ))}
-                    {discoveries.length === 0 && (
+                    {sortedDiscoveries.length === 0 && (
                       <tr>
                         <td colSpan={5}>등록된 발견물이 없습니다.</td>
                       </tr>
@@ -1346,10 +1672,46 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
                   <table className="admin-table">
                     <thead>
                       <tr>
-                        <th>이름</th>
-                        <th>범위</th>
-                        <th>습득 비용</th>
-                        <th>사용 도시</th>
+                        <SortableTh
+                          label="이름"
+                          sortKey="name"
+                          activeKey={languagesSort.sortKey}
+                          dir={languagesSort.sortDir}
+                          onSort={(key) => {
+                            languagesSort.toggleSort(key)
+                            setLanguagePage(0)
+                          }}
+                        />
+                        <SortableTh
+                          label="범위"
+                          sortKey="rangeScope"
+                          activeKey={languagesSort.sortKey}
+                          dir={languagesSort.sortDir}
+                          onSort={(key) => {
+                            languagesSort.toggleSort(key)
+                            setLanguagePage(0)
+                          }}
+                        />
+                        <SortableTh
+                          label="습득 비용"
+                          sortKey="learnCost"
+                          activeKey={languagesSort.sortKey}
+                          dir={languagesSort.sortDir}
+                          onSort={(key) => {
+                            languagesSort.toggleSort(key)
+                            setLanguagePage(0)
+                          }}
+                        />
+                        <SortableTh
+                          label="사용 도시"
+                          sortKey="useCities"
+                          activeKey={languagesSort.sortKey}
+                          dir={languagesSort.sortDir}
+                          onSort={(key) => {
+                            languagesSort.toggleSort(key)
+                            setLanguagePage(0)
+                          }}
+                        />
                       </tr>
                     </thead>
                     <tbody>
@@ -1382,7 +1744,7 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
                           </td>
                         </tr>
                       ))}
-                      {languages.length === 0 && (
+                      {sortedLanguages.length === 0 && (
                         <tr>
                           <td colSpan={4}>등록된 언어가 없습니다.</td>
                         </tr>
@@ -1391,7 +1753,7 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
                   </table>
                 </div>
 
-                {languages.length > 0 && (
+                {sortedLanguages.length > 0 && (
                   <div className="catalog-pager" aria-label="언어 목록 페이지">
                     <button
                       type="button"
@@ -1405,7 +1767,7 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
                     </button>
                     <span>
                       {languageSafePage + 1} / {languageTotalPages}
-                      <em>· {languages.length}개</em>
+                      <em>· {sortedLanguages.length}개</em>
                     </span>
                     <button
                       type="button"

@@ -192,12 +192,20 @@ export function fetchBoards(token: string, preview = false) {
   )
 }
 
-export function fetchBoardPosts(token: string, boardId: string) {
+export function fetchBoardPosts(
+  token: string,
+  boardId: string,
+  opts?: { limit?: number; offset?: number },
+) {
+  const params = new URLSearchParams()
+  if (opts?.limit != null) params.set('limit', String(opts.limit))
+  if (opts?.offset != null) params.set('offset', String(opts.offset))
+  const query = params.toString()
   return request<{
     board: BoardSummary
     total: number
     posts: BoardPost[]
-  }>(`/api/boards/${boardId}/posts`, { token })
+  }>(`/api/boards/${boardId}/posts${query ? `?${query}` : ''}`, { token })
 }
 
 export function fetchBoardPost(token: string, boardId: string, postId: string) {
@@ -327,6 +335,21 @@ export function importShipMaterialText(token: string, text: string) {
       body: { text },
     },
   )
+}
+
+export function fetchAdminStats(token: string) {
+  return request<{
+    counts: {
+      users: number
+      ships: number
+      quests: number
+      ports: number
+      discoveries: number
+      languages: number
+      materials: number
+      featureRequests: number
+    }
+  }>('/api/admin/stats', { token })
 }
 
 export function fetchAdminUsers(token: string) {

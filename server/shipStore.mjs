@@ -564,20 +564,40 @@ function normalizeShipName(name) {
     .replace(/\s+/g, ' ')
 }
 
-/** 텍스트 파싱 결과로 선박 신규 등록 (동일 이름 거부) */
+/** @param {number} shipId */
+async function replaceShipSkillLinks(sql, shipId, skills) {
+  await sql`DELETE FROM ship_skill_links WHERE ship_id = ${shipId}`
+  for (const [sortIdx, skill] of (skills || []).entries()) {
+    if (!skill?.name) continue
+    const skillId = await ensureSkillId(skill.name)
+    await sql`
+      INSERT INTO ship_skill_links (
+        ship_id, skill_id, sort_order, sail, gun_port, material1, material2
+      ) VALUES (
+        ${shipId}, ${skillId}, ${sortIdx},
+        ${skill.sail}, ${skill.gunPort}, ${skill.material1}, ${skill.material2}
+      )
+      ON CONFLICT (ship_id, skill_id) DO UPDATE SET
+        sort_order = EXCLUDED.sort_order,
+        sail = EXCLUDED.sail,
+        gun_port = EXCLUDED.gun_port,
+        material1 = EXCLUDED.material1,
+        material2 = EXCLUDED.material2
+    `
+  }
+}
+
+/** 텍스트 파싱 결과로 선박 추가·갱신 (같은 이름이면 덮어씀) */
 export async function upsertShipFromParsed(parsed) {
   const sql = getSql()
   const name = normalizeShipName(parsed.name)
   if (!name) throw new Error('선박 이름이 없습니다.')
 
-  const dup = await sql`
-    SELECT id, name FROM ships
+  const existing = await sql`
+    SELECT id, slug, name FROM ships
     WHERE TRIM(BOTH FROM regexp_replace(name, '\\s+', ' ', 'g')) = ${name}
     LIMIT 1
   `
-  if (dup[0]) {
-    throw new Error(`중복 선박이 존재합니다. (「${dup[0].name}」)`)
-  }
 
   const { sizes, forms } = await loadLookups()
 
@@ -590,6 +610,60 @@ export async function upsertShipFromParsed(parsed) {
   }
 
   const materialId = await ensureMaterialId(parsed.materialName)
+
+  if (existing[0]) {
+    const shipId = Number(existing[0].id)
+    const slug = String(existing[0].slug)
+    await sql`
+      UPDATE ships SET
+        name = ${name},
+        category = ${parsed.category},
+        description = ${parsed.description},
+        size_id = ${sizeId},
+        form_id = ${formId},
+        material_id = ${materialId},
+        adventure_lv = ${parsed.adventureLv},
+        trade_lv = ${parsed.tradeLv},
+        battle_lv = ${parsed.battleLv},
+        acquire_type = ${parsed.acquireType},
+        acquire_method = ${parsed.acquireMethod},
+        enhance_count = ${parsed.enhanceCount},
+        build_days = ${parsed.buildDays},
+        durability = ${parsed.durability},
+        sail_vertical = ${parsed.sailVertical},
+        sail_horizontal = ${parsed.sailHorizontal},
+        oar = ${parsed.oar},
+        turn_stat = ${parsed.turn},
+        wave_resist = ${parsed.wave},
+        armor = ${parsed.armor},
+        cabin = ${parsed.cabin},
+        crew_required = ${parsed.crewRequired},
+        guns = ${parsed.guns},
+        warehouse = ${parsed.warehouse},
+        cap_durability = ${parsed.caps.durability},
+        cap_sail_vertical = ${parsed.caps.sailVertical},
+        cap_sail_horizontal = ${parsed.caps.sailHorizontal},
+        cap_oar = ${parsed.caps.oar},
+        cap_turn = ${parsed.caps.turn},
+        cap_wave = ${parsed.caps.wave},
+        cap_armor = ${parsed.caps.armor},
+        cap_cabin = ${parsed.caps.cabin},
+        cap_guns = ${parsed.caps.guns},
+        cap_warehouse = ${parsed.caps.warehouse},
+        part_aux_sail = ${parsed.parts.auxSail},
+        part_figurehead = ${parsed.parts.figurehead},
+        part_emblem = ${parsed.parts.emblem},
+        part_special = ${parsed.parts.special},
+        part_extra_armor = ${parsed.parts.extraArmor},
+        part_broadside = ${parsed.parts.broadside},
+        part_bow = ${parsed.parts.bow},
+        part_stern = ${parsed.parts.stern},
+        enabled = TRUE
+      WHERE id = ${shipId}
+    `
+    await replaceShipSkillLinks(sql, shipId, parsed.skills || [])
+    return getShipBySlug(slug)
+  }
 
   let slug = parsed.slug
   let attempt = slug
@@ -641,24 +715,6 @@ export async function upsertShipFromParsed(parsed) {
     )
   `
 
-  for (const [sortIdx, skill] of (parsed.skills || []).entries()) {
-    if (!skill?.name) continue
-    const skillId = await ensureSkillId(skill.name)
-    await sql`
-      INSERT INTO ship_skill_links (
-        ship_id, skill_id, sort_order, sail, gun_port, material1, material2
-      ) VALUES (
-        ${shipId}, ${skillId}, ${sortIdx},
-        ${skill.sail}, ${skill.gunPort}, ${skill.material1}, ${skill.material2}
-      )
-      ON CONFLICT (ship_id, skill_id) DO UPDATE SET
-        sort_order = EXCLUDED.sort_order,
-        sail = EXCLUDED.sail,
-        gun_port = EXCLUDED.gun_port,
-        material1 = EXCLUDED.material1,
-        material2 = EXCLUDED.material2
-    `
-  }
-
+  await replaceShipSkillLinks(sql, shipId, parsed.skills || [])
   return getShipBySlug(slug)
 }

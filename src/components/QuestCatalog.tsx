@@ -1,11 +1,40 @@
 import { useEffect, useState, type KeyboardEvent } from 'react'
 import { fetchQuests } from '../lib/api'
+import { matchesQuestQuery } from '../lib/questSearch'
+import { useTableSort } from '../lib/tableSort'
 import type { QuestDetail } from '../types'
 import { DetailModal } from './DetailModal'
 import { QuestDetailView } from './QuestDetailView'
+import { SortableTh } from './SortableTh'
 
 type QuestCatalogProps = {
   token: string
+}
+
+type QuestSortKey =
+  | 'name'
+  | 'category'
+  | 'difficulty'
+  | 'requestPlaces'
+  | 'destination'
+  | 'discovery'
+
+function discoveryLabel(quest: QuestDetail) {
+  return (
+    [
+      quest.discoveryCategory ? `[${quest.discoveryCategory}]` : null,
+      quest.discoveryRank,
+      quest.discoveryName,
+    ]
+      .filter((v) => v != null && v !== '')
+      .join(' ') || ''
+  )
+}
+
+function categoryLabel(quest: QuestDetail) {
+  return quest.category
+    ? `[${quest.category}] ${quest.questType || ''}`.trim()
+    : ''
 }
 
 export function QuestCatalog({ token }: QuestCatalogProps) {
@@ -13,6 +42,9 @@ export function QuestCatalog({ token }: QuestCatalogProps) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [detail, setDetail] = useState<QuestDetail | null>(null)
+  const [query, setQuery] = useState('')
+  const { sortKey, sortDir, toggleSort, sortRows } =
+    useTableSort<QuestSortKey>('name')
 
   useEffect(() => {
     let alive = true
@@ -37,6 +69,28 @@ export function QuestCatalog({ token }: QuestCatalogProps) {
     }
   }, [token])
 
+  const filtered = quests.filter((quest) => matchesQuestQuery(quest, query))
+  const rows = sortRows(
+    filtered,
+    (quest, key) => {
+      switch (key) {
+        case 'name':
+          return quest.name
+        case 'category':
+          return categoryLabel(quest)
+        case 'difficulty':
+          return quest.difficulty
+        case 'requestPlaces':
+          return quest.requestPlaces
+        case 'destination':
+          return quest.destination
+        case 'discovery':
+          return discoveryLabel(quest)
+      }
+    },
+    (a, b) => a.id - b.id,
+  )
+
   return (
     <section className="tool-page">
       <div className="messages-head">
@@ -45,6 +99,18 @@ export function QuestCatalog({ token }: QuestCatalogProps) {
           <p>등록된 퀘스트를 확인하고 상세를 엽니다.</p>
         </div>
       </div>
+
+      <label className="field catalog-search">
+        <input
+          type="search"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="이름·분류·장소·발견물로 검색"
+          aria-label="퀘스트 검색"
+          autoComplete="off"
+          disabled={loading}
+        />
+      </label>
 
       {error && (
         <p className="form-note error" role="alert">
@@ -59,16 +125,52 @@ export function QuestCatalog({ token }: QuestCatalogProps) {
           <table className="admin-table">
             <thead>
               <tr>
-                <th>이름</th>
-                <th>분류</th>
-                <th>난이도</th>
-                <th>의뢰 장소</th>
-                <th>목적지</th>
-                <th>발견물</th>
+                <SortableTh
+                  label="이름"
+                  sortKey="name"
+                  activeKey={sortKey}
+                  dir={sortDir}
+                  onSort={toggleSort}
+                />
+                <SortableTh
+                  label="분류"
+                  sortKey="category"
+                  activeKey={sortKey}
+                  dir={sortDir}
+                  onSort={toggleSort}
+                />
+                <SortableTh
+                  label="난이도"
+                  sortKey="difficulty"
+                  activeKey={sortKey}
+                  dir={sortDir}
+                  onSort={toggleSort}
+                />
+                <SortableTh
+                  label="의뢰 장소"
+                  sortKey="requestPlaces"
+                  activeKey={sortKey}
+                  dir={sortDir}
+                  onSort={toggleSort}
+                />
+                <SortableTh
+                  label="목적지"
+                  sortKey="destination"
+                  activeKey={sortKey}
+                  dir={sortDir}
+                  onSort={toggleSort}
+                />
+                <SortableTh
+                  label="발견물"
+                  sortKey="discovery"
+                  activeKey={sortKey}
+                  dir={sortDir}
+                  onSort={toggleSort}
+                />
               </tr>
             </thead>
             <tbody>
-              {quests.map((quest, index) => (
+              {rows.map((quest, index) => (
                 <tr
                   key={quest.id}
                   className={`admin-row-clickable${index % 2 === 0 ? ' is-even' : ' is-odd'}`}
@@ -82,30 +184,20 @@ export function QuestCatalog({ token }: QuestCatalogProps) {
                   }}
                 >
                   <td>{quest.name}</td>
-                  <td>
-                    {quest.category
-                      ? `[${quest.category}] ${quest.questType || ''}`.trim()
-                      : '-'}
-                  </td>
+                  <td>{categoryLabel(quest) || '-'}</td>
                   <td>{quest.difficulty ?? '-'}</td>
                   <td>{quest.requestPlaces || '-'}</td>
                   <td>{quest.destination || '-'}</td>
-                  <td>
-                    {[
-                      quest.discoveryCategory
-                        ? `[${quest.discoveryCategory}]`
-                        : null,
-                      quest.discoveryRank,
-                      quest.discoveryName,
-                    ]
-                      .filter((v) => v != null && v !== '')
-                      .join(' ') || '-'}
-                  </td>
+                  <td>{discoveryLabel(quest) || '-'}</td>
                 </tr>
               ))}
-              {quests.length === 0 && (
+              {rows.length === 0 && (
                 <tr>
-                  <td colSpan={6}>등록된 퀘스트가 없습니다.</td>
+                  <td colSpan={6}>
+                    {quests.length === 0
+                      ? '등록된 퀘스트가 없습니다.'
+                      : '검색 결과가 없습니다.'}
+                  </td>
                 </tr>
               )}
             </tbody>

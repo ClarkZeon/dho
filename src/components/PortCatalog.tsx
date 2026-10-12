@@ -1,18 +1,30 @@
 import { useEffect, useState, type KeyboardEvent } from 'react'
 import { fetchPorts } from '../lib/api'
+import { useTableSort } from '../lib/tableSort'
 import type { PortDetail } from '../types'
 import { DetailModal } from './DetailModal'
 import { PortDetailView } from './PortDetailView'
+import { SortableTh } from './SortableTh'
 
 type PortCatalogProps = {
   token: string
 }
+
+type PortSortKey =
+  | 'name'
+  | 'category'
+  | 'region'
+  | 'seaArea'
+  | 'entryPermit'
+  | 'language'
 
 export function PortCatalog({ token }: PortCatalogProps) {
   const [ports, setPorts] = useState<PortDetail[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [detail, setDetail] = useState<PortDetail | null>(null)
+  const { sortKey, sortDir, toggleSort, sortRows } =
+    useTableSort<PortSortKey>('name')
 
   useEffect(() => {
     let alive = true
@@ -39,6 +51,12 @@ export function PortCatalog({ token }: PortCatalogProps) {
     }
   }, [token])
 
+  const rows = sortRows(
+    ports,
+    (port, key) => port[key],
+    (a, b) => a.id - b.id,
+  )
+
   return (
     <section className="tool-page">
       <div className="messages-head">
@@ -61,16 +79,52 @@ export function PortCatalog({ token }: PortCatalogProps) {
           <table className="admin-table">
             <thead>
               <tr>
-                <th>이름</th>
-                <th>분류</th>
-                <th>지역</th>
-                <th>해역</th>
-                <th>입항허가</th>
-                <th>언어</th>
+                <SortableTh
+                  label="이름"
+                  sortKey="name"
+                  activeKey={sortKey}
+                  dir={sortDir}
+                  onSort={toggleSort}
+                />
+                <SortableTh
+                  label="분류"
+                  sortKey="category"
+                  activeKey={sortKey}
+                  dir={sortDir}
+                  onSort={toggleSort}
+                />
+                <SortableTh
+                  label="지역"
+                  sortKey="region"
+                  activeKey={sortKey}
+                  dir={sortDir}
+                  onSort={toggleSort}
+                />
+                <SortableTh
+                  label="해역"
+                  sortKey="seaArea"
+                  activeKey={sortKey}
+                  dir={sortDir}
+                  onSort={toggleSort}
+                />
+                <SortableTh
+                  label="입항허가"
+                  sortKey="entryPermit"
+                  activeKey={sortKey}
+                  dir={sortDir}
+                  onSort={toggleSort}
+                />
+                <SortableTh
+                  label="언어"
+                  sortKey="language"
+                  activeKey={sortKey}
+                  dir={sortDir}
+                  onSort={toggleSort}
+                />
               </tr>
             </thead>
             <tbody>
-              {ports.map((port, index) => (
+              {rows.map((port, index) => (
                 <tr
                   key={port.id}
                   className={`admin-row-clickable${index % 2 === 0 ? ' is-even' : ' is-odd'}`}
@@ -91,7 +145,7 @@ export function PortCatalog({ token }: PortCatalogProps) {
                   <td>{port.language || '-'}</td>
                 </tr>
               ))}
-              {ports.length === 0 && (
+              {rows.length === 0 && (
                 <tr>
                   <td colSpan={6}>등록된 항구(도시)가 없습니다.</td>
                 </tr>
