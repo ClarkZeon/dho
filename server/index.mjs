@@ -27,6 +27,8 @@ import {
   markMessageRead,
 } from './messageStore.mjs'
 import {
+  deleteShip,
+  deleteShipMaterial,
   ensureShipStore,
   getShipBySlug,
   listShipLookups,
@@ -38,6 +40,7 @@ import {
 import { parseShipText } from './shipTextParse.mjs'
 import { parseShipMaterialText } from './shipMaterialTextParse.mjs'
 import {
+  deleteQuest,
   ensureQuestStore,
   getQuestById,
   listQuests,
@@ -47,12 +50,14 @@ import {
 } from './questStore.mjs'
 import { parseQuestText } from './questTextParse.mjs'
 import {
+  deletePort,
   ensurePortStore,
   listPorts,
   upsertPortFromParsed,
 } from './portStore.mjs'
 import { parsePortText } from './portTextParse.mjs'
 import {
+  deleteDiscovery,
   ensureDiscoveryStore,
   listDiscoveries,
   listDiscoveryCategoryTree,
@@ -60,6 +65,7 @@ import {
 } from './discoveryStore.mjs'
 import { parseDiscoveryText } from './discoveryTextParse.mjs'
 import {
+  deleteLibraryLanguage,
   ensureLibraryLanguageStore,
   listLibraryLanguages,
   upsertLibraryLanguageFromParsed,
@@ -843,6 +849,36 @@ export async function handleRequest(req, res) {
       return
     }
 
+    const shipMaterialMatch = pathname.match(
+      /^\/api\/ship-materials\/([^/]+)$/,
+    )
+    if (shipMaterialMatch && req.method === 'DELETE') {
+      const authUser = await getAuthUser(req)
+      if (!authUser) {
+        sendJson(res, 401, { error: '로그인이 필요합니다.' })
+        return
+      }
+      if (!requireAdmin(authUser, res)) return
+      const materialId = Number(decodeURIComponent(shipMaterialMatch[1]))
+      if (!Number.isFinite(materialId)) {
+        sendJson(res, 400, { error: '잘못된 재료 ID입니다.' })
+        return
+      }
+      try {
+        await deleteShipMaterial(materialId)
+        sendJson(res, 200, { ok: true })
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : '선박 재료 삭제에 실패했습니다.'
+        sendJson(
+          res,
+          message.includes('찾을 수 없') ? 404 : 400,
+          { error: message },
+        )
+      }
+      return
+    }
+
     if (req.method === 'GET' && pathname === '/api/quests') {
       const authUser = await getAuthUser(req)
       if (!authUser) {
@@ -945,6 +981,34 @@ export async function handleRequest(req, res) {
       return
     }
 
+    const portMatch = pathname.match(/^\/api\/ports\/([^/]+)$/)
+    if (portMatch && req.method === 'DELETE') {
+      const authUser = await getAuthUser(req)
+      if (!authUser) {
+        sendJson(res, 401, { error: '로그인이 필요합니다.' })
+        return
+      }
+      if (!requireAdmin(authUser, res)) return
+      const portId = Number(decodeURIComponent(portMatch[1]))
+      if (!Number.isFinite(portId)) {
+        sendJson(res, 400, { error: '잘못된 항구 ID입니다.' })
+        return
+      }
+      try {
+        await deletePort(portId)
+        sendJson(res, 200, { ok: true })
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : '항구(도시) 삭제에 실패했습니다.'
+        sendJson(
+          res,
+          message.includes('찾을 수 없') ? 404 : 400,
+          { error: message },
+        )
+      }
+      return
+    }
+
     if (req.method === 'GET' && pathname === '/api/discoveries') {
       const authUser = await getAuthUser(req)
       if (!authUser) {
@@ -991,6 +1055,34 @@ export async function handleRequest(req, res) {
       return
     }
 
+    const discoveryMatch = pathname.match(/^\/api\/discoveries\/([^/]+)$/)
+    if (discoveryMatch && req.method === 'DELETE') {
+      const authUser = await getAuthUser(req)
+      if (!authUser) {
+        sendJson(res, 401, { error: '로그인이 필요합니다.' })
+        return
+      }
+      if (!requireAdmin(authUser, res)) return
+      const discoveryId = Number(decodeURIComponent(discoveryMatch[1]))
+      if (!Number.isFinite(discoveryId)) {
+        sendJson(res, 400, { error: '잘못된 발견물 ID입니다.' })
+        return
+      }
+      try {
+        await deleteDiscovery(discoveryId)
+        sendJson(res, 200, { ok: true })
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : '발견물 삭제에 실패했습니다.'
+        sendJson(
+          res,
+          message.includes('찾을 수 없') ? 404 : 400,
+          { error: message },
+        )
+      }
+      return
+    }
+
     if (req.method === 'GET' && pathname === '/api/library-languages') {
       const authUser = await getAuthUser(req)
       if (!authUser) {
@@ -1029,7 +1121,62 @@ export async function handleRequest(req, res) {
       return
     }
 
+    const languageMatch = pathname.match(/^\/api\/library-languages\/([^/]+)$/)
+    if (languageMatch && req.method === 'DELETE') {
+      const authUser = await getAuthUser(req)
+      if (!authUser) {
+        sendJson(res, 401, { error: '로그인이 필요합니다.' })
+        return
+      }
+      if (!requireAdmin(authUser, res)) return
+      const languageId = Number(decodeURIComponent(languageMatch[1]))
+      if (!Number.isFinite(languageId)) {
+        sendJson(res, 400, { error: '잘못된 언어 ID입니다.' })
+        return
+      }
+      try {
+        await deleteLibraryLanguage(languageId)
+        sendJson(res, 200, { ok: true })
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : '언어 삭제에 실패했습니다.'
+        sendJson(
+          res,
+          message.includes('찾을 수 없') ? 404 : 400,
+          { error: message },
+        )
+      }
+      return
+    }
+
     const questMatch = pathname.match(/^\/api\/quests\/([^/]+)$/)
+    if (questMatch && req.method === 'DELETE') {
+      const authUser = await getAuthUser(req)
+      if (!authUser) {
+        sendJson(res, 401, { error: '로그인이 필요합니다.' })
+        return
+      }
+      if (!requireAdmin(authUser, res)) return
+      const questId = Number(decodeURIComponent(questMatch[1]))
+      if (!Number.isFinite(questId)) {
+        sendJson(res, 400, { error: '잘못된 퀘스트 ID입니다.' })
+        return
+      }
+      try {
+        await deleteQuest(questId)
+        sendJson(res, 200, { ok: true })
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : '퀘스트 삭제에 실패했습니다.'
+        sendJson(
+          res,
+          message.includes('찾을 수 없') ? 404 : 400,
+          { error: message },
+        )
+      }
+      return
+    }
+
     if (questMatch && req.method === 'PATCH') {
       const authUser = await getAuthUser(req)
       if (!authUser) {
@@ -1072,6 +1219,33 @@ export async function handleRequest(req, res) {
     }
 
     const shipMatch = pathname.match(/^\/api\/ships\/([^/]+)$/)
+    if (shipMatch && req.method === 'DELETE') {
+      const authUser = await getAuthUser(req)
+      if (!authUser) {
+        sendJson(res, 401, { error: '로그인이 필요합니다.' })
+        return
+      }
+      if (!requireAdmin(authUser, res)) return
+      const shipId = Number(decodeURIComponent(shipMatch[1]))
+      if (!Number.isFinite(shipId)) {
+        sendJson(res, 400, { error: '잘못된 선박 ID입니다.' })
+        return
+      }
+      try {
+        await deleteShip(shipId)
+        sendJson(res, 200, { ok: true })
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : '선박 삭제에 실패했습니다.'
+        sendJson(
+          res,
+          message.includes('찾을 수 없') ? 404 : 400,
+          { error: message },
+        )
+      }
+      return
+    }
+
     if (req.method === 'GET' && shipMatch) {
       const authUser = await getAuthUser(req)
       if (!authUser) {

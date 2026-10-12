@@ -209,6 +209,20 @@ export async function listDiscoveries() {
   return withQuestLinksMany(rows.map(decorateDiscovery))
 }
 
+/** @param {number} id */
+export async function deleteDiscovery(id) {
+  const sql = getSql()
+  const discoveryId = Number(id)
+  if (!Number.isFinite(discoveryId)) throw new Error('잘못된 발견물 ID입니다.')
+  const rows = await sql`
+    UPDATE discoveries SET enabled = FALSE
+    WHERE id = ${discoveryId} AND enabled = TRUE
+    RETURNING id
+  `
+  if (!rows[0]) throw new Error('발견물을 찾을 수 없습니다.')
+  return { ok: true }
+}
+
 export async function getDiscoveryBySlug(slug) {
   const sql = getSql()
   const rows = await sql`

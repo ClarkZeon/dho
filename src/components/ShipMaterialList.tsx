@@ -1,4 +1,9 @@
-import { useState, type FormEvent, type KeyboardEvent } from 'react'
+import {
+  useState,
+  type FormEvent,
+  type KeyboardEvent,
+  type MouseEvent,
+} from 'react'
 import {
   effectNumeric,
   effectsByColumn,
@@ -17,6 +22,8 @@ const PAGE_SIZE = 15
 type ShipMaterialListProps = {
   materials: ShipMaterialDetail[]
   onOpen: (material: ShipMaterialDetail) => void
+  onDelete?: (material: ShipMaterialDetail) => void
+  deletingId?: number | null
 }
 
 function buildPageWindow(current: number, total: number, maxButtons = 10) {
@@ -33,7 +40,12 @@ function buildPageWindow(current: number, total: number, maxButtons = 10) {
   return Array.from({ length: end - start }, (_, i) => start + i)
 }
 
-export function ShipMaterialList({ materials, onOpen }: ShipMaterialListProps) {
+export function ShipMaterialList({
+  materials,
+  onOpen,
+  onDelete,
+  deletingId = null,
+}: ShipMaterialListProps) {
   const [selectedKinds, setSelectedKinds] = useState<Set<string>>(
     () => new Set(),
   )
@@ -94,6 +106,16 @@ export function ShipMaterialList({ materials, onOpen }: ShipMaterialListProps) {
     setPage(0)
   }
 
+  function handleDeleteClick(
+    event: MouseEvent<HTMLButtonElement>,
+    material: ShipMaterialDetail,
+  ) {
+    event.stopPropagation()
+    onDelete?.(material)
+  }
+
+  const colCount = 2 + MATERIAL_STAT_COLUMNS.length + (onDelete ? 1 : 0)
+
   return (
     <div className="material-list">
       <div className="material-list-toolbar">
@@ -134,6 +156,7 @@ export function ShipMaterialList({ materials, onOpen }: ShipMaterialListProps) {
           <thead>
             <tr>
               <SortableTh
+                className="col-desk"
                 label="번호"
                 sortKey="id"
                 activeKey={sortKey}
@@ -151,6 +174,7 @@ export function ShipMaterialList({ materials, onOpen }: ShipMaterialListProps) {
               {MATERIAL_STAT_COLUMNS.map((stat) => (
                 <SortableTh
                   key={stat}
+                  className="col-desk"
                   label={stat}
                   sortKey={stat}
                   activeKey={sortKey}
@@ -159,6 +183,7 @@ export function ShipMaterialList({ materials, onOpen }: ShipMaterialListProps) {
                   align="center"
                 />
               ))}
+              {onDelete && <th className="col-desk">삭제</th>}
             </tr>
           </thead>
           <tbody>
@@ -177,19 +202,35 @@ export function ShipMaterialList({ materials, onOpen }: ShipMaterialListProps) {
                     }
                   }}
                 >
-                  <td className="material-list-num">{material.id}</td>
+                  <td className="material-list-num col-desk">{material.id}</td>
                   <td>{material.name}</td>
                   {MATERIAL_STAT_COLUMNS.map((stat) => (
-                    <td key={stat} className="material-list-stat">
+                    <td key={stat} className="material-list-stat col-desk">
                       {stats[stat] || ''}
                     </td>
                   ))}
+                  {onDelete && (
+                    <td
+                      className="admin-cell-control col-desk"
+                      onClick={(e) => e.stopPropagation()}
+                      onKeyDown={(e) => e.stopPropagation()}
+                    >
+                      <button
+                        type="button"
+                        className="admin-danger-btn"
+                        disabled={deletingId === material.id}
+                        onClick={(e) => handleDeleteClick(e, material)}
+                      >
+                        삭제
+                      </button>
+                    </td>
+                  )}
                 </tr>
               )
             })}
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={2 + MATERIAL_STAT_COLUMNS.length}>
+                <td colSpan={colCount}>
                   {materials.length === 0
                     ? '등록된 선박 재료가 없습니다.'
                     : '검색 결과가 없습니다.'}

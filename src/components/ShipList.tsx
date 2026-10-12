@@ -1,22 +1,17 @@
-import { useState, type KeyboardEvent } from 'react'
+import { useState, type KeyboardEvent, type MouseEvent } from 'react'
 import { useTableSort } from '../lib/tableSort'
 import type { ShipDetail } from '../types'
 import { SortableTh } from './SortableTh'
 
 const PAGE_SIZE = 15
 
-type ShipSortKey =
-  | 'name'
-  | 'category'
-  | 'size'
-  | 'form'
-  | 'level'
-  | 'acquireType'
-  | 'acquireMethod'
+type ShipSortKey = 'name' | 'category' | 'size' | 'form' | 'level'
 
 type ShipListProps = {
   ships: ShipDetail[]
   onOpen: (ship: ShipDetail) => void
+  onDelete?: (ship: ShipDetail) => void
+  deletingId?: number | null
   emptyText?: string
 }
 
@@ -46,6 +41,8 @@ function matchesShipQuery(ship: ShipDetail, query: string) {
 export function ShipList({
   ships,
   onOpen,
+  onDelete,
+  deletingId = null,
   emptyText = '등록된 선박이 없습니다.',
 }: ShipListProps) {
   const [query, setQuery] = useState('')
@@ -72,10 +69,19 @@ export function ShipList({
     safePage * PAGE_SIZE,
     safePage * PAGE_SIZE + PAGE_SIZE,
   )
+  const colCount = onDelete ? 6 : 5
 
   function handleSort(key: ShipSortKey) {
     toggleSort(key)
     setPage(0)
+  }
+
+  function handleDeleteClick(
+    event: MouseEvent<HTMLButtonElement>,
+    ship: ShipDetail,
+  ) {
+    event.stopPropagation()
+    onDelete?.(ship)
   }
 
   return (
@@ -88,7 +94,7 @@ export function ShipList({
             setQuery(e.target.value)
             setPage(0)
           }}
-          placeholder="이름·분류·크기·획득으로 검색"
+          placeholder="이름·분류·크기·형태로 검색"
           aria-label="선박 검색"
           autoComplete="off"
         />
@@ -106,6 +112,7 @@ export function ShipList({
                 onSort={handleSort}
               />
               <SortableTh
+                className="col-desk"
                 label="분류"
                 sortKey="category"
                 activeKey={sortKey}
@@ -113,6 +120,7 @@ export function ShipList({
                 onSort={handleSort}
               />
               <SortableTh
+                className="col-desk"
                 label="크기"
                 sortKey="size"
                 activeKey={sortKey}
@@ -120,6 +128,7 @@ export function ShipList({
                 onSort={handleSort}
               />
               <SortableTh
+                className="col-desk"
                 label="형태"
                 sortKey="form"
                 activeKey={sortKey}
@@ -127,26 +136,14 @@ export function ShipList({
                 onSort={handleSort}
               />
               <SortableTh
+                className="col-desk"
                 label="레벨"
                 sortKey="level"
                 activeKey={sortKey}
                 dir={sortDir}
                 onSort={handleSort}
               />
-              <SortableTh
-                label="획득 구분"
-                sortKey="acquireType"
-                activeKey={sortKey}
-                dir={sortDir}
-                onSort={handleSort}
-              />
-              <SortableTh
-                label="획득 방법"
-                sortKey="acquireMethod"
-                activeKey={sortKey}
-                dir={sortDir}
-                onSort={handleSort}
-              />
+              {onDelete && <th className="col-desk">삭제</th>}
             </tr>
           </thead>
           <tbody>
@@ -164,19 +161,33 @@ export function ShipList({
                 }}
               >
                 <td>{ship.name}</td>
-                <td>{ship.category || '-'}</td>
-                <td>{ship.size || '-'}</td>
-                <td>{ship.form || '-'}</td>
-                <td>
+                <td className="col-desk">{ship.category || '-'}</td>
+                <td className="col-desk">{ship.size || '-'}</td>
+                <td className="col-desk">{ship.form || '-'}</td>
+                <td className="col-desk">
                   모{ship.adventureLv}/교{ship.tradeLv}/전{ship.battleLv}
                 </td>
-                <td>{ship.acquireType || '-'}</td>
-                <td>{ship.acquireMethod || '-'}</td>
+                {onDelete && (
+                  <td
+                    className="admin-cell-control col-desk"
+                    onClick={(e) => e.stopPropagation()}
+                    onKeyDown={(e) => e.stopPropagation()}
+                  >
+                    <button
+                      type="button"
+                      className="admin-danger-btn"
+                      disabled={deletingId === ship.id}
+                      onClick={(e) => handleDeleteClick(e, ship)}
+                    >
+                      삭제
+                    </button>
+                  </td>
+                )}
               </tr>
             ))}
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={7}>
+                <td colSpan={colCount}>
                   {ships.length === 0 ? emptyText : '검색 결과가 없습니다.'}
                 </td>
               </tr>

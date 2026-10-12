@@ -70,6 +70,20 @@ export async function getLibraryLanguageBySlug(slug) {
   return rows[0] ? decorateLanguage(rows[0]) : null
 }
 
+/** @param {number} id */
+export async function deleteLibraryLanguage(id) {
+  const sql = getSql()
+  const languageId = Number(id)
+  if (!Number.isFinite(languageId)) throw new Error('잘못된 언어 ID입니다.')
+  const rows = await sql`
+    UPDATE library_languages SET enabled = FALSE
+    WHERE id = ${languageId} AND enabled = TRUE
+    RETURNING id
+  `
+  if (!rows[0]) throw new Error('언어를 찾을 수 없습니다.')
+  return { ok: true }
+}
+
 async function findIdByName(sql, name) {
   const dup = await sql`
     SELECT id, slug FROM library_languages

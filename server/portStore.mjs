@@ -59,6 +59,20 @@ export async function getPortBySlug(slug) {
   return rows[0] ? decoratePort(rows[0]) : null
 }
 
+/** @param {number} id */
+export async function deletePort(id) {
+  const sql = getSql()
+  const portId = Number(id)
+  if (!Number.isFinite(portId)) throw new Error('잘못된 항구 ID입니다.')
+  const rows = await sql`
+    UPDATE ports SET enabled = FALSE
+    WHERE id = ${portId} AND enabled = TRUE
+    RETURNING id
+  `
+  if (!rows[0]) throw new Error('항구(도시)를 찾을 수 없습니다.')
+  return { ok: true }
+}
+
 async function findPortIdByName(sql, name) {
   const dup = await sql`
     SELECT id, slug FROM ports

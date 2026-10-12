@@ -157,6 +157,7 @@ export function LanguageCatalog({ token }: LanguageCatalogProps) {
                     onSort={handleSort}
                   />
                   <SortableTh
+                    className="col-desk"
                     label="범위"
                     sortKey="rangeScope"
                     activeKey={sortKey}
@@ -164,6 +165,7 @@ export function LanguageCatalog({ token }: LanguageCatalogProps) {
                     onSort={handleSort}
                   />
                   <SortableTh
+                    className="col-desk"
                     label="습득 비용"
                     sortKey="learnCost"
                     activeKey={sortKey}
@@ -171,6 +173,7 @@ export function LanguageCatalog({ token }: LanguageCatalogProps) {
                     onSort={handleSort}
                   />
                   <SortableTh
+                    className="col-desk"
                     label="사용 도시"
                     sortKey="useCities"
                     activeKey={sortKey}
@@ -194,13 +197,13 @@ export function LanguageCatalog({ token }: LanguageCatalogProps) {
                     }}
                   >
                     <td>{language.name}</td>
-                    <td>{language.rangeScope || '-'}</td>
-                    <td>
+                    <td className="col-desk">{language.rangeScope || '-'}</td>
+                    <td className="col-desk">
                       {language.learnCost != null
                         ? `${language.learnCost.toLocaleString('ko-KR')}두캇`
                         : '-'}
                     </td>
-                    <td className="admin-table-wrap-cell">
+                    <td className="admin-table-wrap-cell col-desk">
                       {useCitiesLabel(language) || '-'}
                     </td>
                   </tr>

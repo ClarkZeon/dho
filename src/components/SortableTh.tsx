@@ -7,6 +7,7 @@ type SortableThProps<K extends string> = {
   dir: SortDir
   onSort: (key: K) => void
   align?: 'left' | 'center'
+  className?: string
 }
 
 export function SortableTh<K extends string>({
@@ -16,11 +17,14 @@ export function SortableTh<K extends string>({
   dir,
   onSort,
   align = 'left',
+  className,
 }: SortableThProps<K>) {
   const active = activeKey === sortKey
   return (
     <th
-      className={`sortable-th align-${align}`}
+      className={['sortable-th', `align-${align}`, className]
+        .filter(Boolean)
+        .join(' ')}
       aria-sort={active ? (dir === 'asc' ? 'ascending' : 'descending') : 'none'}
     >
       <button

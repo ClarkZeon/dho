@@ -172,6 +172,20 @@ export async function getQuestById(id) {
   return rows[0] ? decorateQuest(rows[0]) : null
 }
 
+/** @param {number} id */
+export async function deleteQuest(id) {
+  const sql = getSql()
+  const questId = Number(id)
+  if (!Number.isFinite(questId)) throw new Error('잘못된 퀘스트 ID입니다.')
+  const rows = await sql`
+    UPDATE quests SET enabled = FALSE
+    WHERE id = ${questId} AND enabled = TRUE
+    RETURNING id
+  `
+  if (!rows[0]) throw new Error('퀘스트를 찾을 수 없습니다.')
+  return { ok: true }
+}
+
 /**
  * 난이도 부분 갱신
  * @param {number} id

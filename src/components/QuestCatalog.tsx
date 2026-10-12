@@ -178,6 +178,7 @@ export function QuestCatalog({ token }: QuestCatalogProps) {
                   onSort={toggleSort}
                 />
                 <SortableTh
+                  className="col-desk"
                   label="분류"
                   sortKey="category"
                   activeKey={sortKey}
@@ -185,6 +186,7 @@ export function QuestCatalog({ token }: QuestCatalogProps) {
                   onSort={toggleSort}
                 />
                 <SortableTh
+                  className="col-desk"
                   label="난이도"
                   sortKey="difficulty"
                   activeKey={sortKey}
@@ -192,6 +194,7 @@ export function QuestCatalog({ token }: QuestCatalogProps) {
                   onSort={toggleSort}
                 />
                 <SortableTh
+                  className="col-desk"
                   label="의뢰 장소"
                   sortKey="requestPlaces"
                   activeKey={sortKey}
@@ -199,6 +202,7 @@ export function QuestCatalog({ token }: QuestCatalogProps) {
                   onSort={toggleSort}
                 />
                 <SortableTh
+                  className="col-desk"
                   label="목적지"
                   sortKey="destination"
                   activeKey={sortKey}
@@ -206,6 +210,7 @@ export function QuestCatalog({ token }: QuestCatalogProps) {
                   onSort={toggleSort}
                 />
                 <SortableTh
+                  className="col-desk"
                   label="발견물"
                   sortKey="discovery"
                   activeKey={sortKey}
@@ -229,11 +234,11 @@ export function QuestCatalog({ token }: QuestCatalogProps) {
                   }}
                 >
                   <td>{quest.name}</td>
-                  <td>{categoryLabel(quest) || '-'}</td>
-                  <td>{quest.difficulty ?? '-'}</td>
-                  <td>{quest.requestPlaces || '-'}</td>
-                  <td>{quest.destination || '-'}</td>
-                  <td>{discoveryLabel(quest) || '-'}</td>
+                  <td className="col-desk">{categoryLabel(quest) || '-'}</td>
+                  <td className="col-desk">{quest.difficulty ?? '-'}</td>
+                  <td className="col-desk">{quest.requestPlaces || '-'}</td>
+                  <td className="col-desk">{quest.destination || '-'}</td>
+                  <td className="col-desk">{discoveryLabel(quest) || '-'}</td>
                 </tr>
               ))}
               {rows.length === 0 && (

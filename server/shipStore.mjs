@@ -376,6 +376,20 @@ export async function getShipMaterialById(id) {
   return rows[0] ? decorateShipMaterial(rows[0]) : null
 }
 
+/** @param {number} id */
+export async function deleteShipMaterial(id) {
+  const sql = getSql()
+  const materialId = Number(id)
+  if (!Number.isFinite(materialId)) throw new Error('잘못된 재료 ID입니다.')
+  const rows = await sql`
+    UPDATE ship_materials SET enabled = FALSE
+    WHERE id = ${materialId} AND enabled = TRUE
+    RETURNING id
+  `
+  if (!rows[0]) throw new Error('선박 재료를 찾을 수 없습니다.')
+  return { ok: true }
+}
+
 /**
  * @param {{
  *   name: string,
@@ -478,6 +492,20 @@ export async function listShips() {
       skillRows,
     ),
   )
+}
+
+/** @param {number} id */
+export async function deleteShip(id) {
+  const sql = getSql()
+  const shipId = Number(id)
+  if (!Number.isFinite(shipId)) throw new Error('잘못된 선박 ID입니다.')
+  const rows = await sql`
+    UPDATE ships SET enabled = FALSE
+    WHERE id = ${shipId} AND enabled = TRUE
+    RETURNING id
+  `
+  if (!rows[0]) throw new Error('선박을 찾을 수 없습니다.')
+  return { ok: true }
 }
 
 export async function getShipBySlug(slug) {

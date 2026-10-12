@@ -1,5 +1,12 @@
 import { useCallback, useEffect, useState, type FormEvent, type KeyboardEvent } from 'react'
 import {
+  deleteAdminUser,
+  deleteDiscovery,
+  deleteLibraryLanguage,
+  deletePort,
+  deleteQuest,
+  deleteShip,
+  deleteShipMaterial,
   fetchAdminUsers,
   fetchDiscoveries,
   fetchLibraryLanguages,
@@ -110,6 +117,7 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
   const [loadingUsers, setLoadingUsers] = useState(false)
   const [usersError, setUsersError] = useState('')
   const [busyId, setBusyId] = useState<string | null>(null)
+  const [deletingKey, setDeletingKey] = useState<string | null>(null)
   const [userQuery, setUserQuery] = useState('')
   const [userPage, setUserPage] = useState(0)
 
@@ -448,6 +456,123 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
     }
   }
 
+  async function handleDeleteUser(target: AdminUser) {
+    if (
+      !window.confirm(
+        `「${target.nickname}」(${target.username}) 계정을 삭제할까요?`,
+      )
+    ) {
+      return
+    }
+    const key = `user:${target.id}`
+    setDeletingKey(key)
+    try {
+      await deleteAdminUser(token, target.id)
+      setUsers((prev) => prev.filter((u) => u.id !== target.id))
+      onToast(`${target.nickname} 계정을 삭제했습니다.`)
+    } catch (err) {
+      onToast(err instanceof Error ? err.message : '삭제에 실패했습니다.')
+    } finally {
+      setDeletingKey(null)
+    }
+  }
+
+  async function handleDeleteShip(ship: ShipDetail) {
+    if (!window.confirm(`「${ship.name}」 선박을 삭제할까요?`)) return
+    const key = `ship:${ship.id}`
+    setDeletingKey(key)
+    try {
+      await deleteShip(token, ship.id)
+      setShips((prev) => prev.filter((s) => s.id !== ship.id))
+      if (detailShip?.id === ship.id) setDetailShip(null)
+      onToast(`선박 「${ship.name}」을(를) 삭제했습니다.`)
+    } catch (err) {
+      onToast(err instanceof Error ? err.message : '삭제에 실패했습니다.')
+    } finally {
+      setDeletingKey(null)
+    }
+  }
+
+  async function handleDeleteQuest(quest: QuestDetail) {
+    if (!window.confirm(`「${quest.name}」 퀘스트를 삭제할까요?`)) return
+    const key = `quest:${quest.id}`
+    setDeletingKey(key)
+    try {
+      await deleteQuest(token, quest.id)
+      setQuests((prev) => prev.filter((q) => q.id !== quest.id))
+      if (detailQuest?.id === quest.id) setDetailQuest(null)
+      onToast(`퀘스트 「${quest.name}」을(를) 삭제했습니다.`)
+    } catch (err) {
+      onToast(err instanceof Error ? err.message : '삭제에 실패했습니다.')
+    } finally {
+      setDeletingKey(null)
+    }
+  }
+
+  async function handleDeletePort(port: PortDetail) {
+    if (!window.confirm(`「${port.name}」 항구(도시)를 삭제할까요?`)) return
+    const key = `port:${port.id}`
+    setDeletingKey(key)
+    try {
+      await deletePort(token, port.id)
+      setPorts((prev) => prev.filter((p) => p.id !== port.id))
+      if (detailPort?.id === port.id) setDetailPort(null)
+      onToast(`항구 「${port.name}」을(를) 삭제했습니다.`)
+    } catch (err) {
+      onToast(err instanceof Error ? err.message : '삭제에 실패했습니다.')
+    } finally {
+      setDeletingKey(null)
+    }
+  }
+
+  async function handleDeleteDiscovery(discovery: DiscoveryDetail) {
+    if (!window.confirm(`「${discovery.name}」 발견물을 삭제할까요?`)) return
+    const key = `discovery:${discovery.id}`
+    setDeletingKey(key)
+    try {
+      await deleteDiscovery(token, discovery.id)
+      setDiscoveries((prev) => prev.filter((d) => d.id !== discovery.id))
+      if (detailDiscovery?.id === discovery.id) setDetailDiscovery(null)
+      onToast(`발견물 「${discovery.name}」을(를) 삭제했습니다.`)
+    } catch (err) {
+      onToast(err instanceof Error ? err.message : '삭제에 실패했습니다.')
+    } finally {
+      setDeletingKey(null)
+    }
+  }
+
+  async function handleDeleteLanguage(language: LibraryLanguageDetail) {
+    if (!window.confirm(`「${language.name}」 언어를 삭제할까요?`)) return
+    const key = `language:${language.id}`
+    setDeletingKey(key)
+    try {
+      await deleteLibraryLanguage(token, language.id)
+      setLanguages((prev) => prev.filter((l) => l.id !== language.id))
+      if (detailLanguage?.id === language.id) setDetailLanguage(null)
+      onToast(`언어 「${language.name}」을(를) 삭제했습니다.`)
+    } catch (err) {
+      onToast(err instanceof Error ? err.message : '삭제에 실패했습니다.')
+    } finally {
+      setDeletingKey(null)
+    }
+  }
+
+  async function handleDeleteMaterial(material: ShipMaterialDetail) {
+    if (!window.confirm(`「${material.name}」 재료를 삭제할까요?`)) return
+    const key = `material:${material.id}`
+    setDeletingKey(key)
+    try {
+      await deleteShipMaterial(token, material.id)
+      setMaterials((prev) => prev.filter((m) => m.id !== material.id))
+      if (detailMaterial?.id === material.id) setDetailMaterial(null)
+      onToast(`재료 「${material.name}」을(를) 삭제했습니다.`)
+    } catch (err) {
+      onToast(err instanceof Error ? err.message : '삭제에 실패했습니다.')
+    } finally {
+      setDeletingKey(null)
+    }
+  }
+
   async function handleImport(e: FormEvent) {
     e.preventDefault()
     if (!importText.trim()) {
@@ -734,7 +859,8 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
               <div>
                 <h1>회원 리스트</h1>
                 <p>
-                  역할을 변경합니다. 마지막 관리자는 강등할 수 없습니다.
+                  역할 변경과 계정 삭제를 처리합니다. 마지막 관리자는 강등·삭제할
+                  수 없습니다.
                 </p>
               </div>
               <button
@@ -787,6 +913,7 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
                           }}
                         />
                         <SortableTh
+                          className="col-desk"
                           label="닉네임"
                           sortKey="nickname"
                           activeKey={usersSort.sortKey}
@@ -797,6 +924,7 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
                           }}
                         />
                         <SortableTh
+                          className="col-desk"
                           label="역할"
                           sortKey="role"
                           activeKey={usersSort.sortKey}
@@ -807,6 +935,7 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
                           }}
                         />
                         <SortableTh
+                          className="col-desk"
                           label="레벨"
                           sortKey="level"
                           activeKey={usersSort.sortKey}
@@ -817,6 +946,7 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
                           }}
                         />
                         <SortableTh
+                          className="col-desk"
                           label="최근 로그인"
                           sortKey="lastLoginAt"
                           activeKey={usersSort.sortKey}
@@ -826,26 +956,37 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
                             setUserPage(0)
                           }}
                         />
+                        <th className="col-desk">삭제</th>
                       </tr>
                     </thead>
                     <tbody>
                       {userPageItems.map((row) => {
+                        const isSelf = row.id === user.id
                         const isLastAdmin =
                           row.role === 'admin' && adminCount <= 1
                         const busy = busyId === row.id
+                        const deleting = deletingKey === `user:${row.id}`
                         const roleLocked = busy || isLastAdmin
+                        const deleteLocked =
+                          deleting || isSelf || isLastAdmin
                         const lockHint = isLastAdmin
                           ? '마지막 관리자는 역할을 변경할 수 없습니다.'
-                          : undefined
+                          : isSelf
+                            ? '자신의 계정은 삭제할 수 없습니다.'
+                            : undefined
                         return (
                           <tr key={row.id}>
                             <td>{row.username}</td>
-                            <td>{row.nickname}</td>
-                            <td>
+                            <td className="col-desk">{row.nickname}</td>
+                            <td className="col-desk">
                               <select
                                 value={row.role}
                                 disabled={roleLocked}
-                                title={roleLocked ? lockHint : undefined}
+                                title={
+                                  roleLocked && isLastAdmin
+                                    ? lockHint
+                                    : undefined
+                                }
                                 onChange={(e) =>
                                   void handleRoleChange(
                                     row,
@@ -859,14 +1000,27 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
                                 <option value="admin">admin</option>
                               </select>
                             </td>
-                            <td>Lv.{row.level}</td>
-                            <td>{formatDate(row.lastLoginAt)}</td>
+                            <td className="col-desk">Lv.{row.level}</td>
+                            <td className="col-desk">
+                              {formatDate(row.lastLoginAt)}
+                            </td>
+                            <td className="col-desk">
+                              <button
+                                type="button"
+                                className="admin-danger-btn"
+                                disabled={deleteLocked}
+                                title={deleteLocked ? lockHint : undefined}
+                                onClick={() => void handleDeleteUser(row)}
+                              >
+                                삭제
+                              </button>
+                            </td>
                           </tr>
                         )
                       })}
                       {sortedUsers.length === 0 && (
                         <tr>
-                          <td colSpan={5}>
+                          <td colSpan={6}>
                             {users.length === 0
                               ? '등록된 회원이 없습니다.'
                               : '검색 결과가 없습니다.'}
@@ -993,6 +1147,12 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
               <ShipList
                 ships={ships}
                 onOpen={(ship) => setDetailShip(ship)}
+                onDelete={(ship) => void handleDeleteShip(ship)}
+                deletingId={
+                  deletingKey?.startsWith('ship:')
+                    ? Number(deletingKey.slice(5))
+                    : null
+                }
               />
             )}
           </section>
@@ -1098,6 +1258,7 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
                         onSort={questsSort.toggleSort}
                       />
                       <SortableTh
+                        className="col-desk"
                         label="분류"
                         sortKey="category"
                         activeKey={questsSort.sortKey}
@@ -1105,6 +1266,7 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
                         onSort={questsSort.toggleSort}
                       />
                       <SortableTh
+                        className="col-desk"
                         label="난이도"
                         sortKey="difficulty"
                         activeKey={questsSort.sortKey}
@@ -1112,6 +1274,7 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
                         onSort={questsSort.toggleSort}
                       />
                       <SortableTh
+                        className="col-desk"
                         label="의뢰 장소"
                         sortKey="requestPlaces"
                         activeKey={questsSort.sortKey}
@@ -1119,6 +1282,7 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
                         onSort={questsSort.toggleSort}
                       />
                       <SortableTh
+                        className="col-desk"
                         label="목적지"
                         sortKey="destination"
                         activeKey={questsSort.sortKey}
@@ -1126,12 +1290,14 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
                         onSort={questsSort.toggleSort}
                       />
                       <SortableTh
+                        className="col-desk"
                         label="발견물"
                         sortKey="discovery"
                         activeKey={questsSort.sortKey}
                         dir={questsSort.sortDir}
                         onSort={questsSort.toggleSort}
                       />
+                      <th className="col-desk">삭제</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1149,13 +1315,13 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
                         }}
                       >
                         <td>{quest.name}</td>
-                        <td>
+                        <td className="col-desk">
                           {quest.category
                             ? `[${quest.category}] ${quest.questType || ''}`.trim()
                             : '-'}
                         </td>
                         <td
-                          className="admin-cell-control"
+                          className="admin-cell-control col-desk"
                           onClick={(e) => e.stopPropagation()}
                           onKeyDown={(e) => e.stopPropagation()}
                         >
@@ -1176,9 +1342,9 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
                             ))}
                           </select>
                         </td>
-                        <td>{quest.requestPlaces || '-'}</td>
-                        <td>{quest.destination || '-'}</td>
-                        <td>
+                        <td className="col-desk">{quest.requestPlaces || '-'}</td>
+                        <td className="col-desk">{quest.destination || '-'}</td>
+                        <td className="col-desk">
                           {[
                             quest.discoveryCategory
                               ? `[${quest.discoveryCategory}]`
@@ -1189,11 +1355,25 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
                             .filter((v) => v != null && v !== '')
                             .join(' ') || '-'}
                         </td>
+                        <td
+                          className="admin-cell-control col-desk"
+                          onClick={(e) => e.stopPropagation()}
+                          onKeyDown={(e) => e.stopPropagation()}
+                        >
+                          <button
+                            type="button"
+                            className="admin-danger-btn"
+                            disabled={deletingKey === `quest:${quest.id}`}
+                            onClick={() => void handleDeleteQuest(quest)}
+                          >
+                            삭제
+                          </button>
+                        </td>
                       </tr>
                     ))}
                     {sortedQuests.length === 0 && (
                       <tr>
-                        <td colSpan={6}>
+                        <td colSpan={7}>
                           {quests.length === 0
                             ? '등록된 퀘스트가 없습니다.'
                             : '검색 결과가 없습니다.'}
@@ -1294,6 +1474,7 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
                         onSort={portsSort.toggleSort}
                       />
                       <SortableTh
+                        className="col-desk"
                         label="분류"
                         sortKey="category"
                         activeKey={portsSort.sortKey}
@@ -1301,6 +1482,7 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
                         onSort={portsSort.toggleSort}
                       />
                       <SortableTh
+                        className="col-desk"
                         label="지역"
                         sortKey="region"
                         activeKey={portsSort.sortKey}
@@ -1308,6 +1490,7 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
                         onSort={portsSort.toggleSort}
                       />
                       <SortableTh
+                        className="col-desk"
                         label="해역"
                         sortKey="seaArea"
                         activeKey={portsSort.sortKey}
@@ -1315,6 +1498,7 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
                         onSort={portsSort.toggleSort}
                       />
                       <SortableTh
+                        className="col-desk"
                         label="입항허가"
                         sortKey="entryPermit"
                         activeKey={portsSort.sortKey}
@@ -1322,12 +1506,14 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
                         onSort={portsSort.toggleSort}
                       />
                       <SortableTh
+                        className="col-desk"
                         label="언어"
                         sortKey="language"
                         activeKey={portsSort.sortKey}
                         dir={portsSort.sortDir}
                         onSort={portsSort.toggleSort}
                       />
+                      <th className="col-desk">삭제</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1345,16 +1531,30 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
                         }}
                       >
                         <td>{port.name}</td>
-                        <td>{port.category || '-'}</td>
-                        <td>{port.region || '-'}</td>
-                        <td>{port.seaArea || '-'}</td>
-                        <td>{port.entryPermit || '-'}</td>
-                        <td>{port.language || '-'}</td>
+                        <td className="col-desk">{port.category || '-'}</td>
+                        <td className="col-desk">{port.region || '-'}</td>
+                        <td className="col-desk">{port.seaArea || '-'}</td>
+                        <td className="col-desk">{port.entryPermit || '-'}</td>
+                        <td className="col-desk">{port.language || '-'}</td>
+                        <td
+                          className="admin-cell-control col-desk"
+                          onClick={(e) => e.stopPropagation()}
+                          onKeyDown={(e) => e.stopPropagation()}
+                        >
+                          <button
+                            type="button"
+                            className="admin-danger-btn"
+                            disabled={deletingKey === `port:${port.id}`}
+                            onClick={() => void handleDeletePort(port)}
+                          >
+                            삭제
+                          </button>
+                        </td>
                       </tr>
                     ))}
                     {sortedPorts.length === 0 && (
                       <tr>
-                        <td colSpan={6}>등록된 항구(도시)가 없습니다.</td>
+                        <td colSpan={7}>등록된 항구(도시)가 없습니다.</td>
                       </tr>
                     )}
                   </tbody>
@@ -1456,6 +1656,7 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
                         onSort={discoveriesSort.toggleSort}
                       />
                       <SortableTh
+                        className="col-desk"
                         label="분류"
                         sortKey="category"
                         activeKey={discoveriesSort.sortKey}
@@ -1463,6 +1664,7 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
                         onSort={discoveriesSort.toggleSort}
                       />
                       <SortableTh
+                        className="col-desk"
                         label="난이도"
                         sortKey="rank"
                         activeKey={discoveriesSort.sortKey}
@@ -1470,6 +1672,7 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
                         onSort={discoveriesSort.toggleSort}
                       />
                       <SortableTh
+                        className="col-desk"
                         label="카드P"
                         sortKey="cardPoints"
                         activeKey={discoveriesSort.sortKey}
@@ -1477,12 +1680,14 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
                         onSort={discoveriesSort.toggleSort}
                       />
                       <SortableTh
+                        className="col-desk"
                         label="발견 방법"
                         sortKey="acquire"
                         activeKey={discoveriesSort.sortKey}
                         dir={discoveriesSort.sortDir}
                         onSort={discoveriesSort.toggleSort}
                       />
+                      <th className="col-desk">삭제</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1502,18 +1707,19 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
                         }}
                       >
                         <td>{discovery.name}</td>
-                        <td>{discovery.category || '-'}</td>
-                        <td>
+                        <td className="col-desk">{discovery.category || '-'}</td>
+                        <td className="col-desk">
                           {discovery.rank != null
                             ? `${discovery.rank}성`
                             : '-'}
                         </td>
-                        <td>
+                        <td className="col-desk">
                           {discovery.cardPoints != null
                             ? discovery.cardPoints
                             : '-'}
                         </td>
                         <td
+                          className="col-desk"
                           onClick={(event) => {
                             if (discovery.acquireQuest) event.stopPropagation()
                           }}
@@ -1535,11 +1741,27 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
                             discovery.acquireName || '-'
                           )}
                         </td>
+                        <td
+                          className="admin-cell-control col-desk"
+                          onClick={(e) => e.stopPropagation()}
+                          onKeyDown={(e) => e.stopPropagation()}
+                        >
+                          <button
+                            type="button"
+                            className="admin-danger-btn"
+                            disabled={
+                              deletingKey === `discovery:${discovery.id}`
+                            }
+                            onClick={() => void handleDeleteDiscovery(discovery)}
+                          >
+                            삭제
+                          </button>
+                        </td>
                       </tr>
                     ))}
                     {sortedDiscoveries.length === 0 && (
                       <tr>
-                        <td colSpan={5}>등록된 발견물이 없습니다.</td>
+                        <td colSpan={6}>등록된 발견물이 없습니다.</td>
                       </tr>
                     )}
                   </tbody>
@@ -1645,6 +1867,7 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
                           }}
                         />
                         <SortableTh
+                          className="col-desk"
                           label="범위"
                           sortKey="rangeScope"
                           activeKey={languagesSort.sortKey}
@@ -1655,6 +1878,7 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
                           }}
                         />
                         <SortableTh
+                          className="col-desk"
                           label="습득 비용"
                           sortKey="learnCost"
                           activeKey={languagesSort.sortKey}
@@ -1665,6 +1889,7 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
                           }}
                         />
                         <SortableTh
+                          className="col-desk"
                           label="사용 도시"
                           sortKey="useCities"
                           activeKey={languagesSort.sortKey}
@@ -1674,6 +1899,7 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
                             setLanguagePage(0)
                           }}
                         />
+                        <th className="col-desk">삭제</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1693,22 +1919,38 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
                           }}
                         >
                           <td>{language.name}</td>
-                          <td>{language.rangeScope || '-'}</td>
-                          <td>
+                          <td className="col-desk">{language.rangeScope || '-'}</td>
+                          <td className="col-desk">
                             {language.learnCost != null
                               ? `${language.learnCost.toLocaleString('ko-KR')}두캇`
                               : '-'}
                           </td>
-                          <td className="admin-table-wrap-cell">
+                          <td className="admin-table-wrap-cell col-desk">
                             {language.useCities?.length
                               ? language.useCities.map((c) => c.city).join(', ')
                               : '-'}
+                          </td>
+                          <td
+                            className="admin-cell-control col-desk"
+                            onClick={(e) => e.stopPropagation()}
+                            onKeyDown={(e) => e.stopPropagation()}
+                          >
+                            <button
+                              type="button"
+                              className="admin-danger-btn"
+                              disabled={
+                                deletingKey === `language:${language.id}`
+                              }
+                              onClick={() => void handleDeleteLanguage(language)}
+                            >
+                              삭제
+                            </button>
                           </td>
                         </tr>
                       ))}
                       {sortedLanguages.length === 0 && (
                         <tr>
-                          <td colSpan={4}>등록된 언어가 없습니다.</td>
+                          <td colSpan={5}>등록된 언어가 없습니다.</td>
                         </tr>
                       )}
                     </tbody>
@@ -1833,6 +2075,12 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
               <ShipMaterialList
                 materials={materials}
                 onOpen={(material) => setDetailMaterial(material)}
+                onDelete={(material) => void handleDeleteMaterial(material)}
+                deletingId={
+                  deletingKey?.startsWith('material:')
+                    ? Number(deletingKey.slice(9))
+                    : null
+                }
               />
             )}
           </section>

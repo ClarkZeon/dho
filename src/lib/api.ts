@@ -244,6 +244,13 @@ export function importShipText(token: string, text: string) {
   })
 }
 
+export function deleteShip(token: string, shipId: number) {
+  return request<{ ok: boolean }>(
+    `/api/ships/${encodeURIComponent(String(shipId))}`,
+    { method: 'DELETE', token },
+  )
+}
+
 export function fetchQuests(token: string) {
   return request<{ quests: QuestDetail[] }>('/api/quests', { token })
 }
@@ -267,6 +274,13 @@ export function updateQuest(
       token,
       body: patch,
     },
+  )
+}
+
+export function deleteQuest(token: string, questId: number) {
+  return request<{ ok: boolean }>(
+    `/api/quests/${encodeURIComponent(String(questId))}`,
+    { method: 'DELETE', token },
   )
 }
 
@@ -297,6 +311,13 @@ export function importPortText(token: string, text: string) {
   })
 }
 
+export function deletePort(token: string, portId: number) {
+  return request<{ ok: boolean }>(
+    `/api/ports/${encodeURIComponent(String(portId))}`,
+    { method: 'DELETE', token },
+  )
+}
+
 export function fetchDiscoveries(token: string) {
   return request<{ discoveries: DiscoveryDetail[] }>('/api/discoveries', {
     token,
@@ -320,6 +341,13 @@ export function importDiscoveryText(token: string, text: string) {
   )
 }
 
+export function deleteDiscovery(token: string, discoveryId: number) {
+  return request<{ ok: boolean }>(
+    `/api/discoveries/${encodeURIComponent(String(discoveryId))}`,
+    { method: 'DELETE', token },
+  )
+}
+
 export function fetchLibraryLanguages(token: string) {
   return request<{ languages: LibraryLanguageDetail[] }>(
     '/api/library-languages',
@@ -337,6 +365,13 @@ export function importLibraryLanguageText(token: string, text: string) {
   )
 }
 
+export function deleteLibraryLanguage(token: string, languageId: number) {
+  return request<{ ok: boolean }>(
+    `/api/library-languages/${encodeURIComponent(String(languageId))}`,
+    { method: 'DELETE', token },
+  )
+}
+
 export function fetchShipMaterials(token: string) {
   return request<{ materials: ShipMaterialDetail[] }>('/api/ship-materials', {
     token,
@@ -350,6 +385,13 @@ export function importShipMaterialText(token: string, text: string) {
       token,
       body: { text },
     },
+  )
+}
+
+export function deleteShipMaterial(token: string, materialId: number) {
+  return request<{ ok: boolean }>(
+    `/api/ship-materials/${encodeURIComponent(String(materialId))}`,
+    { method: 'DELETE', token },
   )
 }
 

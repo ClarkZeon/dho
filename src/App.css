@@ -2094,13 +2094,20 @@
 }
 
 @media (max-width: 860px) {
+  .topbar {
+    gap: 0.55rem;
+    padding-inline: 0.75rem;
+  }
+
   .topbar-nickname {
-    max-width: 26vw;
-    font-size: 0.84rem;
+    max-width: 22vw;
+    font-size: 0.8rem;
   }
 
   .topbar-logout {
     font-size: 0.72rem;
+    min-height: 2rem;
+    padding: 0 0.15rem;
   }
 
   .topbar-level {
@@ -2109,7 +2116,23 @@
   }
 
   .topbar-user {
-    gap: 0.4rem;
+    gap: 0.35rem;
+  }
+
+  .topbar-nav-btn {
+    min-height: 2rem;
+    padding: 0 0.2rem;
+  }
+
+  .menu-toggle {
+    width: 2.4rem;
+    height: 2.4rem;
+  }
+
+  .slide-menu-close {
+    min-width: 2.75rem;
+    min-height: 2.4rem;
+    padding: 0.35rem 0.55rem;
   }
 
   .level-card {
@@ -2213,6 +2236,15 @@
   .dash-links,
   .dash-link-group:last-child .dash-links {
     grid-template-columns: 1fr;
+  }
+
+  .topbar-nickname {
+    display: none;
+  }
+
+  .topbar-mark {
+    font-size: 0.92rem;
+    letter-spacing: 0.08em;
   }
 }
 
@@ -2702,6 +2734,7 @@
 
 .admin-table {
   width: 100%;
+  min-width: 40rem;
   border-collapse: collapse;
   font-size: 0.88rem;
 }
@@ -2798,6 +2831,11 @@
 
 .material-list-table-wrap {
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.material-list-table {
+  min-width: 48rem;
 }
 
 .material-list-table th,
@@ -3474,9 +3512,112 @@
     padding-top: max(0.75rem, env(safe-area-inset-top));
   }
 
+  /* 모바일 리스트: 이름만 보이고 탭하면 상세 */
+  .admin-table .col-desk,
+  .material-list-table .col-desk {
+    display: none;
+  }
+
+  .admin-table-wrap,
+  .material-list-table-wrap {
+    overflow-x: visible;
+  }
+
+  .ship-skill-table-wrap {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+  }
+
+  .admin-table,
+  .material-list-table {
+    width: 100%;
+    min-width: 0;
+  }
+
   .admin-table th,
-  .admin-table td {
+  .admin-table td,
+  .material-list-table th,
+  .material-list-table td {
     white-space: normal;
+    word-break: keep-all;
+  }
+
+  .admin-table tbody td:first-child,
+  .material-list-table tbody td:not(.col-desk) {
+    padding: 0.85rem 0.9rem;
+    font-weight: 700;
+    color: var(--is-blue);
+  }
+
+  .admin-row-clickable td:first-child::after {
+    content: '';
+    float: right;
+    width: 0.45rem;
+    height: 0.45rem;
+    margin-top: 0.35rem;
+    border-right: 2px solid var(--is-grey-lighter);
+    border-bottom: 2px solid var(--is-grey-lighter);
+    transform: rotate(-45deg);
+  }
+
+  .material-list-table tbody td:not(.col-desk)::after {
+    content: '';
+    float: right;
+    width: 0.45rem;
+    height: 0.45rem;
+    margin-top: 0.35rem;
+    border-right: 2px solid var(--is-grey-lighter);
+    border-bottom: 2px solid var(--is-grey-lighter);
+    transform: rotate(-45deg);
+  }
+
+  .catalog-search {
+    max-width: none;
+    width: 100%;
+  }
+
+  .material-list-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .material-list-search {
+    width: 100%;
+  }
+
+  .material-list-search input {
+    flex: 1 1 auto;
+    width: auto;
+    min-width: 0;
+  }
+
+  .catalog-pager {
+    gap: 0.5rem;
+  }
+
+  .catalog-pager .admin-btn {
+    min-height: 2.4rem;
+    padding-inline: 0.95rem;
+  }
+
+  .home-main {
+    width: min(1100px, calc(100% - 1.25rem));
+    padding-top: 1.1rem;
+  }
+
+  .admin-page-head {
+    align-items: flex-start;
+  }
+
+  .admin-page-actions {
+    margin-left: 0;
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .admin-page-actions .admin-btn,
+  .admin-page-head > .admin-btn {
+    min-height: 2.4rem;
   }
 }
 
@@ -3542,5 +3683,27 @@
 
   .admin-sidebar-foot {
     margin-top: 0;
+  }
+
+  .admin-workspace {
+    padding-inline: 0.85rem;
+  }
+
+  .admin-sidebar-nav button {
+    min-height: 2.55rem;
+  }
+
+  .admin-dash-stat-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 420px) {
+  .admin-sidebar-nav {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-dash-stat-grid {
+    grid-template-columns: 1fr;
   }
 }

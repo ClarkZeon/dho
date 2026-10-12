@@ -87,6 +87,7 @@ export function PortCatalog({ token }: PortCatalogProps) {
                   onSort={toggleSort}
                 />
                 <SortableTh
+                  className="col-desk"
                   label="분류"
                   sortKey="category"
                   activeKey={sortKey}
@@ -94,6 +95,7 @@ export function PortCatalog({ token }: PortCatalogProps) {
                   onSort={toggleSort}
                 />
                 <SortableTh
+                  className="col-desk"
                   label="지역"
                   sortKey="region"
                   activeKey={sortKey}
@@ -101,6 +103,7 @@ export function PortCatalog({ token }: PortCatalogProps) {
                   onSort={toggleSort}
                 />
                 <SortableTh
+                  className="col-desk"
                   label="해역"
                   sortKey="seaArea"
                   activeKey={sortKey}
@@ -108,6 +111,7 @@ export function PortCatalog({ token }: PortCatalogProps) {
                   onSort={toggleSort}
                 />
                 <SortableTh
+                  className="col-desk"
                   label="입항허가"
                   sortKey="entryPermit"
                   activeKey={sortKey}
@@ -115,6 +119,7 @@ export function PortCatalog({ token }: PortCatalogProps) {
                   onSort={toggleSort}
                 />
                 <SortableTh
+                  className="col-desk"
                   label="언어"
                   sortKey="language"
                   activeKey={sortKey}
@@ -138,11 +143,11 @@ export function PortCatalog({ token }: PortCatalogProps) {
                   }}
                 >
                   <td>{port.name}</td>
-                  <td>{port.category || '-'}</td>
-                  <td>{port.region || '-'}</td>
-                  <td>{port.seaArea || '-'}</td>
-                  <td>{port.entryPermit || '-'}</td>
-                  <td>{port.language || '-'}</td>
+                  <td className="col-desk">{port.category || '-'}</td>
+                  <td className="col-desk">{port.region || '-'}</td>
+                  <td className="col-desk">{port.seaArea || '-'}</td>
+                  <td className="col-desk">{port.entryPermit || '-'}</td>
+                  <td className="col-desk">{port.language || '-'}</td>
                 </tr>
               ))}
               {rows.length === 0 && (
