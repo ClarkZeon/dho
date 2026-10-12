@@ -10,6 +10,7 @@ import {
   deleteShip,
   deleteShipMaterial,
   fetchAdminUsers,
+  fetchBoards,
   fetchConsumables,
   fetchDiscoveries,
   fetchFields,
@@ -33,6 +34,7 @@ import {
 } from '../lib/api'
 import type {
   AdminUser,
+  BoardSummary,
   ConsumableDetail,
   DiscoveryDetail,
   DiscoveryQuestRef,
@@ -45,6 +47,7 @@ import type {
   User,
 } from '../types'
 import { AdminDashboard } from './AdminDashboard'
+import { BoardView } from './BoardView'
 import { BrandMark } from './BrandMark'
 import { ConsumableDetailView } from './ConsumableDetailView'
 import { DetailModal } from './DetailModal'
@@ -61,7 +64,7 @@ import { ShipMaterialList } from './ShipMaterialList'
 import { SortableTh } from './SortableTh'
 import { formatDiscoveryAcquire } from '../lib/discoveryAcquire'
 import { matchesPortQuery } from '../lib/portSearch'
-import { useTableSort } from '../lib/tableSort'
+import { compareIdDesc, useTableSort } from '../lib/tableSort'
 
 const SKILL_PAGE_SIZE = 15
 const USER_PAGE_SIZE = 15
@@ -103,6 +106,7 @@ type SkillSortKey =
 type AdminNav =
   | 'dashboard'
   | 'users'
+  | 'boards'
   | 'ships'
   | 'quests'
   | 'ports'
@@ -136,11 +140,15 @@ function formatDate(value: string | null | undefined) {
 
 export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) {
   const [nav, setNav] = useState<AdminNav>('dashboard')
+  const [manageMenuOpen, setManageMenuOpen] = useState(false)
+  const [communityMenuOpen, setCommunityMenuOpen] = useState(false)
   const [shipsMenuOpen, setShipsMenuOpen] = useState(false)
   const [atlasMenuOpen, setAtlasMenuOpen] = useState(false)
   const [regionsMenuOpen, setRegionsMenuOpen] = useState(false)
   const [itemsMenuOpen, setItemsMenuOpen] = useState(false)
   const [captainMenuOpen, setCaptainMenuOpen] = useState(false)
+  const [boards, setBoards] = useState<BoardSummary[]>([])
+  const [boardId, setBoardId] = useState<string | null>(null)
   const [users, setUsers] = useState<AdminUser[]>([])
   const [loadingUsers, setLoadingUsers] = useState(false)
   const [usersError, setUsersError] = useState('')
@@ -151,6 +159,12 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
 
   function goNav(next: AdminNav) {
     setNav(next)
+    if (next === 'users') {
+      setManageMenuOpen(true)
+    }
+    if (next === 'boards') {
+      setCommunityMenuOpen(true)
+    }
     if (next === 'ships' || next === 'materials') {
       setShipsMenuOpen(true)
     }
@@ -166,6 +180,11 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
     if (next === 'skills') {
       setCaptainMenuOpen(true)
     }
+  }
+
+  function goBoard(id: string) {
+    setBoardId(id)
+    goNav('boards')
   }
 
   const [ships, setShips] = useState<ShipDetail[]>([])
@@ -424,6 +443,7 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
       return row[key]
     },
     (a, b) => a.username.localeCompare(b.username, 'ko'),
+    (a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')),
   )
   const userTotalPages = Math.max(
     1,
@@ -443,6 +463,7 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
     ports.filter((port) => matchesPortQuery(port, portQuery)),
     (port, key) => port[key],
     (a, b) => a.id - b.id,
+    compareIdDesc,
   )
   const sortedDiscoveries = discoveriesSort.sortRows(
     discoveries,
@@ -453,6 +474,7 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
       return discovery[key]
     },
     (a, b) => a.id - b.id,
+    compareIdDesc,
   )
   const sortedSkills = skillsSort.sortRows(
     skills,
@@ -465,6 +487,7 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
       return skill[key]
     },
     (a, b) => a.id - b.id,
+    compareIdDesc,
   )
 
   const skillTotalPages = Math.max(
@@ -491,6 +514,24 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
       )
     } finally {
       setLoadingMaterials(false)
+    }
+  }, [token])
+
+  useEffect(() => {
+    let alive = true
+    ;(async () => {
+      try {
+        const res = await fetchBoards(token)
+        if (!alive) return
+        setBoards(res.boards)
+        setBoardId((prev) => prev || res.boards[0]?.id || null)
+      } catch {
+        if (!alive) return
+        setBoards([])
+      }
+    })()
+    return () => {
+      alive = false
     }
   }, [token])
 
@@ -1000,14 +1041,75 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
             <span className="admin-nav-index">00</span>
             <span className="admin-nav-text">대시보드</span>
           </button>
-          <button
-            type="button"
-            className={nav === 'users' ? 'active' : ''}
-            onClick={() => setNav('users')}
+          <div
+            className={`admin-nav-group${
+              nav === 'users' ? ' is-active' : ''
+            }${manageMenuOpen ? ' is-open' : ''}`}
           >
-            <span className="admin-nav-index">01</span>
-            <span className="admin-nav-text">회원 리스트</span>
-          </button>
+            <button
+              type="button"
+              className="admin-nav-group-toggle"
+              aria-expanded={manageMenuOpen}
+              aria-controls="admin-nav-manage"
+              onClick={() => setManageMenuOpen((open) => !open)}
+            >
+              <span className="admin-nav-index">01</span>
+              <span className="admin-nav-text">관리메뉴</span>
+              <span className="admin-nav-chevron" aria-hidden="true" />
+            </button>
+            <div
+              id="admin-nav-manage"
+              className="admin-nav-group-items"
+              hidden={!manageMenuOpen}
+            >
+              <button
+                type="button"
+                className={nav === 'users' ? 'active' : ''}
+                onClick={() => goNav('users')}
+              >
+                <span className="admin-nav-text">회원 리스트</span>
+              </button>
+            </div>
+          </div>
+          <div
+            className={`admin-nav-group${
+              nav === 'boards' ? ' is-active' : ''
+            }${communityMenuOpen ? ' is-open' : ''}`}
+          >
+            <button
+              type="button"
+              className="admin-nav-group-toggle"
+              aria-expanded={communityMenuOpen}
+              aria-controls="admin-nav-community"
+              onClick={() => setCommunityMenuOpen((open) => !open)}
+            >
+              <span className="admin-nav-index">02</span>
+              <span className="admin-nav-text">게시판</span>
+              <span className="admin-nav-chevron" aria-hidden="true" />
+            </button>
+            <div
+              id="admin-nav-community"
+              className="admin-nav-group-items"
+              hidden={!communityMenuOpen}
+            >
+              {boards.length === 0 ? (
+                <p className="admin-nav-empty">게시판 없음</p>
+              ) : (
+                boards.map((board) => (
+                  <button
+                    key={board.id}
+                    type="button"
+                    className={
+                      nav === 'boards' && boardId === board.id ? 'active' : ''
+                    }
+                    onClick={() => goBoard(board.id)}
+                  >
+                    <span className="admin-nav-text">{board.title}</span>
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
           <div
             className={`admin-nav-group${
               nav === 'ships' || nav === 'materials' ? ' is-active' : ''
@@ -1020,7 +1122,7 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
               aria-controls="admin-nav-ships"
               onClick={() => setShipsMenuOpen((open) => !open)}
             >
-              <span className="admin-nav-index">02</span>
+              <span className="admin-nav-index">03</span>
               <span className="admin-nav-text">선박</span>
               <span className="admin-nav-chevron" aria-hidden="true" />
             </button>
@@ -1057,7 +1159,7 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
               aria-controls="admin-nav-atlas"
               onClick={() => setAtlasMenuOpen((open) => !open)}
             >
-              <span className="admin-nav-index">03</span>
+              <span className="admin-nav-index">04</span>
               <span className="admin-nav-text">도감</span>
               <span className="admin-nav-chevron" aria-hidden="true" />
             </button>
@@ -1094,7 +1196,7 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
               aria-controls="admin-nav-regions"
               onClick={() => setRegionsMenuOpen((open) => !open)}
             >
-              <span className="admin-nav-index">04</span>
+              <span className="admin-nav-index">05</span>
               <span className="admin-nav-text">개척</span>
               <span className="admin-nav-chevron" aria-hidden="true" />
             </button>
@@ -1131,7 +1233,7 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
               aria-controls="admin-nav-items"
               onClick={() => setItemsMenuOpen((open) => !open)}
             >
-              <span className="admin-nav-index">05</span>
+              <span className="admin-nav-index">06</span>
               <span className="admin-nav-text">아이템</span>
               <span className="admin-nav-chevron" aria-hidden="true" />
             </button>
@@ -1161,7 +1263,7 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
               aria-controls="admin-nav-captain"
               onClick={() => setCaptainMenuOpen((open) => !open)}
             >
-              <span className="admin-nav-index">06</span>
+              <span className="admin-nav-index">07</span>
               <span className="admin-nav-text">함장</span>
               <span className="admin-nav-chevron" aria-hidden="true" />
             </button>
@@ -1199,6 +1301,17 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
       <div className="admin-workspace">
         {nav === 'dashboard' && (
           <AdminDashboard token={token} onNavigate={goNav} />
+        )}
+
+        {nav === 'boards' && boardId && (
+          <section className="admin-section admin-section-board">
+            <BoardView
+              token={token}
+              user={user}
+              boardId={boardId}
+              onToast={onToast}
+            />
+          </section>
         )}
 
         {nav === 'users' && (
@@ -1494,6 +1607,7 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
             ) : (
               <ShipList
                 ships={ships}
+                newestFirst
                 onOpen={(ship) => setDetailShip(ship)}
                 onDelete={(ship) => void handleDeleteShip(ship)}
                 deletingId={
@@ -2548,6 +2662,8 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
                           .toLowerCase()
                         return hay.includes(q)
                       })
+                      .slice()
+                      .sort(compareIdDesc)
                       .map((field, index) => (
                         <tr
                           key={field.id}
@@ -2718,6 +2834,8 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
                           .toLowerCase()
                         return hay.includes(q)
                       })
+                      .slice()
+                      .sort(compareIdDesc)
                       .map((item, index) => (
                         <tr
                           key={item.id}
@@ -2848,6 +2966,7 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
             ) : (
               <ShipMaterialList
                 materials={materials}
+                newestFirst
                 onOpen={(material) => setDetailMaterial(material)}
                 onDelete={(material) => void handleDeleteMaterial(material)}
                 deletingId={
@@ -2891,6 +3010,7 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
             field={detailField}
             requiredEdit={{
               token,
+              onToast,
               onSaved: (next) => {
                 setFields((prev) =>
                   prev.map((f) => (f.id === next.id ? next : f)),

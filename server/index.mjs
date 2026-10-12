@@ -30,6 +30,12 @@ import {
   markMessageRead,
 } from './messageStore.mjs'
 import {
+  countUnseenNotifications,
+  ensureNotificationStore,
+  markAllNotificationsSeen,
+  notifyMessageReceived,
+} from './notificationStore.mjs'
+import {
   deleteShip,
   deleteShipMaterial,
   ensureShipStore,
@@ -151,6 +157,7 @@ async function ensureStore() {
   await ensureUserStore()
   await ensureBoardStore()
   await ensureMessageStore()
+  await ensureNotificationStore()
   await ensureShipStore()
   await ensureQuestStore()
   await ensurePortStore()
@@ -608,6 +615,28 @@ export async function handleRequest(req, res) {
       return
     }
 
+    if (req.method === 'GET' && pathname === '/api/notifications/unseen-count') {
+      const authUser = await getAuthUser(req)
+      if (!authUser) {
+        sendJson(res, 401, { error: '로그인이 필요합니다.' })
+        return
+      }
+      const count = await countUnseenNotifications(authUser.id)
+      sendJson(res, 200, { count })
+      return
+    }
+
+    if (req.method === 'POST' && pathname === '/api/notifications/mark-seen') {
+      const authUser = await getAuthUser(req)
+      if (!authUser) {
+        sendJson(res, 401, { error: '로그인이 필요합니다.' })
+        return
+      }
+      const result = await markAllNotificationsSeen(authUser.id)
+      sendJson(res, 200, { ok: true, ...result, count: 0 })
+      return
+    }
+
     if (req.method === 'GET' && pathname === '/api/messages/unread-count') {
       const authUser = await getAuthUser(req)
       if (!authUser) {
@@ -729,6 +758,14 @@ export async function handleRequest(req, res) {
       }
 
       await insertMessage(message)
+      await notifyMessageReceived({
+        id: randomBytes(8).toString('hex'),
+        toUserId: toUser.id,
+        fromNickname: authUser.nickname,
+        subject: message.subject,
+        messageId: message.id,
+        createdAt: message.createdAt,
+      })
 
       sendJson(res, 201, {
         message: decorateMessage(message, users, authUser.id),
@@ -789,6 +826,14 @@ export async function handleRequest(req, res) {
       }
 
       await insertMessage(reply)
+      await notifyMessageReceived({
+        id: randomBytes(8).toString('hex'),
+        toUserId,
+        fromNickname: authUser.nickname,
+        subject: reply.subject,
+        messageId: reply.id,
+        createdAt: reply.createdAt,
+      })
 
       sendJson(res, 201, {
         message: decorateMessage(reply, users, authUser.id),

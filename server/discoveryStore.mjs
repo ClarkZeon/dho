@@ -95,37 +95,108 @@ function decorateDiscovery(row) {
   }
 }
 
-async function loadQuestNameIndex() {
+function decorateQuestRef(row) {
+  return {
+    id: Number(row.id),
+    slug: String(row.slug),
+    name: String(row.name),
+    category: row.category == null ? null : String(row.category),
+    questType: row.quest_type == null ? null : String(row.quest_type),
+    difficulty: row.difficulty == null ? null : Number(row.difficulty),
+    requestPlaces:
+      row.request_places == null ? null : String(row.request_places),
+    skills: asJsonArray(row.skills).map((item) => ({
+      name: String(item?.name || ''),
+      level:
+        item?.level == null || item?.level === ''
+          ? null
+          : Number(item.level),
+    })),
+  }
+}
+
+/**
+ * 퀘스트 인덱스
+ * - byName: 퀘스트 이름 → ref (연결 퀘스트 문구용)
+ * - byDiscoveryName: 퀘스트.discovery_name → ref (발견 방법 소스)
+ */
+async function loadQuestIndexes() {
   const sql = getSql()
   const rows = await sql`
-    SELECT id, slug, name FROM quests WHERE enabled = TRUE
+    SELECT
+      id, slug, name, category, quest_type, difficulty,
+      request_places, skills, discovery_name
+    FROM quests
+    WHERE enabled = TRUE
   `
-  /** @type {Map<string, { id: number, slug: string, name: string }>} */
-  const map = new Map()
+  /** @type {Map<string, object>} */
+  const byName = new Map()
+  /** @type {Map<string, object>} */
+  const byDiscoveryName = new Map()
   for (const row of rows) {
-    const key = normalizeName(row.name)
-    if (!key) continue
-    map.set(key, {
-      id: Number(row.id),
-      slug: String(row.slug),
-      name: String(row.name),
-    })
+    const ref = decorateQuestRef(row)
+    const nameKey = normalizeName(ref.name)
+    if (nameKey) byName.set(nameKey, ref)
+    const discKey = normalizeName(row.discovery_name)
+    if (discKey && !byDiscoveryName.has(discKey)) {
+      byDiscoveryName.set(discKey, ref)
+    }
   }
-  return map
+  return { byName, byDiscoveryName }
 }
 
-function lookupQuestRef(index, text) {
+function lookupQuestRef(byName, text) {
   const name = extractQuestNameFromRef(text)
   if (!name) return null
-  return index.get(normalizeName(name)) || null
+  return byName.get(normalizeName(name)) || null
 }
 
-async function withQuestLinks(discovery) {
-  const index = await loadQuestNameIndex()
-  const acquireQuest =
-    discovery.acquireType === '퀘스트'
-      ? lookupQuestRef(index, discovery.acquireName)
-      : null
+/** 발견 방법 매칭: 퀘스트.discovery_name 우선, 없으면 acquireName 추출 */
+function resolveAcquireQuest(discovery, byName, byDiscoveryName) {
+  const fromQuest = byDiscoveryName.get(normalizeName(discovery.name))
+  if (fromQuest) return fromQuest
+  if (discovery.acquireType === '퀘스트') {
+    return lookupQuestRef(byName, discovery.acquireName)
+  }
+  return null
+}
+
+/** 위키형 acquire_name 본문 (타입 괄호 제외) */
+function buildAcquireNameFromQuest(quest) {
+  if (!quest?.name) return null
+  const category = String(quest.category || quest.questType || '').trim()
+  const skillParts = (quest.skills || [])
+    .map((skill) => {
+      const name = String(skill?.name || '').trim()
+      if (!name) return ''
+      return skill.level != null && Number.isFinite(Number(skill.level))
+        ? `${name} ${skill.level}`
+        : name
+    })
+    .filter(Boolean)
+  let skillsClause = ''
+  if (quest.difficulty != null && Number.isFinite(Number(quest.difficulty))) {
+    skillsClause = skillParts.length
+      ? `${quest.difficulty} ${skillParts.join(', ')}`
+      : String(quest.difficulty)
+  } else {
+    skillsClause = skillParts.join(', ')
+  }
+  const places = String(quest.requestPlaces || '').trim()
+  let body = ''
+  if (category) body += `${category} | `
+  body += quest.name
+  if (skillsClause) body += ` (${skillsClause})`
+  if (places) body += ` - ${places}`
+  return body
+}
+
+function attachQuestLinks(discovery, byName, byDiscoveryName) {
+  const acquireQuest = resolveAcquireQuest(
+    discovery,
+    byName,
+    byDiscoveryName,
+  )
   return {
     ...discovery,
     acquireQuest,
@@ -133,31 +204,59 @@ async function withQuestLinks(discovery) {
       ...item,
       quest:
         !item.tag || item.tag === '퀘스트'
-          ? lookupQuestRef(index, item.title || item.raw)
+          ? lookupQuestRef(byName, item.title || item.raw)
           : null,
     })),
   }
 }
 
+async function withQuestLinks(discovery) {
+  const { byName, byDiscoveryName } = await loadQuestIndexes()
+  return attachQuestLinks(discovery, byName, byDiscoveryName)
+}
+
 async function withQuestLinksMany(discoveries) {
-  const index = await loadQuestNameIndex()
-  return discoveries.map((discovery) => {
-    const acquireQuest =
-      discovery.acquireType === '퀘스트'
-        ? lookupQuestRef(index, discovery.acquireName)
-        : null
-    return {
-      ...discovery,
-      acquireQuest,
-      linkedQuests: discovery.linkedQuests.map((item) => ({
-        ...item,
-        quest:
-          !item.tag || item.tag === '퀘스트'
-            ? lookupQuestRef(index, item.title || item.raw)
-            : null,
-      })),
-    }
-  })
+  const { byName, byDiscoveryName } = await loadQuestIndexes()
+  return discoveries.map((discovery) =>
+    attachQuestLinks(discovery, byName, byDiscoveryName),
+  )
+}
+
+/**
+ * 퀘스트.discovery_name 기준으로 발견 방법(acquire) 일괄 동기화
+ * @returns {Promise<{ matched: number, updated: number }>}
+ */
+export async function syncDiscoveryAcquireFromQuests() {
+  const sql = getSql()
+  const { byDiscoveryName } = await loadQuestIndexes()
+  if (!byDiscoveryName.size) return { matched: 0, updated: 0 }
+
+  const rows = await sql`
+    SELECT id, name, acquire_type, acquire_name
+    FROM discoveries
+    WHERE enabled = TRUE
+  `
+  let matched = 0
+  let updated = 0
+  for (const row of rows) {
+    const quest = byDiscoveryName.get(normalizeName(row.name))
+    if (!quest) continue
+    matched += 1
+    const acquireName = buildAcquireNameFromQuest(quest)
+    if (!acquireName) continue
+    const sameType = String(row.acquire_type || '') === '퀘스트'
+    const sameName = String(row.acquire_name || '') === acquireName
+    if (sameType && sameName) continue
+    await sql`
+      UPDATE discoveries
+      SET
+        acquire_type = '퀘스트',
+        acquire_name = ${acquireName}
+      WHERE id = ${Number(row.id)}
+    `
+    updated += 1
+  }
+  return { matched, updated }
 }
 
 export async function listDiscoveryCategoryTree() {

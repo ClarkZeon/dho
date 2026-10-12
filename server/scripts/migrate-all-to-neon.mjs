@@ -9,6 +9,7 @@ import 'dotenv/config'
 import { ensureBoardStore } from '../boardStore.mjs'
 import { hasDatabaseUrl } from '../db.mjs'
 import { ensureMessageStore } from '../messageStore.mjs'
+import { ensureNotificationStore } from '../notificationStore.mjs'
 import { BUNDLED_DATA_DIR, getWritableDataDir } from '../paths.mjs'
 import { ensureShipStore, reseedShipsFromBundle } from '../shipStore.mjs'
 import {
@@ -80,6 +81,9 @@ async function main() {
   console.log('boards/posts/messages…')
   await ensureBoardStore()
   await ensureMessageStore()
+
+  console.log('notifications…')
+  await ensureNotificationStore()
 
   console.log('ships…')
   await ensureShipStore()

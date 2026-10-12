@@ -15,7 +15,14 @@ export function compareSortValues(
   return String(a).localeCompare(String(b), 'ko', { numeric: true })
 }
 
-/** 초기에는 정렬하지 않음. 헤더를 누른 뒤에만 order by 적용 */
+/** id 기준 최신(큰 id) 우선 */
+export function compareIdDesc<T extends { id: number }>(a: T, b: T) {
+  return b.id - a.id
+}
+
+/** 초기에는 정렬하지 않음. 헤더를 누른 뒤에만 order by 적용.
+ *  idleCompare 가 있으면 미정렬 상태에서만 기본 순서에 사용 (예: 최신순)
+ */
 export function useTableSort<K extends string>(
   defaultKey: K | null = null,
   defaultDir: SortDir = 'asc',
@@ -36,8 +43,12 @@ export function useTableSort<K extends string>(
     rows: readonly T[],
     getValue: (row: T, key: K) => string | number | null | undefined,
     tieBreak?: (a: T, b: T) => number,
+    idleCompare?: (a: T, b: T) => number,
   ): T[] {
-    if (!sortKey) return [...rows]
+    if (!sortKey) {
+      if (!idleCompare) return [...rows]
+      return [...rows].sort(idleCompare)
+    }
     const key = sortKey
     return [...rows].sort((a, b) => {
       let cmp = compareSortValues(getValue(a, key), getValue(b, key))

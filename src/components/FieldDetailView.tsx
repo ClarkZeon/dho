@@ -8,6 +8,7 @@ type FieldDetailViewProps = {
   requiredEdit?: {
     token: string
     onSaved: (field: FieldDetail) => void
+    onToast?: (text: string) => void
   }
 }
 
@@ -32,10 +33,12 @@ export function FieldDetailView({ field, requiredEdit }: FieldDetailViewProps) {
   const [surveys, setSurveys] = useState(() => cloneSurveys(field.landSurveys))
   const [busyKey, setBusyKey] = useState<string | null>(null)
   const [error, setError] = useState('')
+  const [saveNote, setSaveNote] = useState('')
 
   useEffect(() => {
     setSurveys(cloneSurveys(field.landSurveys))
     setError('')
+    setSaveNote('')
     setBusyKey(null)
   }, [field.id, field.landSurveys])
 
@@ -48,22 +51,35 @@ export function FieldDetailView({ field, requiredEdit }: FieldDetailViewProps) {
     if (!requiredEdit) return
     const key = `${stageIndex}-${taskIndex}`
     const next = cloneSurveys(surveys)
-    const task = next[stageIndex]?.tasks[taskIndex]
+    const stage = next[stageIndex]
+    const task = stage?.tasks[taskIndex]
     if (!task) return
-    task.required = !task.required
+    const nextRequired = !task.required
+    task.required = nextRequired
     setSurveys(next)
     setBusyKey(key)
     setError('')
+    setSaveNote('')
     try {
       const res = await updateField(requiredEdit.token, field.id, {
         landSurveys: next,
       })
       requiredEdit.onSaved(res.field)
+      const label = [
+        `${stage.stage}단계`,
+        task.kind || task.item || '항목',
+        nextRequired ? '필수' : '선택',
+      ].join(' · ')
+      const note = `저장 완료 · ${label}`
+      setSaveNote(note)
+      requiredEdit.onToast?.(note)
     } catch (err) {
       setSurveys(cloneSurveys(field.landSurveys))
-      setError(
-        err instanceof Error ? err.message : '필수 여부 저장에 실패했습니다.',
-      )
+      const message =
+        err instanceof Error ? err.message : '필수 여부 저장에 실패했습니다.'
+      setError(message)
+      setSaveNote('')
+      requiredEdit.onToast?.(message)
     } finally {
       setBusyKey(null)
     }
@@ -120,6 +136,11 @@ export function FieldDetailView({ field, requiredEdit }: FieldDetailViewProps) {
           {error ? (
             <p className="form-note error" role="alert">
               {error}
+            </p>
+          ) : null}
+          {!error && saveNote ? (
+            <p className="form-note" role="status">
+              {saveNote}
             </p>
           ) : null}
           <div className="admin-table-wrap">

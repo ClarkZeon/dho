@@ -1061,14 +1061,51 @@
 }
 
 .topbar-level,
-.topbar-nickname,
-.topbar-logout {
+.topbar-nickname {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   height: 100%;
   line-height: 1;
   box-sizing: border-box;
+}
+
+.topbar-bell {
+  position: relative;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.7rem;
+  height: 1.7rem;
+  margin: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--is-grey);
+  cursor: pointer;
+  padding: 0;
+}
+
+.topbar-bell:hover,
+.topbar-bell.has-dot {
+  color: var(--is-blue);
+  background: color-mix(in srgb, var(--is-blue) 8%, transparent);
+}
+
+.topbar-bell-icon {
+  display: block;
+}
+
+.topbar-bell-dot {
+  position: absolute;
+  top: 0.18rem;
+  right: 0.18rem;
+  width: 0.42rem;
+  height: 0.42rem;
+  border-radius: 50%;
+  background: #e11d48;
+  box-shadow: 0 0 0 1.5px var(--is-white);
 }
 
 .topbar-level {
@@ -1079,6 +1116,32 @@
   background: var(--is-blue);
   border-radius: 6px;
   padding: 0 0.45rem;
+}
+
+.topbar-account {
+  position: relative;
+  min-width: 0;
+}
+
+.topbar-nickname-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  max-width: min(42vw, 11rem);
+  height: 100%;
+  margin: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  padding: 0 0.2rem;
+  cursor: pointer;
+  color: inherit;
+}
+
+.topbar-nickname-btn:hover,
+.topbar-nickname-btn.is-open,
+.topbar-nickname-btn.is-active {
+  background: color-mix(in srgb, var(--is-blue) 8%, transparent);
 }
 
 .topbar-nickname {
@@ -1092,18 +1155,41 @@
   padding-top: 1px; /* 한글 볼드 광학 보정 */
 }
 
-.topbar-logout {
-  flex: 0 0 auto;
+.topbar-user-menu {
+  position: absolute;
+  top: calc(100% + 0.45rem);
+  right: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  min-width: 9.5rem;
+  padding: 0.35rem;
+  border: 1px solid color-mix(in srgb, var(--is-blue) 14%, transparent);
+  border-radius: 10px;
+  background: var(--is-white);
+  box-shadow: 0 10px 28px color-mix(in srgb, var(--ink) 12%, transparent);
+}
+
+.topbar-user-menu button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+  width: 100%;
+  margin: 0;
   border: 0;
-  background: none;
-  padding: 0;
-  font-size: 0.78rem;
-  font-weight: 500;
-  color: var(--is-grey);
+  border-radius: 7px;
+  background: transparent;
+  padding: 0.55rem 0.65rem;
+  text-align: left;
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: var(--ink);
   cursor: pointer;
 }
 
-.topbar-logout:hover {
+.topbar-user-menu button:hover {
+  background: color-mix(in srgb, var(--is-blue) 8%, transparent);
   color: var(--is-blue);
 }
 
@@ -2120,10 +2206,9 @@
     font-size: 0.8rem;
   }
 
-  .topbar-logout {
-    font-size: 0.72rem;
+  .topbar-nickname-btn {
+    max-width: min(48vw, 10rem);
     min-height: 2rem;
-    padding: 0 0.15rem;
   }
 
   .topbar-level {
@@ -2133,11 +2218,6 @@
 
   .topbar-user {
     gap: 0.35rem;
-  }
-
-  .topbar-nav-btn {
-    min-height: 2rem;
-    padding: 0 0.2rem;
   }
 
   .menu-toggle {
@@ -2470,6 +2550,17 @@
 .admin-nav-group-items button {
   grid-template-columns: 1fr;
   padding: 0.4rem 0.55rem;
+}
+
+.admin-nav-empty {
+  margin: 0;
+  padding: 0.45rem 0.75rem 0.45rem 2.1rem;
+  color: color-mix(in srgb, var(--ink) 45%, transparent);
+  font-size: 0.82rem;
+}
+
+.admin-section-board {
+  padding-top: 0.25rem;
 }
 
 .admin-nav-group-items .admin-nav-text {

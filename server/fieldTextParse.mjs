@@ -344,8 +344,10 @@ export function parseFieldText(text) {
 
   // 위키 텍스트 복사 시 필수(✓) 열이 비는 경우가 많아,
   // 단계에 필수 표시가 하나도 없으면 첫 조사 항목을 필수로 둔다.
+  // 5단계는 기본적으로 필수 없음(선택).
   for (const stage of landSurveys) {
     if (!stage.tasks.length) continue
+    if (Number(stage.stage) === 5) continue
     if (!stage.tasks.some((task) => task.required)) {
       stage.tasks[0].required = true
     }

@@ -166,6 +166,19 @@ export function fetchUnreadCount(token: string) {
   return request<{ count: number }>('/api/messages/unread-count', { token })
 }
 
+export function fetchNotificationUnseenCount(token: string) {
+  return request<{ count: number }>('/api/notifications/unseen-count', {
+    token,
+  })
+}
+
+export function markNotificationsSeen(token: string) {
+  return request<{ ok: boolean; count: number; updated: number }>(
+    '/api/notifications/mark-seen',
+    { token, method: 'POST', body: {} },
+  )
+}
+
 export function fetchMessage(token: string, id: string) {
   return request<{ message: MessageItem; thread: MessageItem[] }>(
     `/api/messages/${id}`,

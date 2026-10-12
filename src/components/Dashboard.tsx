@@ -1,5 +1,10 @@
-import { useCallback, useEffect, useState } from 'react'
-import { fetchBoards, fetchUnreadCount } from '../lib/api'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import {
+  fetchBoards,
+  fetchNotificationUnseenCount,
+  fetchUnreadCount,
+  markNotificationsSeen,
+} from '../lib/api'
 import type { BoardSummary, User } from '../types'
 import { BoardView } from './BoardView'
 import { Messages } from './Messages'
@@ -191,9 +196,30 @@ function toMenuTarget(view: View): MenuTarget {
 export function Dashboard({ user, token, onLogout, onToast }: DashboardProps) {
   const [view, setView] = useState<View>(() => hashToView(window.location.hash))
   const [menuOpen, setMenuOpen] = useState(false)
+  const [userMenuOpen, setUserMenuOpen] = useState(false)
+  const userMenuRef = useRef<HTMLDivElement>(null)
   const [unread, setUnread] = useState(0)
+  const [notifyUnseen, setNotifyUnseen] = useState(0)
   const [boards, setBoards] = useState<BoardSummary[]>([])
   const [boardsError, setBoardsError] = useState('')
+
+  useEffect(() => {
+    if (!userMenuOpen) return
+    function onPointerDown(event: MouseEvent) {
+      if (!userMenuRef.current?.contains(event.target as Node)) {
+        setUserMenuOpen(false)
+      }
+    }
+    function onKey(event: KeyboardEvent) {
+      if (event.key === 'Escape') setUserMenuOpen(false)
+    }
+    document.addEventListener('mousedown', onPointerDown)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [userMenuOpen])
 
   const refreshUnread = useCallback(async () => {
     try {
@@ -203,6 +229,26 @@ export function Dashboard({ user, token, onLogout, onToast }: DashboardProps) {
       // ignore
     }
   }, [token])
+
+  const refreshNotifyUnseen = useCallback(async () => {
+    try {
+      const res = await fetchNotificationUnseenCount(token)
+      setNotifyUnseen(res.count)
+    } catch {
+      // ignore
+    }
+  }, [token])
+
+  async function handleBellClick() {
+    if (notifyUnseen > 0) {
+      setNotifyUnseen(0)
+      try {
+        await markNotificationsSeen(token)
+      } catch {
+        void refreshNotifyUnseen()
+      }
+    }
+  }
 
   const refreshBoards = useCallback(async () => {
     try {
@@ -227,12 +273,14 @@ export function Dashboard({ user, token, onLogout, onToast }: DashboardProps) {
 
   useEffect(() => {
     void refreshUnread()
+    void refreshNotifyUnseen()
     void refreshBoards()
     const timer = window.setInterval(() => {
       void refreshUnread()
+      void refreshNotifyUnseen()
     }, 15000)
     return () => window.clearInterval(timer)
-  }, [refreshUnread, refreshBoards])
+  }, [refreshUnread, refreshNotifyUnseen, refreshBoards])
 
   useEffect(() => {
     // 예전 홈 URL `#/` · `#` 정리
@@ -337,19 +385,70 @@ export function Dashboard({ user, token, onLogout, onToast }: DashboardProps) {
         <div className="topbar-user">
           <button
             type="button"
-            className={`topbar-nav-btn ${view.name === 'messages' ? 'active' : ''}`}
-            onClick={() => navigate({ name: 'messages' })}
+            className={`topbar-bell${notifyUnseen > 0 ? ' has-dot' : ''}`}
+            aria-label={
+              notifyUnseen > 0
+                ? `알림 ${notifyUnseen}건`
+                : '알림'
+            }
+            title={notifyUnseen > 0 ? '새 알림' : '알림'}
+            onClick={() => void handleBellClick()}
           >
-            쪽지
-            {unread > 0 && <span className="topbar-badge">{unread}</span>}
+            <svg
+              className="topbar-bell-icon"
+              viewBox="0 0 24 24"
+              width="18"
+              height="18"
+              aria-hidden="true"
+            >
+              <path
+                fill="currentColor"
+                d="M12 22a2.2 2.2 0 0 0 2.2-2.2h-4.4A2.2 2.2 0 0 0 12 22Zm7-5.2V11a7 7 0 1 0-14 0v5.8L3 18.6V20h18v-1.4l-2-1.8Z"
+              />
+            </svg>
+            {notifyUnseen > 0 && <span className="topbar-bell-dot" />}
           </button>
           <span className="topbar-level">Lv.{user.level}</span>
-          <span className="topbar-nickname" title={`@${user.username}`}>
-            {user.nickname}
-          </span>
-          <button type="button" className="topbar-logout" onClick={onLogout}>
-            로그아웃
-          </button>
+          <div className="topbar-account" ref={userMenuRef}>
+            <button
+              type="button"
+              className={`topbar-nickname-btn${userMenuOpen ? ' is-open' : ''}${view.name === 'messages' ? ' is-active' : ''}`}
+              aria-expanded={userMenuOpen}
+              aria-haspopup="menu"
+              title={`@${user.username}`}
+              onClick={() => setUserMenuOpen((open) => !open)}
+            >
+              <span className="topbar-nickname">{user.nickname}</span>
+              {unread > 0 && <span className="topbar-badge">{unread}</span>}
+            </button>
+            {userMenuOpen && (
+              <div className="topbar-user-menu" role="menu">
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setUserMenuOpen(false)
+                    navigate({ name: 'messages' })
+                  }}
+                >
+                  <span>쪽지함</span>
+                  {unread > 0 && (
+                    <span className="topbar-badge">{unread}</span>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setUserMenuOpen(false)
+                    onLogout()
+                  }}
+                >
+                  로그아웃
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </header>
 
@@ -357,7 +456,6 @@ export function Dashboard({ user, token, onLogout, onToast }: DashboardProps) {
         open={menuOpen}
         user={user}
         boards={boards}
-        unread={unread}
         active={toMenuTarget(view)}
         onClose={() => setMenuOpen(false)}
         onNavigate={navigate}

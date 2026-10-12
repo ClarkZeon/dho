@@ -13,7 +13,7 @@ import {
   MATERIAL_STAT_COLUMNS,
   type MaterialSortKey,
 } from '../lib/shipMaterialStats'
-import { useTableSort } from '../lib/tableSort'
+import { compareIdDesc, useTableSort } from '../lib/tableSort'
 import type { ShipMaterialDetail } from '../types'
 import { SortableTh } from './SortableTh'
 
@@ -24,6 +24,8 @@ type ShipMaterialListProps = {
   onOpen: (material: ShipMaterialDetail) => void
   onDelete?: (material: ShipMaterialDetail) => void
   deletingId?: number | null
+  /** 미정렬 시 최신(id 큰 순) 우선 — 관리자 리스트용 */
+  newestFirst?: boolean
 }
 
 function buildPageWindow(current: number, total: number, maxButtons = 10) {
@@ -45,6 +47,7 @@ export function ShipMaterialList({
   onOpen,
   onDelete,
   deletingId = null,
+  newestFirst = false,
 }: ShipMaterialListProps) {
   const [selectedKinds, setSelectedKinds] = useState<Set<string>>(
     () => new Set(),
@@ -67,6 +70,7 @@ export function ShipMaterialList({
       return effectNumeric(material.effects, key)
     },
     (a, b) => a.id - b.id,
+    newestFirst ? compareIdDesc : undefined,
   )
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))

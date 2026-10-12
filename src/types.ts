@@ -318,6 +318,12 @@ export type DiscoveryQuestRef = {
   id: number
   slug: string
   name: string
+  /** 발견 방법 풀 문구용 (acquireQuest 매칭 시) */
+  category?: string | null
+  questType?: string | null
+  difficulty?: number | null
+  requestPlaces?: string | null
+  skills?: QuestSkillReq[]
 }
 
 export type DiscoveryLinkedQuest = {

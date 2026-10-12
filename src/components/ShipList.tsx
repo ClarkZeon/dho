@@ -1,5 +1,5 @@
 import { useState, type KeyboardEvent, type MouseEvent } from 'react'
-import { useTableSort } from '../lib/tableSort'
+import { compareIdDesc, useTableSort } from '../lib/tableSort'
 import type { ShipDetail } from '../types'
 import { SortableTh } from './SortableTh'
 
@@ -13,6 +13,8 @@ type ShipListProps = {
   onDelete?: (ship: ShipDetail) => void
   deletingId?: number | null
   emptyText?: string
+  /** 미정렬 시 최신(id 큰 순) 우선 — 관리자 리스트용 */
+  newestFirst?: boolean
 }
 
 function matchesShipQuery(ship: ShipDetail, query: string) {
@@ -42,6 +44,7 @@ export function ShipList({
   onDelete,
   deletingId = null,
   emptyText = '등록된 선박이 없습니다.',
+  newestFirst = false,
 }: ShipListProps) {
   const [query, setQuery] = useState('')
   const [page, setPage] = useState(0)
@@ -59,6 +62,7 @@ export function ShipList({
       return ship[key]
     },
     (a, b) => a.id - b.id,
+    newestFirst ? compareIdDesc : undefined,
   )
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))

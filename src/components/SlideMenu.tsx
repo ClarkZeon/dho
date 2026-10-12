@@ -27,7 +27,6 @@ type SlideMenuProps = {
   open: boolean
   user: User
   boards: BoardSummary[]
-  unread: number
   active: MenuTarget
   onClose: () => void
   onNavigate: (target: MenuTarget) => void
@@ -91,7 +90,6 @@ export function SlideMenu({
   open,
   user,
   boards,
-  unread,
   active,
   onClose,
   onNavigate,
@@ -186,14 +184,6 @@ export function SlideMenu({
             onClick={() => go({ name: 'home' })}
           >
             대시보드
-          </button>
-          <button
-            type="button"
-            className={active.name === 'messages' ? 'active' : ''}
-            onClick={() => go({ name: 'messages' })}
-          >
-            <span>쪽지함</span>
-            {unread > 0 && <span className="topbar-badge">{unread}</span>}
           </button>
           {user.role === 'admin' && (
             <a className="slide-menu-link" href="/admin">

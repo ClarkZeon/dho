@@ -2,7 +2,10 @@ import {
   bumpCatalogStat,
   bumpCatalogStatIfGrew,
 } from './adminStats.mjs'
-import { lookupDiscoveriesByNames } from './discoveryStore.mjs'
+import {
+  lookupDiscoveriesByNames,
+  syncDiscoveryAcquireFromQuests,
+} from './discoveryStore.mjs'
 import { getSql, hasDatabaseUrl, runSqlFile } from './db.mjs'
 import { splitChainAndLinked, stripWikiMapNoise } from './questTextParse.mjs'
 
@@ -118,7 +121,7 @@ const QUEST_SORT_COLS = {
 function questOrderClause(sort, dir) {
   const col = QUEST_SORT_COLS[sort]
   const d = dir === 'desc' ? 'DESC' : 'ASC'
-  if (!col) return 'ORDER BY sort_order ASC, id ASC'
+  if (!col) return 'ORDER BY id DESC'
   return `ORDER BY ${col} ${d} NULLS LAST, id ${d}`
 }
 
@@ -415,6 +418,7 @@ export async function upsertQuestFromParsed(parsed) {
       WHERE id = ${existing.id}
     `
     await bumpCatalogStatIfGrew('quests', existing.enabled)
+    if (parsed.discoveryName) await syncDiscoveryAcquireFromQuests()
     return getQuestBySlug(existing.slug)
   }
 
@@ -460,6 +464,7 @@ export async function upsertQuestFromParsed(parsed) {
   `
 
   await bumpCatalogStat('quests', 1)
+  if (parsed.discoveryName) await syncDiscoveryAcquireFromQuests()
   return getQuestBySlug(slug)
 }
 
