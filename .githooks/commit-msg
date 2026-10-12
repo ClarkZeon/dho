@@ -1,0 +1,12 @@
+#!/bin/sh
+# Strip Cursor co-author trailers. Vercel Hobby blocks them on private repos.
+MSG_FILE=$1
+if [ ! -f "$MSG_FILE" ]; then
+  exit 0
+fi
+
+# Portable strip without requiring GNU sed -i
+tmp="${MSG_FILE}.tmp.$$"
+# shellcheck disable=SC2016
+sed '/^Co-authored-by: Cursor/Id;/^Co-authored-by:.*cursoragent@cursor\.com/Id' "$MSG_FILE" > "$tmp" && mv "$tmp" "$MSG_FILE"
+exit 0

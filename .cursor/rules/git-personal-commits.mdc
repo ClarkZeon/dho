@@ -1,37 +1,44 @@
 ---
-description: 이 레포는 개인 GitHub(ClarkZeon)로만 커밋·푸시. Cursor co-author 금지.
+description: ClarkZeon 전용 커밋·푸시. Co-authored-by Cursor 절대 금지(Vercel Hobby).
 alwaysApply: true
 ---
 
-# Git / 커밋 / Vercel Hobby
+# Git / 커밋 / 푸시 (필수 · 반복 실수 금지)
 
-## 계정
+## ⛔ 절대 금지 (매 커밋마다)
 
-- **이 프로젝트만** 개인 계정 사용. 회사 글로벌 git 설정(`program_jhj` 등)을 따르지 말 것.
-- 로컬 설정(이미 적용됨, 유지):
-  - `user.name` = `ClarkZeon`
-  - `user.email` = `58538413+ClarkZeon@users.noreply.github.com`
-  - credential helper = `gh auth git-credential` (ClarkZeon)
-- **전역 `git config --global` 은 변경하지 말 것.**
+- 커밋 메시지에 **`Co-authored-by: Cursor`** / **`cursoragent@cursor.com`** 를 **넣지 말 것**.
+- Cursor가 커밋 직후 트레일러를 **자동 삽입**하는 경우가 있다. **그래서 아래 검증을 건너뛰면 안 된다.**
+- Vercel Hobby + private 레포는 co-author를 협업으로 보고 **Deployment Blocked**.
 
-## 커밋 메시지
+## ✅ 커밋 → 푸시 강제 순서 (이 순서만)
 
-- **`Co-authored-by: Cursor` / `cursoragent@cursor.com` 트레일러를 절대 넣지 말 것.**
-- Vercel Hobby + private 레포는 co-author·타 계정을 협업으로 보고 **Deployment Blocked** 됨.
-- 커밋 후 메시지에 `Co-authored-by: Cursor`가 있으면 푸시 전에 제거할 것:
+1. `git commit` (메시지에 Co-authored-by 문구를 **작성하지 말 것**)
+2. **즉시** 검증:
+   ```bash
+   git log -1 --format=%B
+   ```
+   `Co-authored-by` 가 보이면 **푸시하지 말고** 3번으로.
+3. 제거 (Windows Git Bash / sed 가능 환경):
+   ```bash
+   git filter-branch -f --msg-filter "sed '/^Co-authored-by: Cursor/d'" HEAD~1..HEAD
+   ```
+4. 다시 `git log -1 --format=%B` 로 **제거 확인** 후에만 `git push`.
+5. 이미 푸시한 뒤에야 발견하면: 제거 후 `git push --force-with-lease origin HEAD` (이 경우만).
 
-```bash
-git filter-branch -f --msg-filter "sed '/^Co-authored-by: Cursor/d'" HEAD~1..HEAD
-# 또는 새 커밋이면 amend 후 force-with-lease (히스토리 상황에 맞게)
-```
+## 계정 / 리모트
 
-## 푸시
+- **이 프로젝트만** 개인 계정. 회사 글로벌 git(`program_jhj` 등) 따르지 말 것.
+- 로컬 유지: `user.name=ClarkZeon`, `user.email=58538413+ClarkZeon@users.noreply.github.com`
+- **`git config --global` 변경 금지**
+- remote: `https://github.com/ClarkZeon/dho.git` · `gh` 계정 `ClarkZeon` 확인 후 푸시
 
-- remote: `https://github.com/ClarkZeon/dho.git`
-- `gh` 로그인 계정이 `ClarkZeon`인지 확인 후 푸시.
-- 회사 계정 자격 증명으로 푸시되지 않게 할 것.
+## 훅
+
+- 이 레포는 `core.hooksPath=.githooks` (로컬)로 **commit-msg에서 Cursor co-author를 자동 삭제**한다.
+- 훅이 있어도 **2번 로그 검증은 생략하지 말 것.**
 
 ## Vercel
 
-- 배포 프로젝트 소유/팀이 **ClarkZeon 개인**이어야 함. 다른 팀(예: green-light4 / JeonHanjin)에 연결되면 Hobby에서 블록됨.
-- **Blocked / Blocked Stale** 옛 배포를 Redeploy 하지 말 것. 새 커밋으로 새 배포를 띄울 것.
+- 프로젝트 소유/팀 = **ClarkZeon 개인**만.
+- Blocked / Blocked Stale 옛 배포 Redeploy 금지 → 새 커밋으로 새 배포.
