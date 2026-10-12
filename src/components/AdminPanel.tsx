@@ -39,6 +39,7 @@ import { DetailModal } from './DetailModal'
 import { DiscoveryDetailView } from './DiscoveryDetailView'
 import { LibraryLanguageDetailView } from './LibraryLanguageDetailView'
 import { PortDetailView } from './PortDetailView'
+import { QuestDiscoveryLabel } from './DiscoveryRankMark'
 import { QuestDetailView } from './QuestDetailView'
 import { ShipDetailView } from './ShipDetailView'
 import { ShipMaterialDetailView } from './ShipMaterialDetailView'
@@ -221,9 +222,9 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
     }
   }, [token])
 
-  const loadQuests = useCallback(async () => {
-    setLoadingQuests(true)
+  const loadQuests = useCallback(async (opts?: { quiet?: boolean }) => {
     setQuestsError('')
+    if (!opts?.quiet) setLoadingQuests(true)
     try {
       const res = await fetchQuests(token)
       setQuests(res.quests)
@@ -415,7 +416,8 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
     if (nav === 'ports') void loadPorts()
     if (nav === 'discoveries') {
       void loadDiscoveries()
-      if (quests.length === 0) void loadQuests()
+      // quests.length를 deps에 넣으면 첫 로드 직후 effect가 다시 돌아 목록이 깜빡임
+      void loadQuests({ quiet: true })
     }
     if (nav === 'languages') void loadLanguages()
     if (nav === 'materials') void loadMaterials()
@@ -428,7 +430,6 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
     loadDiscoveries,
     loadLanguages,
     loadMaterials,
-    quests.length,
   ])
 
   async function openQuestByRef(ref: DiscoveryQuestRef) {
@@ -1274,7 +1275,7 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
               />
             </label>
 
-            {loadingQuests ? (
+            {loadingQuests && quests.length === 0 ? (
               <p className="form-note">불러오는 중…</p>
             ) : (
               <div className="admin-table-wrap">
@@ -1376,15 +1377,7 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
                         <td className="col-desk">{quest.requestPlaces || '-'}</td>
                         <td className="col-desk">{quest.destination || '-'}</td>
                         <td className="col-desk">
-                          {[
-                            quest.discoveryCategory
-                              ? `[${quest.discoveryCategory}]`
-                              : null,
-                            quest.discoveryRank,
-                            quest.discoveryName,
-                          ]
-                            .filter((v) => v != null && v !== '')
-                            .join(' ') || '-'}
+                          <QuestDiscoveryLabel quest={quest} />
                         </td>
                         <td
                           className="admin-cell-control col-desk col-action"

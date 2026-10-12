@@ -1,9 +1,10 @@
-import { useEffect, useState, type KeyboardEvent } from 'react'
+import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { fetchQuests, setQuestCompletion } from '../lib/api'
 import { matchesQuestQuery } from '../lib/questSearch'
 import { useTableSort } from '../lib/tableSort'
 import type { QuestDetail } from '../types'
 import { DetailModal } from './DetailModal'
+import { QuestDiscoveryLabel } from './DiscoveryRankMark'
 import { QuestDetailView } from './QuestDetailView'
 import { SortableTh } from './SortableTh'
 
@@ -45,6 +46,7 @@ export function QuestCatalog({ token, isAdmin = false }: QuestCatalogProps) {
   const [detail, setDetail] = useState<QuestDetail | null>(null)
   const [query, setQuery] = useState('')
   const [busyId, setBusyId] = useState<number | null>(null)
+  const hasQuestsRef = useRef(false)
   const { sortKey, sortDir, toggleSort, sortRows } =
     useTableSort<QuestSortKey>()
 
@@ -52,11 +54,13 @@ export function QuestCatalog({ token, isAdmin = false }: QuestCatalogProps) {
     let alive = true
     ;(async () => {
       try {
-        setLoading(true)
         setError('')
+        // 이미 목록이 있으면 로딩 UI로 표를 숨기지 않음 (StrictMode 이중 fetch 깜빡임 방지)
+        if (!hasQuestsRef.current) setLoading(true)
         const res = await fetchQuests(token)
         if (!alive) return
         setQuests(res.quests)
+        hasQuestsRef.current = res.quests.length > 0
       } catch (err) {
         if (!alive) return
         setError(
@@ -164,7 +168,7 @@ export function QuestCatalog({ token, isAdmin = false }: QuestCatalogProps) {
         </p>
       )}
 
-      {loading ? (
+      {loading && quests.length === 0 ? (
         <p className="form-note">불러오는 중…</p>
       ) : (
         <div className="admin-table-wrap">
@@ -239,7 +243,9 @@ export function QuestCatalog({ token, isAdmin = false }: QuestCatalogProps) {
                   <td className="col-desk">{quest.difficulty ?? '-'}</td>
                   <td className="col-desk">{quest.requestPlaces || '-'}</td>
                   <td className="col-desk">{quest.destination || '-'}</td>
-                  <td className="col-desk">{discoveryLabel(quest) || '-'}</td>
+                  <td className="col-desk">
+                    <QuestDiscoveryLabel quest={quest} />
+                  </td>
                 </tr>
               ))}
               {rows.length === 0 && (

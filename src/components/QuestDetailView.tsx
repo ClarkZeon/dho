@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { updateQuest } from '../lib/api'
 import { splitChainAndLinked } from '../lib/questChain'
 import type { QuestChainItem, QuestDetail } from '../types'
+import { QuestDiscoveryLabel } from './DiscoveryRankMark'
 
 function formatNum(n: number | null | undefined) {
   if (n == null) return '-'
@@ -178,14 +179,6 @@ export function QuestDetailView({
     ...split.linkedQuests,
     ...(quest.linkedQuests || []),
   ]
-  const discovery = [
-    quest.discoveryCategory ? `[${quest.discoveryCategory}]` : null,
-    quest.discoveryRank != null ? `${quest.discoveryRank}성` : null,
-    quest.discoveryName,
-  ]
-    .filter(Boolean)
-    .join(' ')
-
   const description = dropMapSource(quest.description || '', quest.destination)
   const walkthroughSteps = dropMapSource(
     quest.walkthrough || '',
@@ -249,7 +242,9 @@ export function QuestDetailView({
           </div>
           <div className="quest-kv-wide">
             <span>발견물</span>
-            <strong>{discovery || '-'}</strong>
+            <strong>
+              <QuestDiscoveryLabel quest={quest} />
+            </strong>
           </div>
         </div>
       </section>
