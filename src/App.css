@@ -2720,6 +2720,11 @@
   max-width: 18rem;
 }
 
+.ship-list {
+  display: grid;
+  gap: 0.85rem;
+}
+
 .catalog-search {
   max-width: 28rem;
 }
@@ -2890,6 +2895,18 @@
 .catalog-search input {
   padding: 0.7rem 0.85rem;
   font-size: 0.95rem;
+  background: var(--is-white);
+  border-color: #c5d0db;
+}
+
+.catalog-search input:focus {
+  border-color: var(--is-blue-lighter);
+  background: var(--is-white);
+}
+
+.catalog-search input:disabled {
+  background: var(--is-light);
+  color: var(--is-grey);
 }
 
 .catalog-pager {
@@ -3092,6 +3109,18 @@
   background: var(--is-light);
   border-color: var(--is-grey-lighter);
   font-weight: 700;
+}
+
+.admin-table tbody tr.is-quest-done td {
+  color: color-mix(in srgb, var(--is-grey) 35%, var(--is-dark));
+}
+
+.quest-complete-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  padding-top: 0.35rem;
+  border-top: 1px solid var(--is-grey-lighter);
 }
 
 .discovery-quest-link {

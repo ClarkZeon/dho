@@ -41,6 +41,7 @@ import {
   ensureQuestStore,
   getQuestById,
   listQuests,
+  setUserQuestCompleted,
   updateQuestFields,
   upsertQuestFromParsed,
 } from './questStore.mjs'
@@ -848,8 +849,42 @@ export async function handleRequest(req, res) {
         sendJson(res, 401, { error: '로그인이 필요합니다.' })
         return
       }
-      const quests = await listQuests()
+      const quests = await listQuests(authUser.id)
       sendJson(res, 200, { quests })
+      return
+    }
+
+    const questCompletionMatch = pathname.match(
+      /^\/api\/quests\/([^/]+)\/completion$/,
+    )
+    if (questCompletionMatch && req.method === 'PUT') {
+      const authUser = await getAuthUser(req)
+      if (!authUser) {
+        sendJson(res, 401, { error: '로그인이 필요합니다.' })
+        return
+      }
+      const questId = Number(decodeURIComponent(questCompletionMatch[1]))
+      if (!Number.isFinite(questId)) {
+        sendJson(res, 400, { error: '잘못된 퀘스트 ID입니다.' })
+        return
+      }
+      const body = await readBody(req)
+      const completed = Boolean(body.completed)
+      try {
+        const result = await setUserQuestCompleted(
+          authUser.id,
+          questId,
+          completed,
+        )
+        sendJson(res, 200, result)
+      } catch (err) {
+        sendJson(res, 400, {
+          error:
+            err instanceof Error
+              ? err.message
+              : '퀘스트 완료 상태 저장에 실패했습니다.',
+        })
+      }
       return
     }
 

@@ -15,11 +15,12 @@ export function compareSortValues(
   return String(a).localeCompare(String(b), 'ko', { numeric: true })
 }
 
+/** 초기에는 정렬하지 않음. 헤더를 누른 뒤에만 order by 적용 */
 export function useTableSort<K extends string>(
-  defaultKey: K,
+  defaultKey: K | null = null,
   defaultDir: SortDir = 'asc',
 ) {
-  const [sortKey, setSortKey] = useState<K>(defaultKey)
+  const [sortKey, setSortKey] = useState<K | null>(defaultKey)
   const [sortDir, setSortDir] = useState<SortDir>(defaultDir)
 
   function toggleSort(key: K) {
@@ -36,12 +37,27 @@ export function useTableSort<K extends string>(
     getValue: (row: T, key: K) => string | number | null | undefined,
     tieBreak?: (a: T, b: T) => number,
   ): T[] {
+    if (!sortKey) return [...rows]
+    const key = sortKey
     return [...rows].sort((a, b) => {
-      let cmp = compareSortValues(getValue(a, sortKey), getValue(b, sortKey))
+      let cmp = compareSortValues(getValue(a, key), getValue(b, key))
       if (cmp === 0 && tieBreak) cmp = tieBreak(a, b)
       return sortDir === 'asc' ? cmp : -cmp
     })
   }
 
-  return { sortKey, sortDir, toggleSort, sortRows, setSortKey, setSortDir }
+  function clearSort() {
+    setSortKey(null)
+    setSortDir(defaultDir)
+  }
+
+  return {
+    sortKey,
+    sortDir,
+    toggleSort,
+    sortRows,
+    clearSort,
+    setSortKey,
+    setSortDir,
+  }
 }

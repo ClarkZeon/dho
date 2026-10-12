@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState, type FormEvent, type KeyboardEvent } from 'react'
 import {
-  deleteAdminUser,
   fetchAdminUsers,
   fetchDiscoveries,
   fetchLibraryLanguages,
@@ -36,12 +35,14 @@ import { PortDetailView } from './PortDetailView'
 import { QuestDetailView } from './QuestDetailView'
 import { ShipDetailView } from './ShipDetailView'
 import { ShipMaterialDetailView } from './ShipMaterialDetailView'
+import { ShipList } from './ShipList'
 import { ShipMaterialList } from './ShipMaterialList'
 import { SortableTh } from './SortableTh'
 import { matchesQuestQuery } from '../lib/questSearch'
 import { useTableSort } from '../lib/tableSort'
 
 const LANGUAGE_PAGE_SIZE = 15
+const USER_PAGE_SIZE = 15
 
 type UserSortKey =
   | 'username'
@@ -49,14 +50,6 @@ type UserSortKey =
   | 'role'
   | 'level'
   | 'lastLoginAt'
-type ShipSortKey =
-  | 'name'
-  | 'category'
-  | 'size'
-  | 'form'
-  | 'level'
-  | 'acquireType'
-  | 'acquireMethod'
 type QuestSortKey =
   | 'name'
   | 'category'
@@ -117,6 +110,8 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
   const [loadingUsers, setLoadingUsers] = useState(false)
   const [usersError, setUsersError] = useState('')
   const [busyId, setBusyId] = useState<string | null>(null)
+  const [userQuery, setUserQuery] = useState('')
+  const [userPage, setUserPage] = useState(0)
 
   const [ships, setShips] = useState<ShipDetail[]>([])
   const [loadingShips, setLoadingShips] = useState(false)
@@ -275,30 +270,43 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
     }
   }, [token])
 
-  const usersSort = useTableSort<UserSortKey>('username')
-  const shipsSort = useTableSort<ShipSortKey>('name')
-  const questsSort = useTableSort<QuestSortKey>('name')
-  const portsSort = useTableSort<PortSortKey>('name')
-  const discoveriesSort = useTableSort<DiscoverySortKey>('name')
-  const languagesSort = useTableSort<LanguageSortKey>('name')
+  const usersSort = useTableSort<UserSortKey>()
+  const questsSort = useTableSort<QuestSortKey>()
+  const portsSort = useTableSort<PortSortKey>()
+  const discoveriesSort = useTableSort<DiscoverySortKey>()
+  const languagesSort = useTableSort<LanguageSortKey>()
 
+  const userQueryLower = userQuery.trim().toLowerCase()
+  const filteredUsers = users.filter((row) => {
+    if (!userQueryLower) return true
+    const haystack = [
+      row.username,
+      row.nickname,
+      row.role,
+      row.level,
+      row.lastLoginAt,
+    ]
+      .filter((v) => v != null && v !== '')
+      .join(' ')
+      .toLowerCase()
+    return haystack.includes(userQueryLower)
+  })
   const sortedUsers = usersSort.sortRows(
-    users,
+    filteredUsers,
     (row, key) => {
       if (key === 'lastLoginAt') return row.lastLoginAt || ''
       return row[key]
     },
     (a, b) => a.username.localeCompare(b.username, 'ko'),
   )
-  const sortedShips = shipsSort.sortRows(
-    ships,
-    (ship, key) => {
-      if (key === 'level') {
-        return ship.adventureLv * 1_000_000 + ship.tradeLv * 1_000 + ship.battleLv
-      }
-      return ship[key]
-    },
-    (a, b) => a.id - b.id,
+  const userTotalPages = Math.max(
+    1,
+    Math.ceil(sortedUsers.length / USER_PAGE_SIZE),
+  )
+  const userSafePage = Math.min(userPage, userTotalPages - 1)
+  const userPageItems = sortedUsers.slice(
+    userSafePage * USER_PAGE_SIZE,
+    userSafePage * USER_PAGE_SIZE + USER_PAGE_SIZE,
   )
   const sortedQuests = questsSort.sortRows(
     quests.filter((quest) => matchesQuestQuery(quest, questQuery)),
@@ -435,26 +443,6 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
       onToast(`${target.nickname} 역할을 ${role}(으)로 변경했습니다.`)
     } catch (err) {
       onToast(err instanceof Error ? err.message : '역할 변경에 실패했습니다.')
-    } finally {
-      setBusyId(null)
-    }
-  }
-
-  async function handleDelete(target: AdminUser) {
-    if (
-      !window.confirm(
-        `「${target.nickname}」(${target.username}) 계정을 삭제할까요?`,
-      )
-    ) {
-      return
-    }
-    setBusyId(target.id)
-    try {
-      await deleteAdminUser(token, target.id)
-      setUsers((prev) => prev.filter((u) => u.id !== target.id))
-      onToast(`${target.nickname} 계정을 삭제했습니다.`)
-    } catch (err) {
-      onToast(err instanceof Error ? err.message : '삭제에 실패했습니다.')
     } finally {
       setBusyId(null)
     }
@@ -746,8 +734,7 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
               <div>
                 <h1>회원 리스트</h1>
                 <p>
-                  역할 변경과 계정 삭제를 처리합니다. 마지막 관리자는 강등·삭제할 수
-                  없습니다.
+                  역할을 변경합니다. 마지막 관리자는 강등할 수 없습니다.
                 </p>
               </div>
               <button
@@ -766,103 +753,162 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
               </p>
             )}
 
+            <label className="field catalog-search">
+              <input
+                type="search"
+                value={userQuery}
+                onChange={(e) => {
+                  setUserQuery(e.target.value)
+                  setUserPage(0)
+                }}
+                placeholder="아이디·닉네임·역할로 검색"
+                aria-label="회원 검색"
+                autoComplete="off"
+                disabled={loadingUsers}
+              />
+            </label>
+
             {loadingUsers ? (
               <p className="form-note">불러오는 중…</p>
             ) : (
-              <div className="admin-table-wrap">
-                <table className="admin-table">
-                  <thead>
-                    <tr>
-                      <SortableTh
-                        label="아이디"
-                        sortKey="username"
-                        activeKey={usersSort.sortKey}
-                        dir={usersSort.sortDir}
-                        onSort={usersSort.toggleSort}
-                      />
-                      <SortableTh
-                        label="닉네임"
-                        sortKey="nickname"
-                        activeKey={usersSort.sortKey}
-                        dir={usersSort.sortDir}
-                        onSort={usersSort.toggleSort}
-                      />
-                      <SortableTh
-                        label="역할"
-                        sortKey="role"
-                        activeKey={usersSort.sortKey}
-                        dir={usersSort.sortDir}
-                        onSort={usersSort.toggleSort}
-                      />
-                      <SortableTh
-                        label="레벨"
-                        sortKey="level"
-                        activeKey={usersSort.sortKey}
-                        dir={usersSort.sortDir}
-                        onSort={usersSort.toggleSort}
-                      />
-                      <SortableTh
-                        label="최근 로그인"
-                        sortKey="lastLoginAt"
-                        activeKey={usersSort.sortKey}
-                        dir={usersSort.sortDir}
-                        onSort={usersSort.toggleSort}
-                      />
-                      <th>작업</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {sortedUsers.map((row) => {
-                      const isSelf = row.id === user.id
-                      const isLastAdmin = row.role === 'admin' && adminCount <= 1
-                      const busy = busyId === row.id
-                      // 마지막 admin 은 강등/삭제 불가. 본인이라도 다른 admin 이 있으면 변경 가능.
-                      const roleLocked = busy || isLastAdmin
-                      const deleteLocked = busy || isSelf || isLastAdmin
-                      const lockHint = isLastAdmin
-                        ? '마지막 관리자는 역할을 변경할 수 없습니다.'
-                        : isSelf
-                          ? '자신의 계정은 삭제할 수 없습니다.'
+              <>
+                <div className="admin-table-wrap">
+                  <table className="admin-table">
+                    <thead>
+                      <tr>
+                        <SortableTh
+                          label="아이디"
+                          sortKey="username"
+                          activeKey={usersSort.sortKey}
+                          dir={usersSort.sortDir}
+                          onSort={(key) => {
+                            usersSort.toggleSort(key)
+                            setUserPage(0)
+                          }}
+                        />
+                        <SortableTh
+                          label="닉네임"
+                          sortKey="nickname"
+                          activeKey={usersSort.sortKey}
+                          dir={usersSort.sortDir}
+                          onSort={(key) => {
+                            usersSort.toggleSort(key)
+                            setUserPage(0)
+                          }}
+                        />
+                        <SortableTh
+                          label="역할"
+                          sortKey="role"
+                          activeKey={usersSort.sortKey}
+                          dir={usersSort.sortDir}
+                          onSort={(key) => {
+                            usersSort.toggleSort(key)
+                            setUserPage(0)
+                          }}
+                        />
+                        <SortableTh
+                          label="레벨"
+                          sortKey="level"
+                          activeKey={usersSort.sortKey}
+                          dir={usersSort.sortDir}
+                          onSort={(key) => {
+                            usersSort.toggleSort(key)
+                            setUserPage(0)
+                          }}
+                        />
+                        <SortableTh
+                          label="최근 로그인"
+                          sortKey="lastLoginAt"
+                          activeKey={usersSort.sortKey}
+                          dir={usersSort.sortDir}
+                          onSort={(key) => {
+                            usersSort.toggleSort(key)
+                            setUserPage(0)
+                          }}
+                        />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {userPageItems.map((row) => {
+                        const isLastAdmin =
+                          row.role === 'admin' && adminCount <= 1
+                        const busy = busyId === row.id
+                        const roleLocked = busy || isLastAdmin
+                        const lockHint = isLastAdmin
+                          ? '마지막 관리자는 역할을 변경할 수 없습니다.'
                           : undefined
-                      return (
-                        <tr key={row.id}>
-                          <td>{row.username}</td>
-                          <td>{row.nickname}</td>
-                          <td>
-                            <select
-                              value={row.role}
-                              disabled={roleLocked}
-                              title={roleLocked ? lockHint : undefined}
-                              onChange={(e) =>
-                                void handleRoleChange(
-                                  row,
-                                  e.target.value === 'admin' ? 'admin' : 'member',
-                                )
-                              }
-                            >
-                              <option value="member">member</option>
-                              <option value="admin">admin</option>
-                            </select>
-                          </td>
-                          <td>Lv.{row.level}</td>
-                          <td>{formatDate(row.lastLoginAt)}</td>
-                          <td>
-                            <button
-                              type="button"
-                              className="admin-danger-btn"
-                              disabled={deleteLocked}
-                              title={deleteLocked ? lockHint : undefined}
-                              onClick={() => void handleDelete(row)}
-                            >
-                              삭제
-                            </button>
+                        return (
+                          <tr key={row.id}>
+                            <td>{row.username}</td>
+                            <td>{row.nickname}</td>
+                            <td>
+                              <select
+                                value={row.role}
+                                disabled={roleLocked}
+                                title={roleLocked ? lockHint : undefined}
+                                onChange={(e) =>
+                                  void handleRoleChange(
+                                    row,
+                                    e.target.value === 'admin'
+                                      ? 'admin'
+                                      : 'member',
+                                  )
+                                }
+                              >
+                                <option value="member">member</option>
+                                <option value="admin">admin</option>
+                              </select>
+                            </td>
+                            <td>Lv.{row.level}</td>
+                            <td>{formatDate(row.lastLoginAt)}</td>
+                          </tr>
+                        )
+                      })}
+                      {sortedUsers.length === 0 && (
+                        <tr>
+                          <td colSpan={5}>
+                            {users.length === 0
+                              ? '등록된 회원이 없습니다.'
+                              : '검색 결과가 없습니다.'}
                           </td>
                         </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                {sortedUsers.length > 0 && (
+                  <div className="catalog-pager" aria-label="회원 목록 페이지">
+                    <button
+                      type="button"
+                      className="admin-btn"
+                      disabled={userSafePage <= 0}
+                      onClick={() => setUserPage((p) => Math.max(0, p - 1))}
+                    >
+                      이전
+                    </button>
+                    <span>
+                      {userSafePage + 1} / {userTotalPages}
+                      <em>
+                        · {sortedUsers.length}개
+                        {userQuery.trim() ? ` (전체 ${users.length})` : ''}
+                      </em>
+                    </span>
+                    <button
+                      type="button"
+                      className="admin-btn"
+                      disabled={userSafePage >= userTotalPages - 1}
+                      onClick={() =>
+                        setUserPage((p) =>
+                          Math.min(userTotalPages - 1, p + 1),
+                        )
+                      }
+                    >
+                      다음
+                    </button>
+                  </div>
+                )}
+              </>
             )}
           </section>
         )}
@@ -944,94 +990,10 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
             {loadingShips ? (
               <p className="form-note">불러오는 중…</p>
             ) : (
-              <div className="admin-table-wrap">
-                <table className="admin-table">
-                  <thead>
-                    <tr>
-                      <SortableTh
-                        label="이름"
-                        sortKey="name"
-                        activeKey={shipsSort.sortKey}
-                        dir={shipsSort.sortDir}
-                        onSort={shipsSort.toggleSort}
-                      />
-                      <SortableTh
-                        label="분류"
-                        sortKey="category"
-                        activeKey={shipsSort.sortKey}
-                        dir={shipsSort.sortDir}
-                        onSort={shipsSort.toggleSort}
-                      />
-                      <SortableTh
-                        label="크기"
-                        sortKey="size"
-                        activeKey={shipsSort.sortKey}
-                        dir={shipsSort.sortDir}
-                        onSort={shipsSort.toggleSort}
-                      />
-                      <SortableTh
-                        label="형태"
-                        sortKey="form"
-                        activeKey={shipsSort.sortKey}
-                        dir={shipsSort.sortDir}
-                        onSort={shipsSort.toggleSort}
-                      />
-                      <SortableTh
-                        label="레벨"
-                        sortKey="level"
-                        activeKey={shipsSort.sortKey}
-                        dir={shipsSort.sortDir}
-                        onSort={shipsSort.toggleSort}
-                      />
-                      <SortableTh
-                        label="획득 구분"
-                        sortKey="acquireType"
-                        activeKey={shipsSort.sortKey}
-                        dir={shipsSort.sortDir}
-                        onSort={shipsSort.toggleSort}
-                      />
-                      <SortableTh
-                        label="획득 방법"
-                        sortKey="acquireMethod"
-                        activeKey={shipsSort.sortKey}
-                        dir={shipsSort.sortDir}
-                        onSort={shipsSort.toggleSort}
-                      />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {sortedShips.map((ship, index) => (
-                      <tr
-                        key={ship.id}
-                        className={`admin-row-clickable${index % 2 === 0 ? ' is-even' : ' is-odd'}`}
-                        tabIndex={0}
-                        onClick={() => setDetailShip(ship)}
-                        onKeyDown={(event: KeyboardEvent<HTMLTableRowElement>) => {
-                          if (event.key === 'Enter' || event.key === ' ') {
-                            event.preventDefault()
-                            setDetailShip(ship)
-                          }
-                        }}
-                      >
-                        <td>{ship.name}</td>
-                        <td>{ship.category || '-'}</td>
-                        <td>{ship.size || '-'}</td>
-                        <td>{ship.form || '-'}</td>
-                        <td>
-                          모{ship.adventureLv}/교{ship.tradeLv}/전{ship.battleLv}
-                        </td>
-                        <td>{ship.acquireType || '-'}</td>
-                        <td>{ship.acquireMethod || '-'}</td>
-                      </tr>
-                    ))}
-                    {sortedShips.length === 0 && (
-                      <tr>
-                        <td colSpan={7}>등록된 선박이 없습니다.</td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
+              <ShipList
+                ships={ships}
+                onOpen={(ship) => setDetailShip(ship)}
+              />
             )}
           </section>
         )}

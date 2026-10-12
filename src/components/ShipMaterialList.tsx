@@ -40,8 +40,8 @@ export function ShipMaterialList({ materials, onOpen }: ShipMaterialListProps) {
   const [draftQuery, setDraftQuery] = useState('')
   const [query, setQuery] = useState('')
   const [page, setPage] = useState(0)
-  const { sortKey, sortDir, toggleSort, sortRows, setSortKey, setSortDir } =
-    useTableSort<MaterialSortKey>('id', 'asc')
+  const { sortKey, sortDir, toggleSort, sortRows, clearSort } =
+    useTableSort<MaterialSortKey>()
 
   const filtered = sortRows(
     materials.filter(
@@ -85,8 +85,7 @@ export function ShipMaterialList({ materials, onOpen }: ShipMaterialListProps) {
     setSelectedKinds(new Set())
     setDraftQuery('')
     setQuery('')
-    setSortKey('id')
-    setSortDir('asc')
+    clearSort()
     setPage(0)
   }
 

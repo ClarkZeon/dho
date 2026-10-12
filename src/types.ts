@@ -183,6 +183,9 @@ export type QuestDetail = {
   linkedQuests: QuestChainItem[]
   walkthrough: string | null
   progress: string | null
+  /** 로그인 유저 기준 완료 여부 */
+  completed?: boolean
+  completedAt?: string | null
 }
 
 export type PortReward = {

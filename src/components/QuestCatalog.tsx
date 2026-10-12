@@ -1,5 +1,5 @@
 import { useEffect, useState, type KeyboardEvent } from 'react'
-import { fetchQuests } from '../lib/api'
+import { fetchQuests, setQuestCompletion } from '../lib/api'
 import { matchesQuestQuery } from '../lib/questSearch'
 import { useTableSort } from '../lib/tableSort'
 import type { QuestDetail } from '../types'
@@ -43,8 +43,9 @@ export function QuestCatalog({ token }: QuestCatalogProps) {
   const [error, setError] = useState('')
   const [detail, setDetail] = useState<QuestDetail | null>(null)
   const [query, setQuery] = useState('')
+  const [busyId, setBusyId] = useState<number | null>(null)
   const { sortKey, sortDir, toggleSort, sortRows } =
-    useTableSort<QuestSortKey>('name')
+    useTableSort<QuestSortKey>()
 
   useEffect(() => {
     let alive = true
@@ -91,12 +92,56 @@ export function QuestCatalog({ token }: QuestCatalogProps) {
     (a, b) => a.id - b.id,
   )
 
+  const completedCount = quests.filter((q) => q.completed).length
+
+  async function toggleCompleted(quest: QuestDetail, next: boolean) {
+    if (busyId === quest.id) return
+    setBusyId(quest.id)
+    setError('')
+    try {
+      const res = await setQuestCompletion(token, quest.id, next)
+      setQuests((prev) =>
+        prev.map((item) =>
+          item.id === quest.id
+            ? {
+                ...item,
+                completed: res.completed,
+                completedAt: res.completedAt,
+              }
+            : item,
+        ),
+      )
+      setDetail((prev) =>
+        prev && prev.id === quest.id
+          ? {
+              ...prev,
+              completed: res.completed,
+              completedAt: res.completedAt,
+            }
+          : prev,
+      )
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : '완료 상태 저장에 실패했습니다.',
+      )
+    } finally {
+      setBusyId(null)
+    }
+  }
+
   return (
     <section className="tool-page">
       <div className="messages-head">
         <div>
           <h1>퀘스트</h1>
-          <p>등록된 퀘스트를 확인하고 상세를 엽니다.</p>
+          <p>
+            등록된 퀘스트를 확인하고 상세에서 완료를 표시합니다.
+            {!loading && quests.length > 0
+              ? ` (완료 ${completedCount}/${quests.length})`
+              : ''}
+          </p>
         </div>
       </div>
 
@@ -173,7 +218,7 @@ export function QuestCatalog({ token }: QuestCatalogProps) {
               {rows.map((quest, index) => (
                 <tr
                   key={quest.id}
-                  className={`admin-row-clickable${index % 2 === 0 ? ' is-even' : ' is-odd'}`}
+                  className={`admin-row-clickable${quest.completed ? ' is-quest-done' : ''}${index % 2 === 0 ? ' is-even' : ' is-odd'}`}
                   tabIndex={0}
                   onClick={() => setDetail(quest)}
                   onKeyDown={(event: KeyboardEvent<HTMLTableRowElement>) => {
@@ -211,7 +256,13 @@ export function QuestCatalog({ token }: QuestCatalogProps) {
           label={`${detail.name} 상세`}
           onClose={() => setDetail(null)}
         >
-          <QuestDetailView quest={detail} />
+          <QuestDetailView
+            quest={detail}
+            completionBusy={busyId === detail.id}
+            onToggleCompleted={(completed) =>
+              void toggleCompleted(detail, completed)
+            }
+          />
         </DetailModal>
       )}
     </section>

@@ -3,7 +3,7 @@ import type { SortDir } from '../lib/tableSort'
 type SortableThProps<K extends string> = {
   label: string
   sortKey: K
-  activeKey: K
+  activeKey: K | null
   dir: SortDir
   onSort: (key: K) => void
   align?: 'left' | 'center'

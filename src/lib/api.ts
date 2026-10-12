@@ -270,6 +270,22 @@ export function updateQuest(
   )
 }
 
+export function setQuestCompletion(
+  token: string,
+  questId: number,
+  completed: boolean,
+) {
+  return request<{
+    questId: number
+    completed: boolean
+    completedAt: string | null
+  }>(`/api/quests/${encodeURIComponent(String(questId))}/completion`, {
+    method: 'PUT',
+    token,
+    body: { completed },
+  })
+}
+
 export function fetchPorts(token: string) {
   return request<{ ports: PortDetail[] }>('/api/ports', { token })
 }

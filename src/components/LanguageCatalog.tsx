@@ -55,7 +55,7 @@ export function LanguageCatalog({ token }: LanguageCatalogProps) {
   const [query, setQuery] = useState('')
   const [page, setPage] = useState(0)
   const { sortKey, sortDir, toggleSort, sortRows } =
-    useTableSort<LanguageSortKey>('name')
+    useTableSort<LanguageSortKey>()
 
   useEffect(() => {
     let alive = true

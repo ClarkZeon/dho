@@ -67,6 +67,8 @@ function DifficultyStars({ value }: { value: number | null }) {
 
 type QuestDetailViewProps = {
   quest: QuestDetail
+  completionBusy?: boolean
+  onToggleCompleted?: (completed: boolean) => void
 }
 
 function QuestRelatedList({
@@ -124,7 +126,11 @@ function QuestRelatedList({
   )
 }
 
-export function QuestDetailView({ quest }: QuestDetailViewProps) {
+export function QuestDetailView({
+  quest,
+  completionBusy = false,
+  onToggleCompleted,
+}: QuestDetailViewProps) {
   const split = splitChainAndLinked(quest.chainQuests)
   const chainQuests = split.chainQuests
   const linkedQuests = [
@@ -319,6 +325,30 @@ export function QuestDetailView({ quest }: QuestDetailViewProps) {
             })}
           </div>
         </section>
+      )}
+
+      {onToggleCompleted && (
+        <div className="quest-complete-actions">
+          {quest.completed ? (
+            <button
+              type="button"
+              className="admin-btn"
+              disabled={completionBusy}
+              onClick={() => onToggleCompleted(false)}
+            >
+              {completionBusy ? '저장 중…' : '완료 취소'}
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="admin-btn admin-btn-primary"
+              disabled={completionBusy}
+              onClick={() => onToggleCompleted(true)}
+            >
+              {completionBusy ? '저장 중…' : '완료'}
+            </button>
+          )}
+        </div>
       )}
     </div>
   )

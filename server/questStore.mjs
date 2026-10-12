@@ -4,6 +4,7 @@ import { splitChainAndLinked, stripWikiMapNoise } from './questTextParse.mjs'
 export async function ensureQuestStore() {
   if (!hasDatabaseUrl()) throw new Error('DATABASE_URL 이 없습니다.')
   await runSqlFile('sql/008_quests.sql')
+  await runSqlFile('sql/015_user_quest_completions.sql')
 }
 
 function normalizeQuestName(name) {
@@ -74,12 +75,83 @@ function decorateQuest(row) {
   }
 }
 
-export async function listQuests() {
+/**
+ * @param {string | null | undefined} userId
+ */
+export async function listQuests(userId = null) {
   const sql = getSql()
   const rows = await sql`
     SELECT * FROM quests WHERE enabled = TRUE ORDER BY sort_order, id
   `
-  return rows.map(decorateQuest)
+
+  /** @type {Map<number, string>} */
+  const completedAtByQuestId = new Map()
+  if (userId) {
+    const completions = await sql`
+      SELECT quest_id, completed_at
+      FROM user_quest_completions
+      WHERE user_id = ${userId}
+    `
+    for (const row of completions) {
+      const questId = Number(row.quest_id)
+      if (!Number.isFinite(questId)) continue
+      completedAtByQuestId.set(
+        questId,
+        new Date(/** @type {string|Date} */ (row.completed_at)).toISOString(),
+      )
+    }
+  }
+
+  return rows.map((row) => {
+    const quest = decorateQuest(row)
+    const completedAt = completedAtByQuestId.get(quest.id) || null
+    return {
+      ...quest,
+      completed: Boolean(completedAt),
+      completedAt,
+    }
+  })
+}
+
+/**
+ * @param {string} userId
+ * @param {number} questId
+ * @param {boolean} completed
+ */
+export async function setUserQuestCompleted(userId, questId, completed) {
+  const sql = getSql()
+  const existing = await sql`
+    SELECT id FROM quests WHERE id = ${questId} AND enabled = TRUE LIMIT 1
+  `
+  if (!existing[0]) throw new Error('퀘스트를 찾을 수 없습니다.')
+
+  if (completed) {
+    await sql`
+      INSERT INTO user_quest_completions (user_id, quest_id, completed_at)
+      VALUES (${userId}, ${questId}, NOW())
+      ON CONFLICT (user_id, quest_id) DO UPDATE SET
+        completed_at = EXCLUDED.completed_at
+    `
+  } else {
+    await sql`
+      DELETE FROM user_quest_completions
+      WHERE user_id = ${userId} AND quest_id = ${questId}
+    `
+  }
+
+  const rows = await sql`
+    SELECT completed_at FROM user_quest_completions
+    WHERE user_id = ${userId} AND quest_id = ${questId}
+    LIMIT 1
+  `
+  const completedAt = rows[0]
+    ? new Date(/** @type {string|Date} */ (rows[0].completed_at)).toISOString()
+    : null
+  return {
+    questId,
+    completed: Boolean(completedAt),
+    completedAt,
+  }
 }
 
 export async function getQuestBySlug(slug) {

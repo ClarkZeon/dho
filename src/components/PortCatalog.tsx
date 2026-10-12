@@ -24,7 +24,7 @@ export function PortCatalog({ token }: PortCatalogProps) {
   const [error, setError] = useState('')
   const [detail, setDetail] = useState<PortDetail | null>(null)
   const { sortKey, sortDir, toggleSort, sortRows } =
-    useTableSort<PortSortKey>('name')
+    useTableSort<PortSortKey>()
 
   useEffect(() => {
     let alive = true
