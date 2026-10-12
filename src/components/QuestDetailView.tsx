@@ -1,3 +1,5 @@
+import { useEffect, useState } from 'react'
+import { updateQuest } from '../lib/api'
 import { splitChainAndLinked } from '../lib/questChain'
 import type { QuestChainItem, QuestDetail } from '../types'
 
@@ -69,6 +71,30 @@ type QuestDetailViewProps = {
   quest: QuestDetail
   completionBusy?: boolean
   onToggleCompleted?: (completed: boolean) => void
+  /** 어드민만: 공략 인라인 편집 */
+  walkthroughEdit?: {
+    token: string
+    onSaved: (quest: QuestDetail) => void
+  }
+}
+
+function PencilIcon() {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M12 20h9" />
+      <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+    </svg>
+  )
 }
 
 function QuestRelatedList({
@@ -130,7 +156,22 @@ export function QuestDetailView({
   quest,
   completionBusy = false,
   onToggleCompleted,
+  walkthroughEdit,
 }: QuestDetailViewProps) {
+  const canEditWalkthrough = Boolean(walkthroughEdit)
+  const [editingWalkthrough, setEditingWalkthrough] = useState(false)
+  const [walkthroughDraft, setWalkthroughDraft] = useState(
+    quest.walkthrough || '',
+  )
+  const [walkthroughBusy, setWalkthroughBusy] = useState(false)
+  const [walkthroughError, setWalkthroughError] = useState('')
+
+  useEffect(() => {
+    setEditingWalkthrough(false)
+    setWalkthroughDraft(quest.walkthrough || '')
+    setWalkthroughError('')
+  }, [quest.id, quest.walkthrough])
+
   const split = splitChainAndLinked(quest.chainQuests)
   const chainQuests = split.chainQuests
   const linkedQuests = [
@@ -157,6 +198,28 @@ export function QuestDetailView({
     .split(/\n(?=\d+\.\s+|결론\s*[-–—])/)
     .map((block) => block.trim())
     .filter(Boolean)
+
+  const showWalkthrough =
+    walkthroughSteps.length > 0 || canEditWalkthrough || editingWalkthrough
+
+  async function saveWalkthrough() {
+    if (!walkthroughEdit) return
+    setWalkthroughBusy(true)
+    setWalkthroughError('')
+    try {
+      const res = await updateQuest(walkthroughEdit.token, quest.id, {
+        walkthrough: walkthroughDraft,
+      })
+      walkthroughEdit.onSaved(res.quest)
+      setEditingWalkthrough(false)
+    } catch (err) {
+      setWalkthroughError(
+        err instanceof Error ? err.message : '공략 저장에 실패했습니다.',
+      )
+    } finally {
+      setWalkthroughBusy(false)
+    }
+  }
 
   return (
     <div className="quest-detail">
@@ -284,23 +347,82 @@ export function QuestDetailView({
         </section>
       )}
 
-      {walkthroughSteps.length > 0 && (
+      {showWalkthrough && (
         <section className="quest-detail-section">
-          <h3>공략</h3>
-          <ol className="quest-steps">
-            {walkthroughSteps.map((step, idx) => {
-              const cleaned = step.replace(/^\d+\.\s*/, '')
-              const isNote = cleaned.startsWith('-') || !/^\d+\./.test(step)
-              if (isNote && !/^\d+\./.test(step)) {
-                return (
-                  <li key={idx} className="is-note">
-                    {cleaned.replace(/^-\s*/, '')}
-                  </li>
-                )
-              }
-              return <li key={idx}>{cleaned}</li>
-            })}
-          </ol>
+          <div className="quest-section-head">
+            <h3>공략</h3>
+            {canEditWalkthrough && !editingWalkthrough ? (
+              <button
+                type="button"
+                className="quest-edit-icon-btn"
+                aria-label="공략 수정"
+                title="공략 수정"
+                onClick={() => {
+                  setWalkthroughDraft(quest.walkthrough || '')
+                  setWalkthroughError('')
+                  setEditingWalkthrough(true)
+                }}
+              >
+                <PencilIcon />
+              </button>
+            ) : null}
+          </div>
+          {editingWalkthrough ? (
+            <div className="quest-walkthrough-edit">
+              <textarea
+                className="quest-walkthrough-textarea"
+                value={walkthroughDraft}
+                onChange={(e) => setWalkthroughDraft(e.target.value)}
+                rows={12}
+                disabled={walkthroughBusy}
+                aria-label="공략 내용"
+              />
+              {walkthroughError ? (
+                <p className="form-note error" role="alert">
+                  {walkthroughError}
+                </p>
+              ) : null}
+              <div className="quest-walkthrough-actions">
+                <button
+                  type="button"
+                  className="admin-btn"
+                  disabled={walkthroughBusy}
+                  onClick={() => {
+                    setEditingWalkthrough(false)
+                    setWalkthroughDraft(quest.walkthrough || '')
+                    setWalkthroughError('')
+                  }}
+                >
+                  취소
+                </button>
+                <button
+                  type="button"
+                  className="admin-btn admin-btn-primary"
+                  disabled={walkthroughBusy}
+                  onClick={() => void saveWalkthrough()}
+                >
+                  {walkthroughBusy ? '저장 중…' : '저장'}
+                </button>
+              </div>
+            </div>
+          ) : walkthroughSteps.length > 0 ? (
+            <ol className="quest-steps">
+              {walkthroughSteps.map((step, idx) => {
+                const cleaned = step.replace(/^\d+\.\s*/, '')
+                const isNote = cleaned.startsWith('-') || !/^\d+\./.test(step)
+                if (isNote && !/^\d+\./.test(step)) {
+                  return (
+                    <li key={idx} className="is-note">
+                      {cleaned.replace(/^-\s*/, '')}
+                    </li>
+                  )
+                }
+                return <li key={idx}>{cleaned}</li>
+              })}
+            </ol>
+          ) : (
+            <p className="quest-muted">공략이 없습니다.</p>
+          )}
         </section>
       )}
 

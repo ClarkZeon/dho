@@ -45,6 +45,7 @@ import { ShipMaterialDetailView } from './ShipMaterialDetailView'
 import { ShipList } from './ShipList'
 import { ShipMaterialList } from './ShipMaterialList'
 import { SortableTh } from './SortableTh'
+import { matchesPortQuery } from '../lib/portSearch'
 import { matchesQuestQuery } from '../lib/questSearch'
 import { useTableSort } from '../lib/tableSort'
 
@@ -113,6 +114,7 @@ function formatDate(value: string | null | undefined) {
 
 export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) {
   const [nav, setNav] = useState<AdminNav>('dashboard')
+  const [shipsMenuOpen, setShipsMenuOpen] = useState(false)
   const [users, setUsers] = useState<AdminUser[]>([])
   const [loadingUsers, setLoadingUsers] = useState(false)
   const [usersError, setUsersError] = useState('')
@@ -120,6 +122,13 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
   const [deletingKey, setDeletingKey] = useState<string | null>(null)
   const [userQuery, setUserQuery] = useState('')
   const [userPage, setUserPage] = useState(0)
+
+  function goNav(next: AdminNav) {
+    setNav(next)
+    if (next === 'ships' || next === 'materials') {
+      setShipsMenuOpen(true)
+    }
+  }
 
   const [ships, setShips] = useState<ShipDetail[]>([])
   const [loadingShips, setLoadingShips] = useState(false)
@@ -149,6 +158,7 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
   const [importingPort, setImportingPort] = useState(false)
   const [portImportNote, setPortImportNote] = useState('')
   const [detailPort, setDetailPort] = useState<PortDetail | null>(null)
+  const [portQuery, setPortQuery] = useState('')
 
   const [discoveries, setDiscoveries] = useState<DiscoveryDetail[]>([])
   const [loadingDiscoveries, setLoadingDiscoveries] = useState(false)
@@ -340,7 +350,7 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
     (a, b) => a.id - b.id,
   )
   const sortedPorts = portsSort.sortRows(
-    ports,
+    ports.filter((port) => matchesPortQuery(port, portQuery)),
     (port, key) => port[key],
     (a, b) => a.id - b.id,
   )
@@ -783,14 +793,43 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
             <span className="admin-nav-index">01</span>
             <span className="admin-nav-text">회원 리스트</span>
           </button>
-          <button
-            type="button"
-            className={nav === 'ships' ? 'active' : ''}
-            onClick={() => setNav('ships')}
+          <div
+            className={`admin-nav-group${
+              nav === 'ships' || nav === 'materials' ? ' is-active' : ''
+            }${shipsMenuOpen ? ' is-open' : ''}`}
           >
-            <span className="admin-nav-index">02</span>
-            <span className="admin-nav-text">선박 리스트</span>
-          </button>
+            <button
+              type="button"
+              className="admin-nav-group-toggle"
+              aria-expanded={shipsMenuOpen}
+              aria-controls="admin-nav-ships"
+              onClick={() => setShipsMenuOpen((open) => !open)}
+            >
+              <span className="admin-nav-index">02</span>
+              <span className="admin-nav-text">선박</span>
+              <span className="admin-nav-chevron" aria-hidden="true" />
+            </button>
+            <div
+              id="admin-nav-ships"
+              className="admin-nav-group-items"
+              hidden={!shipsMenuOpen}
+            >
+              <button
+                type="button"
+                className={nav === 'ships' ? 'active' : ''}
+                onClick={() => goNav('ships')}
+              >
+                <span className="admin-nav-text">선박 리스트</span>
+              </button>
+              <button
+                type="button"
+                className={nav === 'materials' ? 'active' : ''}
+                onClick={() => goNav('materials')}
+              >
+                <span className="admin-nav-text">선박 재료 리스트</span>
+              </button>
+            </div>
+          </div>
           <button
             type="button"
             className={nav === 'quests' ? 'active' : ''}
@@ -823,14 +862,6 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
             <span className="admin-nav-index">06</span>
             <span className="admin-nav-text">언어 리스트</span>
           </button>
-          <button
-            type="button"
-            className={nav === 'materials' ? 'active' : ''}
-            onClick={() => setNav('materials')}
-          >
-            <span className="admin-nav-index">07</span>
-            <span className="admin-nav-text">선박 재료 리스트</span>
-          </button>
         </nav>
 
         <div className="admin-sidebar-foot">
@@ -850,7 +881,7 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
 
       <div className="admin-workspace">
         {nav === 'dashboard' && (
-          <AdminDashboard token={token} onNavigate={setNav} />
+          <AdminDashboard token={token} onNavigate={goNav} />
         )}
 
         {nav === 'users' && (
@@ -1159,7 +1190,7 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
         )}
 
         {nav === 'quests' && (
-          <section className="admin-section">
+          <section className="admin-section quest-catalog">
             <div className="admin-page-head">
               <div>
                 <h1>퀘스트 리스트</h1>
@@ -1236,7 +1267,7 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
                 type="search"
                 value={questQuery}
                 onChange={(e) => setQuestQuery(e.target.value)}
-                placeholder="이름·분류·장소·발견물로 검색"
+                placeholder="이름·장소·발견물로 검색"
                 aria-label="퀘스트 검색"
                 autoComplete="off"
                 disabled={loadingQuests}
@@ -1297,7 +1328,7 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
                         dir={questsSort.sortDir}
                         onSort={questsSort.toggleSort}
                       />
-                      <th className="col-desk">삭제</th>
+                      <th className="col-desk col-action">삭제</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1356,7 +1387,7 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
                             .join(' ') || '-'}
                         </td>
                         <td
-                          className="admin-cell-control col-desk"
+                          className="admin-cell-control col-desk col-action"
                           onClick={(e) => e.stopPropagation()}
                           onKeyDown={(e) => e.stopPropagation()}
                         >
@@ -1459,6 +1490,18 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
               </p>
             )}
 
+            <label className="field catalog-search">
+              <input
+                type="search"
+                value={portQuery}
+                onChange={(e) => setPortQuery(e.target.value)}
+                placeholder="이름·지역·해역·언어로 검색"
+                aria-label="항구 검색"
+                autoComplete="off"
+                disabled={loadingPorts}
+              />
+            </label>
+
             {loadingPorts ? (
               <p className="form-note">불러오는 중…</p>
             ) : (
@@ -1554,7 +1597,11 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
                     ))}
                     {sortedPorts.length === 0 && (
                       <tr>
-                        <td colSpan={7}>등록된 항구(도시)가 없습니다.</td>
+                        <td colSpan={7}>
+                          {ports.length === 0
+                            ? '등록된 항구(도시)가 없습니다.'
+                            : '검색 결과가 없습니다.'}
+                        </td>
                       </tr>
                     )}
                   </tbody>
@@ -2127,7 +2174,13 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
           onClose={() => setDetailQuest(null)}
           stack={detailDiscovery ? 1 : 0}
         >
-          <QuestDetailView quest={detailQuest} />
+          <QuestDetailView
+            quest={detailQuest}
+            walkthroughEdit={{
+              token,
+              onSaved: applyQuestUpdate,
+            }}
+          />
         </DetailModal>
       )}
 

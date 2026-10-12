@@ -1,4 +1,5 @@
 import { randomBytes } from 'node:crypto'
+import { bumpCatalogStat } from './adminStats.mjs'
 import { getSql, hasDatabaseUrl, runSqlFile } from './db.mjs'
 
 /**
@@ -229,7 +230,25 @@ export async function insertPost(post) {
       ${post.createdAt}, ${post.updatedAt}
     )
   `
+  if (post.boardId === 'feature' && !post.isDeleted) {
+    await bumpCatalogStat('feature_requests', 1)
+  }
   return post
+}
+
+/** @param {string} boardId @param {string} postId */
+export async function softDeletePost(boardId, postId) {
+  const sql = getSql()
+  const rows = await sql`
+    UPDATE posts SET is_deleted = TRUE, updated_at = ${new Date().toISOString()}
+    WHERE id = ${postId} AND board_id = ${boardId} AND is_deleted = FALSE
+    RETURNING id, board_id
+  `
+  if (!rows[0]) throw new Error('글을 찾을 수 없습니다.')
+  if (String(rows[0].board_id) === 'feature') {
+    await bumpCatalogStat('feature_requests', -1)
+  }
+  return { ok: true }
 }
 
 /** @deprecated 전체 rewrite 대신 insertPost 사용 */

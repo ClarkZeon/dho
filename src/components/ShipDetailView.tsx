@@ -22,11 +22,28 @@ function StatTable({
   )
 }
 
+function enhanceLabel(ship: ShipDetail) {
+  if (ship.enhanceCount == null) return null
+  if (ship.enhanceBase != null || ship.enhanceRe != null) {
+    const parts = [
+      ship.enhanceBase != null ? `기본 ${ship.enhanceBase}` : null,
+      ship.enhanceRe != null ? `재강화 ${ship.enhanceRe}` : null,
+    ].filter(Boolean)
+    return parts.length
+      ? `${ship.enhanceCount} (${parts.join(', ')})`
+      : ship.enhanceCount
+  }
+  return ship.enhanceCount
+}
+
 type ShipDetailViewProps = {
   ship: ShipDetail
 }
 
 export function ShipDetailView({ ship }: ShipDetailViewProps) {
+  const hasBuildCities = (ship.buildCities?.length ?? 0) > 0
+  const hasSpecialBuilds = (ship.specialBuilds?.length ?? 0) > 0
+
   return (
     <div className="ship-detail-view">
       <header className="ship-info-hero">
@@ -40,12 +57,14 @@ export function ShipDetailView({ ship }: ShipDetailViewProps) {
 
       <div className="ship-info-grid">
         <StatTable
-          title="레벨 / 획득"
+          title="레벨 / 건조"
           rows={[
             { label: '모험 Lv', value: ship.adventureLv },
             { label: '교역 Lv', value: ship.tradeLv },
             { label: '전투 Lv', value: ship.battleLv },
-            { label: '강화 횟수', value: ship.enhanceCount },
+            { label: '기본 재질', value: ship.material },
+            { label: '강화 횟수', value: enhanceLabel(ship) },
+            { label: '조선 랭크', value: ship.shipyardRank },
             { label: '건조 일수', value: ship.buildDays },
             { label: '획득 구분', value: ship.acquireType },
             { label: '획득 방법', value: ship.acquireMethod },
@@ -127,10 +146,69 @@ export function ShipDetailView({ ship }: ShipDetailViewProps) {
                   <td>{skill.material2 || ''}</td>
                 </tr>
               ))}
+              {ship.skills.length === 0 && (
+                <tr>
+                  <td colSpan={5}>등록된 스킬이 없습니다.</td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
       </section>
+
+      {hasBuildCities && (
+        <section className="tool-card ship-skill-panel">
+          <p className="tool-card-title">일반 건조 도시</p>
+          <div className="ship-skill-table-wrap">
+            <table className="ship-skill-table">
+              <thead>
+                <tr>
+                  <th>지역</th>
+                  <th>일반 건조 도시</th>
+                </tr>
+              </thead>
+              <tbody>
+                {ship.buildCities.map((row) => (
+                  <tr key={row.region}>
+                    <td className="ship-skill-name">{row.region}</td>
+                    <td>{row.cities.join(', ')}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+
+      {hasSpecialBuilds && (
+        <section className="tool-card ship-skill-panel">
+          <p className="tool-card-title">특수 건조 도시</p>
+          <div className="ship-skill-table-wrap">
+            <table className="ship-skill-table">
+              <thead>
+                <tr>
+                  <th>선체</th>
+                  <th>조선 랭크</th>
+                  <th>기본 재질</th>
+                  <th>지역</th>
+                  <th>도시</th>
+                </tr>
+              </thead>
+              <tbody>
+                {ship.specialBuilds.map((row, index) => (
+                  <tr key={`${row.material}-${row.city}-${index}`}>
+                    <td className="ship-skill-name">{row.hull || ''}</td>
+                    <td>{row.rank ?? ''}</td>
+                    <td>{row.material || ''}</td>
+                    <td>{row.region || ''}</td>
+                    <td>{row.city || ''}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
     </div>
   )
 }

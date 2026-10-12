@@ -1,3 +1,7 @@
+import {
+  bumpCatalogStat,
+  bumpCatalogStatIfGrew,
+} from './adminStats.mjs'
 import { getSql, hasDatabaseUrl, runSqlFile } from './db.mjs'
 import {
   extractQuestNameFromRef,
@@ -220,6 +224,7 @@ export async function deleteDiscovery(id) {
     RETURNING id
   `
   if (!rows[0]) throw new Error('발견물을 찾을 수 없습니다.')
+  await bumpCatalogStat('discoveries', -1)
   return { ok: true }
 }
 
@@ -248,12 +253,16 @@ export async function getDiscoveryBySlug(slug) {
 
 async function findIdByName(sql, name) {
   const dup = await sql`
-    SELECT id, slug FROM discoveries
+    SELECT id, slug, enabled FROM discoveries
     WHERE TRIM(BOTH FROM regexp_replace(name, '\\s+', ' ', 'g')) = ${name}
     LIMIT 1
   `
   return dup[0]
-    ? { id: Number(dup[0].id), slug: String(dup[0].slug) }
+    ? {
+        id: Number(dup[0].id),
+        slug: String(dup[0].slug),
+        enabled: Boolean(dup[0].enabled),
+      }
     : null
 }
 
@@ -290,6 +299,7 @@ export async function upsertDiscoveryFromParsed(parsed) {
         enabled = TRUE
       WHERE id = ${existing.id}
     `
+    await bumpCatalogStatIfGrew('discoveries', existing.enabled)
     return getDiscoveryBySlug(existing.slug)
   }
 
@@ -331,5 +341,6 @@ export async function upsertDiscoveryFromParsed(parsed) {
     )
   `
 
+  await bumpCatalogStat('discoveries', 1)
   return getDiscoveryBySlug(slug)
 }

@@ -1,3 +1,7 @@
+import {
+  bumpCatalogStat,
+  bumpCatalogStatIfGrew,
+} from './adminStats.mjs'
 import { getSql, hasDatabaseUrl, runSqlFile } from './db.mjs'
 import { splitChainAndLinked, stripWikiMapNoise } from './questTextParse.mjs'
 
@@ -183,13 +187,14 @@ export async function deleteQuest(id) {
     RETURNING id
   `
   if (!rows[0]) throw new Error('퀘스트를 찾을 수 없습니다.')
+  await bumpCatalogStat('quests', -1)
   return { ok: true }
 }
 
 /**
- * 난이도 부분 갱신
+ * 퀘스트 부분 갱신
  * @param {number} id
- * @param {{ difficulty?: number | null }} patch
+ * @param {{ difficulty?: number | null, walkthrough?: string | null }} patch
  */
 export async function updateQuestFields(id, patch) {
   const sql = getSql()
@@ -199,8 +204,8 @@ export async function updateQuestFields(id, patch) {
   const current = await getQuestById(questId)
   if (!current) throw new Error('퀘스트를 찾을 수 없습니다.')
 
-  let difficulty = current.difficulty
   if ('difficulty' in patch) {
+    let difficulty = current.difficulty
     if (patch.difficulty == null || patch.difficulty === '') {
       difficulty = null
     } else {
@@ -210,22 +215,32 @@ export async function updateQuestFields(id, patch) {
       }
       difficulty = n
     }
+    await sql`UPDATE quests SET difficulty = ${difficulty} WHERE id = ${questId}`
   }
 
-  await sql`
-    UPDATE quests SET difficulty = ${difficulty} WHERE id = ${questId}
-  `
+  if ('walkthrough' in patch) {
+    const walkthrough =
+      patch.walkthrough == null ? null : String(patch.walkthrough)
+    await sql`
+      UPDATE quests SET walkthrough = ${walkthrough} WHERE id = ${questId}
+    `
+  }
+
   return getQuestById(questId)
 }
 
 async function findQuestIdByName(sql, name) {
   const dup = await sql`
-    SELECT id, slug FROM quests
+    SELECT id, slug, enabled FROM quests
     WHERE TRIM(BOTH FROM regexp_replace(name, '\\s+', ' ', 'g')) = ${name}
     LIMIT 1
   `
   return dup[0]
-    ? { id: Number(dup[0].id), slug: String(dup[0].slug) }
+    ? {
+        id: Number(dup[0].id),
+        slug: String(dup[0].slug),
+        enabled: Boolean(dup[0].enabled),
+      }
     : null
 }
 
@@ -273,6 +288,7 @@ export async function upsertQuestFromParsed(parsed) {
         enabled = TRUE
       WHERE id = ${existing.id}
     `
+    await bumpCatalogStatIfGrew('quests', existing.enabled)
     return getQuestBySlug(existing.slug)
   }
 
@@ -317,6 +333,7 @@ export async function upsertQuestFromParsed(parsed) {
     )
   `
 
+  await bumpCatalogStat('quests', 1)
   return getQuestBySlug(slug)
 }
 

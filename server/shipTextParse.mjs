@@ -1,5 +1,6 @@
 /**
  * 위키형 선박 텍스트 → DB용 객체
+ * 캐시 선박·일반(건조) 선박 공통
  */
 
 import { createHash } from 'node:crypto'
@@ -33,15 +34,16 @@ function splitTabsDense(line) {
 
 function parseCategoryLine(line) {
   // 분류	모험용 (소형1  , 범선)	레벨	모험 Lv4, 교역 Lv2
-  // 또는 전투 Lv 포함
-  // 분류	모험용 (소형1  , 범선)	레벨	...
   const categoryMatch = line.match(/분류\t*([^\t(]+?)\s*\(([^)]+)\)/)
   let category = null
   let sizeName = null
   let formName = null
   if (categoryMatch) {
     category = categoryMatch[1].trim()
-    const parts = categoryMatch[2].split(/[,，]/).map((s) => s.trim()).filter(Boolean)
+    const parts = categoryMatch[2]
+      .split(/[,，]/)
+      .map((s) => s.trim())
+      .filter(Boolean)
     sizeName = parts[0] || null
     formName = parts[1] || null
   }
@@ -57,13 +59,19 @@ function parseCategoryLine(line) {
   return { category, sizeName, formName, ...levels }
 }
 
-function parseEnhanceCount(line) {
-  const m = line.match(/강화\s*횟수\s*(\d+)/)
-  return m ? Number(m[1]) : null
+function parseEnhanceInfo(line) {
+  const total = line.match(/강화\s*횟수\s*[:：]?\s*(\d+)/)
+  const base = line.match(/기본\s*강화\s*[:：]?\s*(\d+)/)
+  const re = line.match(/재강화\s*[:：]?\s*(\d+)/)
+  return {
+    enhanceCount: total ? Number(total[1]) : null,
+    enhanceBase: base ? Number(base[1]) : null,
+    enhanceRe: re ? Number(re[1]) : null,
+  }
 }
 
 function parseMaterial(line) {
-  const m = line.match(/기본\s*재질\s*(.+?)(?:\t|강화|$)/)
+  const m = line.match(/기본\s*재질\s*[:：]?\s*(.+?)(?:\t|강화|$)/)
   return m ? m[1].trim() : null
 }
 
@@ -75,6 +83,13 @@ function parseBuildDays(line) {
 function parseShipyardRank(line) {
   const m = line.match(/조선\s*랭크\s*[:：]?\s*(\d+)/)
   return m ? Number(m[1]) : null
+}
+
+function splitCityList(raw) {
+  return String(raw || '')
+    .split(/[,，]/)
+    .map((s) => s.trim())
+    .filter(Boolean)
 }
 
 /**
@@ -97,7 +112,6 @@ export function parseShipText(text) {
       nameIdx = i
       break
     }
-    // 첫 비어있지 않은 줄을 이름으로
     name = line.replace(/^선박\s*/, '').trim()
     nameIdx = i
     break
@@ -120,6 +134,8 @@ export function parseShipText(text) {
   let battleLv = 0
   let materialName = null
   let enhanceCount = null
+  let enhanceBase = null
+  let enhanceRe = null
   let buildDays = null
   let shipyardRank = null
   let acquireType = null
@@ -135,8 +151,15 @@ export function parseShipText(text) {
   let parts = []
   /** @type {Array<{ name: string, sail: string|null, gunPort: string|null, material1: string|null, material2: string|null }>} */
   const skills = []
+  /** @type {Array<{ region: string, cities: string[] }>} */
+  const buildCities = []
+  /** @type {Array<{ hull: string|null, rank: number|null, material: string|null, region: string|null, city: string|null }>} */
+  const specialBuilds = []
 
   let mode = 'meta'
+  let specialHull = null
+  let specialRank = null
+
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim()
     if (!line) continue
@@ -151,9 +174,19 @@ export function parseShipText(text) {
       battleLv = parsed.battleLv
       continue
     }
-    if (/기본\s*재질/.test(line)) {
-      materialName = parseMaterial(line)
-      enhanceCount = parseEnhanceCount(line) ?? enhanceCount
+    if (/기본\s*재질/.test(line) && !/^선체/.test(line)) {
+      materialName = parseMaterial(line) || materialName
+      const enhance = parseEnhanceInfo(line)
+      enhanceCount = enhance.enhanceCount ?? enhanceCount
+      enhanceBase = enhance.enhanceBase ?? enhanceBase
+      enhanceRe = enhance.enhanceRe ?? enhanceRe
+      continue
+    }
+    if (/강화\s*횟수/.test(line)) {
+      const enhance = parseEnhanceInfo(line)
+      enhanceCount = enhance.enhanceCount ?? enhanceCount
+      enhanceBase = enhance.enhanceBase ?? enhanceBase
+      enhanceRe = enhance.enhanceRe ?? enhanceRe
       continue
     }
     if (/선박\s*건조|조선\s*랭크|건조\s*일수/.test(line)) {
@@ -181,7 +214,17 @@ export function parseShipText(text) {
       mode = 'skills'
       continue
     }
-    if (/^일반\s*건조|^판매\s*NPC|^지역\t/.test(line)) {
+    if (/^일반\s*건조/.test(line)) {
+      mode = 'build-cities'
+      continue
+    }
+    if (/^특수\s*건조/.test(line)) {
+      mode = 'special-builds'
+      specialHull = null
+      specialRank = null
+      continue
+    }
+    if (/^판매\s*NPC/.test(line)) {
       mode = 'extra'
       continue
     }
@@ -240,14 +283,13 @@ export function parseShipText(text) {
 
     if (mode === 'skills') {
       if (/^선박\s*스킬\t|^돛\t|^선박\s*재료$/.test(line)) continue
-      if (/^일반\s*건조|^획득\s*방법|^판매\s*NPC/.test(line)) {
+      if (/^일반\s*건조|^특수\s*건조|^획득\s*방법|^판매\s*NPC/.test(line)) {
         i -= 1
         mode = 'meta'
         continue
       }
       const cols = splitTabs(line)
       if (!cols[0] || /재료/.test(cols[0])) continue
-      // 스킬명, 돛, 포문, 재료1, 재료2
       const skillName = cols[0]
       if (/^(지역|유럽|아시아|아프리카|아메리카)/.test(skillName)) continue
       skills.push({
@@ -260,8 +302,57 @@ export function parseShipText(text) {
       continue
     }
 
+    if (mode === 'build-cities') {
+      if (/^특수\s*건조|^획득\s*방법|^판매\s*NPC|^선박\s*스킬/.test(line)) {
+        i -= 1
+        mode = 'meta'
+        continue
+      }
+      if (/^지역\t|일반\s*건조\s*도시/.test(line) && /지역/.test(line)) continue
+      const cols = splitTabsDense(line)
+      if (cols.length < 2) continue
+      if (cols[0] === '지역') continue
+      buildCities.push({
+        region: cols[0],
+        cities: splitCityList(cols.slice(1).join(',')),
+      })
+      continue
+    }
+
+    if (mode === 'special-builds') {
+      if (/^일반\s*건조|^획득\s*방법|^판매\s*NPC/.test(line)) {
+        i -= 1
+        mode = 'meta'
+        continue
+      }
+      if (/^선체\t|조선\s*랭크/.test(line) && /선체/.test(line)) continue
+      const cols = splitTabsDense(line)
+      if (cols.length >= 5) {
+        specialHull = cols[0]
+        specialRank = toNum(cols[1]) || null
+        specialBuilds.push({
+          hull: specialHull,
+          rank: specialRank,
+          material: cols[2] || null,
+          region: cols[3] || null,
+          city: cols[4] || null,
+        })
+        continue
+      }
+      if (cols.length >= 3) {
+        specialBuilds.push({
+          hull: specialHull,
+          rank: specialRank,
+          material: cols[0] || null,
+          region: cols[1] || null,
+          city: cols[2] || null,
+        })
+      }
+      continue
+    }
+
     if (mode === 'acquire') {
-      if (/^판매\s*NPC/.test(line)) {
+      if (/^판매\s*NPC|^일반\s*건조|^특수\s*건조/.test(line)) {
         mode = 'extra'
         continue
       }
@@ -285,6 +376,10 @@ export function parseShipText(text) {
     throw new Error('적재 수치(4개)를 찾지 못했습니다.')
   }
 
+  if (!acquireType && (buildCities.length > 0 || specialBuilds.length > 0)) {
+    acquireType = '조선소 건조'
+  }
+
   return {
     name,
     slug: slugify(name),
@@ -299,8 +394,12 @@ export function parseShipText(text) {
     acquireType,
     acquireMethod,
     enhanceCount,
+    enhanceBase,
+    enhanceRe,
     buildDays,
     shipyardRank,
+    buildCities,
+    specialBuilds,
     durability: performance[0],
     sailVertical: performance[1],
     sailHorizontal: performance[2],

@@ -1,3 +1,7 @@
+import {
+  bumpCatalogStat,
+  bumpCatalogStatIfGrew,
+} from './adminStats.mjs'
 import { getSql, hasDatabaseUrl, runSqlFile } from './db.mjs'
 
 export async function ensureLibraryLanguageStore() {
@@ -81,17 +85,22 @@ export async function deleteLibraryLanguage(id) {
     RETURNING id
   `
   if (!rows[0]) throw new Error('언어를 찾을 수 없습니다.')
+  await bumpCatalogStat('languages', -1)
   return { ok: true }
 }
 
 async function findIdByName(sql, name) {
   const dup = await sql`
-    SELECT id, slug FROM library_languages
+    SELECT id, slug, enabled FROM library_languages
     WHERE TRIM(BOTH FROM regexp_replace(name, '\\s+', ' ', 'g')) = ${name}
     LIMIT 1
   `
   return dup[0]
-    ? { id: Number(dup[0].id), slug: String(dup[0].slug) }
+    ? {
+        id: Number(dup[0].id),
+        slug: String(dup[0].slug),
+        enabled: Boolean(dup[0].enabled),
+      }
     : null
 }
 
@@ -120,6 +129,7 @@ export async function upsertLibraryLanguageFromParsed(parsed) {
         enabled = TRUE
       WHERE id = ${existing.id}
     `
+    await bumpCatalogStatIfGrew('languages', existing.enabled)
     return getLibraryLanguageBySlug(existing.slug)
   }
 
@@ -158,5 +168,6 @@ export async function upsertLibraryLanguageFromParsed(parsed) {
     )
   `
 
+  await bumpCatalogStat('languages', 1)
   return getLibraryLanguageBySlug(slug)
 }

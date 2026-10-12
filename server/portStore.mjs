@@ -1,3 +1,7 @@
+import {
+  bumpCatalogStat,
+  bumpCatalogStatIfGrew,
+} from './adminStats.mjs'
 import { getSql, hasDatabaseUrl, runSqlFile } from './db.mjs'
 
 export async function ensurePortStore() {
@@ -70,17 +74,22 @@ export async function deletePort(id) {
     RETURNING id
   `
   if (!rows[0]) throw new Error('항구(도시)를 찾을 수 없습니다.')
+  await bumpCatalogStat('ports', -1)
   return { ok: true }
 }
 
 async function findPortIdByName(sql, name) {
   const dup = await sql`
-    SELECT id, slug FROM ports
+    SELECT id, slug, enabled FROM ports
     WHERE TRIM(BOTH FROM regexp_replace(name, '\\s+', ' ', 'g')) = ${name}
     LIMIT 1
   `
   return dup[0]
-    ? { id: Number(dup[0].id), slug: String(dup[0].slug) }
+    ? {
+        id: Number(dup[0].id),
+        slug: String(dup[0].slug),
+        enabled: Boolean(dup[0].enabled),
+      }
     : null
 }
 
@@ -112,6 +121,7 @@ export async function upsertPortFromParsed(parsed) {
         enabled = TRUE
       WHERE id = ${existing.id}
     `
+    await bumpCatalogStatIfGrew('ports', existing.enabled)
     return getPortBySlug(existing.slug)
   }
 
@@ -149,5 +159,6 @@ export async function upsertPortFromParsed(parsed) {
     )
   `
 
+  await bumpCatalogStat('ports', 1)
   return getPortBySlug(slug)
 }

@@ -9,6 +9,7 @@ import { SortableTh } from './SortableTh'
 
 type QuestCatalogProps = {
   token: string
+  isAdmin?: boolean
 }
 
 type QuestSortKey =
@@ -37,7 +38,7 @@ function categoryLabel(quest: QuestDetail) {
     : ''
 }
 
-export function QuestCatalog({ token }: QuestCatalogProps) {
+export function QuestCatalog({ token, isAdmin = false }: QuestCatalogProps) {
   const [quests, setQuests] = useState<QuestDetail[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -132,7 +133,7 @@ export function QuestCatalog({ token }: QuestCatalogProps) {
   }
 
   return (
-    <section className="tool-page">
+    <section className="tool-page quest-catalog">
       <div className="messages-head">
         <div>
           <h1>퀘스트</h1>
@@ -150,7 +151,7 @@ export function QuestCatalog({ token }: QuestCatalogProps) {
           type="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="이름·분류·장소·발견물로 검색"
+          placeholder="이름·장소·발견물로 검색"
           aria-label="퀘스트 검색"
           autoComplete="off"
           disabled={loading}
@@ -266,6 +267,19 @@ export function QuestCatalog({ token }: QuestCatalogProps) {
             completionBusy={busyId === detail.id}
             onToggleCompleted={(completed) =>
               void toggleCompleted(detail, completed)
+            }
+            walkthroughEdit={
+              isAdmin
+                ? {
+                    token,
+                    onSaved: (quest) => {
+                      setQuests((prev) =>
+                        prev.map((q) => (q.id === quest.id ? quest : q)),
+                      )
+                      setDetail(quest)
+                    },
+                  }
+                : undefined
             }
           />
         </DetailModal>

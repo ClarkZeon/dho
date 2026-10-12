@@ -265,7 +265,7 @@ export function importQuestText(token: string, text: string) {
 export function updateQuest(
   token: string,
   questId: number,
-  patch: { difficulty?: number | null },
+  patch: { difficulty?: number | null; walkthrough?: string | null },
 ) {
   return request<{ quest: QuestDetail }>(
     `/api/quests/${encodeURIComponent(String(questId))}`,

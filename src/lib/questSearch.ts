@@ -8,8 +8,6 @@ export function matchesQuestQuery(quest: QuestDetail, query: string) {
     quest.name,
     quest.slug,
     quest.description,
-    quest.category,
-    quest.questType,
     quest.difficulty,
     quest.requestPlaces,
     quest.destination,

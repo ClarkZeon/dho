@@ -1,3 +1,4 @@
+import { bumpCatalogStat } from './adminStats.mjs'
 import { getSql, hasDatabaseUrl, runSqlFile } from './db.mjs'
 
 /**
@@ -180,6 +181,7 @@ export async function createUser(user) {
     }
     throw err
   }
+  await bumpCatalogStat('users', 1)
   return user
 }
 
@@ -230,7 +232,10 @@ export async function deleteSessionsByUserId(userId) {
 export async function deleteUser(userId) {
   const sql = getSql()
   await deleteSessionsByUserId(userId)
-  await sql`DELETE FROM users WHERE id = ${userId}`
+  const rows = await sql`
+    DELETE FROM users WHERE id = ${userId} RETURNING id
+  `
+  if (rows[0]) await bumpCatalogStat('users', -1)
 }
 
 /** @param {string} token */

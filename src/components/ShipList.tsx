@@ -22,8 +22,6 @@ function matchesShipQuery(ship: ShipDetail, query: string) {
     ship.name,
     ship.slug,
     ship.category,
-    ship.size,
-    ship.form,
     ship.material,
     ship.acquireType,
     ship.acquireMethod,
@@ -94,7 +92,7 @@ export function ShipList({
             setQuery(e.target.value)
             setPage(0)
           }}
-          placeholder="이름·분류·크기·형태로 검색"
+          placeholder="이름·분류로 검색"
           aria-label="선박 검색"
           autoComplete="off"
         />

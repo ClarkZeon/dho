@@ -511,7 +511,9 @@ export function Dashboard({ user, token, onLogout, onToast }: DashboardProps) {
           <ShipMaterialCatalog token={token} />
         )}
 
-        {view.name === 'quests' && <QuestCatalog token={token} />}
+        {view.name === 'quests' && (
+          <QuestCatalog token={token} isAdmin={user.role === 'admin'} />
+        )}
 
         {view.name === 'ports' && <PortCatalog token={token} />}
 

@@ -91,7 +91,12 @@ export type ShipDetail = {
   /** 예: 선박 교환권(NO. 719) */
   acquireMethod: string | null
   enhanceCount: number | null
+  enhanceBase: number | null
+  enhanceRe: number | null
   buildDays: number | null
+  shipyardRank: number | null
+  buildCities: ShipBuildCity[]
+  specialBuilds: ShipSpecialBuild[]
   durability: number
   sailVertical: number
   sailHorizontal: number
@@ -137,6 +142,19 @@ export type ShipSkillRow = {
   gunPort: string | null
   material1: string | null
   material2: string | null
+}
+
+export type ShipBuildCity = {
+  region: string
+  cities: string[]
+}
+
+export type ShipSpecialBuild = {
+  hull: string | null
+  rank: number | null
+  material: string | null
+  region: string | null
+  city: string | null
 }
 
 export type QuestSkillReq = {

@@ -1,5 +1,6 @@
 import { useEffect, useState, type KeyboardEvent } from 'react'
 import { fetchPorts } from '../lib/api'
+import { matchesPortQuery } from '../lib/portSearch'
 import { useTableSort } from '../lib/tableSort'
 import type { PortDetail } from '../types'
 import { DetailModal } from './DetailModal'
@@ -23,6 +24,7 @@ export function PortCatalog({ token }: PortCatalogProps) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [detail, setDetail] = useState<PortDetail | null>(null)
+  const [query, setQuery] = useState('')
   const { sortKey, sortDir, toggleSort, sortRows } =
     useTableSort<PortSortKey>()
 
@@ -52,7 +54,7 @@ export function PortCatalog({ token }: PortCatalogProps) {
   }, [token])
 
   const rows = sortRows(
-    ports,
+    ports.filter((port) => matchesPortQuery(port, query)),
     (port, key) => port[key],
     (a, b) => a.id - b.id,
   )
@@ -65,6 +67,18 @@ export function PortCatalog({ token }: PortCatalogProps) {
           <p>등록된 항구(도시)를 확인하고 상세를 엽니다.</p>
         </div>
       </div>
+
+      <label className="field catalog-search">
+        <input
+          type="search"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="이름·지역·해역·언어로 검색"
+          aria-label="항구 검색"
+          autoComplete="off"
+          disabled={loading}
+        />
+      </label>
 
       {error && (
         <p className="form-note error" role="alert">
@@ -152,7 +166,11 @@ export function PortCatalog({ token }: PortCatalogProps) {
               ))}
               {rows.length === 0 && (
                 <tr>
-                  <td colSpan={6}>등록된 항구(도시)가 없습니다.</td>
+                  <td colSpan={6}>
+                    {ports.length === 0
+                      ? '등록된 항구(도시)가 없습니다.'
+                      : '검색 결과가 없습니다.'}
+                  </td>
                 </tr>
               )}
             </tbody>

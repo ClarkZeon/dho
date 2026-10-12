@@ -1,5 +1,9 @@
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
+import {
+  bumpCatalogStat,
+  bumpCatalogStatIfGrew,
+} from './adminStats.mjs'
 import { BUNDLED_DATA_DIR } from './paths.mjs'
 import { getSql, hasDatabaseUrl, runSqlFile } from './db.mjs'
 
@@ -56,7 +60,23 @@ function decorateShipRow(ship, sizes, forms, materials, skillRows) {
       ship.acquire_method == null ? null : String(ship.acquire_method),
     enhanceCount:
       ship.enhance_count == null ? null : Number(ship.enhance_count),
+    enhanceBase:
+      ship.enhance_base == null ? null : Number(ship.enhance_base),
+    enhanceRe: ship.enhance_re == null ? null : Number(ship.enhance_re),
     buildDays: ship.build_days == null ? null : Number(ship.build_days),
+    shipyardRank:
+      ship.shipyard_rank == null ? null : Number(ship.shipyard_rank),
+    buildCities: asJsonArray(ship.build_cities).map((item) => ({
+      region: String(item?.region || ''),
+      cities: asJsonArray(item?.cities).map(String),
+    })),
+    specialBuilds: asJsonArray(ship.special_builds).map((item) => ({
+      hull: item?.hull == null ? null : String(item.hull),
+      rank: item?.rank == null ? null : Number(item.rank),
+      material: item?.material == null ? null : String(item.material),
+      region: item?.region == null ? null : String(item.region),
+      city: item?.city == null ? null : String(item.city),
+    })),
     durability: Number(ship.durability) || 0,
     sailVertical,
     sailHorizontal,
@@ -271,6 +291,7 @@ export async function ensureShipStore() {
   await runSqlFile('sql/006_ships.sql')
   await runSqlFile('sql/007_ship_acquire.sql')
   await runSqlFile('sql/013_ship_material_detail.sql')
+  await runSqlFile('sql/016_ship_build_detail.sql')
   // 번들 JSON upsert — 신규 선박·획득 방법 반영
   await seedShipsFromBundle()
 }
@@ -387,6 +408,7 @@ export async function deleteShipMaterial(id) {
     RETURNING id
   `
   if (!rows[0]) throw new Error('선박 재료를 찾을 수 없습니다.')
+  await bumpCatalogStat('materials', -1)
   return { ok: true }
 }
 
@@ -410,12 +432,13 @@ export async function upsertShipMaterialFromParsed(parsed) {
   const acquireJson = JSON.stringify(parsed.acquireMethods || [])
 
   const existing = await sql`
-    SELECT id, code FROM ship_materials
+    SELECT id, code, enabled FROM ship_materials
     WHERE TRIM(BOTH FROM regexp_replace(name, '\\s+', ' ', 'g')) = ${name}
     LIMIT 1
   `
   if (existing[0]) {
     const id = Number(existing[0].id)
+    const wasEnabled = Boolean(existing[0].enabled)
     await sql`
       UPDATE ship_materials SET
         name = ${name},
@@ -427,6 +450,7 @@ export async function upsertShipMaterialFromParsed(parsed) {
         enabled = TRUE
       WHERE id = ${id}
     `
+    await bumpCatalogStatIfGrew('materials', wasEnabled)
     return getShipMaterialById(id)
   }
 
@@ -462,6 +486,7 @@ export async function upsertShipMaterialFromParsed(parsed) {
       ${effectsJson}, ${acquireJson}, ${sortOrder}, TRUE
     )
   `
+  await bumpCatalogStat('materials', 1)
   return getShipMaterialById(id)
 }
 
@@ -505,6 +530,7 @@ export async function deleteShip(id) {
     RETURNING id
   `
   if (!rows[0]) throw new Error('선박을 찾을 수 없습니다.')
+  await bumpCatalogStat('ships', -1)
   return { ok: true }
 }
 
@@ -532,6 +558,7 @@ export async function reseedShipsFromBundle() {
   await runSqlFile('sql/006_ships.sql')
   await runSqlFile('sql/007_ship_acquire.sql')
   await runSqlFile('sql/013_ship_material_detail.sql')
+  await runSqlFile('sql/016_ship_build_detail.sql')
   await seedShipsFromBundle()
 }
 
@@ -565,6 +592,7 @@ async function ensureMaterialId(name) {
     INSERT INTO ship_materials (id, code, name, sort_order, enabled)
     VALUES (${id}, ${code}, ${name}, ${id}, TRUE)
   `
+  await bumpCatalogStat('materials', 1)
   return id
 }
 
@@ -622,7 +650,7 @@ export async function upsertShipFromParsed(parsed) {
   if (!name) throw new Error('선박 이름이 없습니다.')
 
   const existing = await sql`
-    SELECT id, slug, name FROM ships
+    SELECT id, slug, name, enabled FROM ships
     WHERE TRIM(BOTH FROM regexp_replace(name, '\\s+', ' ', 'g')) = ${name}
     LIMIT 1
   `
@@ -638,10 +666,13 @@ export async function upsertShipFromParsed(parsed) {
   }
 
   const materialId = await ensureMaterialId(parsed.materialName)
+  const buildCitiesJson = JSON.stringify(parsed.buildCities || [])
+  const specialBuildsJson = JSON.stringify(parsed.specialBuilds || [])
 
   if (existing[0]) {
     const shipId = Number(existing[0].id)
     const slug = String(existing[0].slug)
+    const wasEnabled = Boolean(existing[0].enabled)
     await sql`
       UPDATE ships SET
         name = ${name},
@@ -656,7 +687,12 @@ export async function upsertShipFromParsed(parsed) {
         acquire_type = ${parsed.acquireType},
         acquire_method = ${parsed.acquireMethod},
         enhance_count = ${parsed.enhanceCount},
+        enhance_base = ${parsed.enhanceBase ?? null},
+        enhance_re = ${parsed.enhanceRe ?? null},
         build_days = ${parsed.buildDays},
+        shipyard_rank = ${parsed.shipyardRank ?? null},
+        build_cities = ${buildCitiesJson},
+        special_builds = ${specialBuildsJson},
         durability = ${parsed.durability},
         sail_vertical = ${parsed.sailVertical},
         sail_horizontal = ${parsed.sailHorizontal},
@@ -690,6 +726,7 @@ export async function upsertShipFromParsed(parsed) {
       WHERE id = ${shipId}
     `
     await replaceShipSkillLinks(sql, shipId, parsed.skills || [])
+    await bumpCatalogStatIfGrew('ships', wasEnabled)
     return getShipBySlug(slug)
   }
 
@@ -714,7 +751,8 @@ export async function upsertShipFromParsed(parsed) {
     INSERT INTO ships (
       id, slug, name, category, description, size_id, form_id, material_id,
       adventure_lv, trade_lv, battle_lv, acquire_type, acquire_method,
-      enhance_count, build_days,
+      enhance_count, enhance_base, enhance_re, build_days, shipyard_rank,
+      build_cities, special_builds,
       durability, sail_vertical, sail_horizontal, oar, turn_stat, wave_resist,
       armor, cabin, crew_required, guns, warehouse,
       cap_durability, cap_sail_vertical, cap_sail_horizontal, cap_oar,
@@ -727,7 +765,10 @@ export async function upsertShipFromParsed(parsed) {
       ${parsed.description}, ${sizeId}, ${formId}, ${materialId},
       ${parsed.adventureLv}, ${parsed.tradeLv}, ${parsed.battleLv},
       ${parsed.acquireType}, ${parsed.acquireMethod},
-      ${parsed.enhanceCount}, ${parsed.buildDays},
+      ${parsed.enhanceCount}, ${parsed.enhanceBase ?? null},
+      ${parsed.enhanceRe ?? null}, ${parsed.buildDays},
+      ${parsed.shipyardRank ?? null},
+      ${buildCitiesJson}, ${specialBuildsJson},
       ${parsed.durability}, ${parsed.sailVertical}, ${parsed.sailHorizontal},
       ${parsed.oar}, ${parsed.turn}, ${parsed.wave}, ${parsed.armor},
       ${parsed.cabin}, ${parsed.crewRequired}, ${parsed.guns}, ${parsed.warehouse},
@@ -744,5 +785,6 @@ export async function upsertShipFromParsed(parsed) {
   `
 
   await replaceShipSkillLinks(sql, shipId, parsed.skills || [])
+  await bumpCatalogStat('ships', 1)
   return getShipBySlug(slug)
 }

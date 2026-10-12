@@ -2395,6 +2395,85 @@
   color: var(--is-gold);
 }
 
+.admin-nav-group {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.admin-sidebar-nav .admin-nav-group-toggle {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.55rem;
+  width: 100%;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--is-dark);
+  text-align: left;
+  font: inherit;
+  line-height: 1.2;
+  padding: 0.45rem 0.55rem;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.admin-sidebar-nav .admin-nav-group-toggle .admin-nav-text {
+  min-width: 0;
+}
+
+.admin-sidebar-nav .admin-nav-group-toggle:hover {
+  background: rgba(28, 109, 201, 0.05);
+  border-color: rgba(28, 109, 201, 0.12);
+}
+
+.admin-nav-group.is-active .admin-nav-group-toggle,
+.admin-nav-group.is-open .admin-nav-group-toggle {
+  color: var(--is-blue);
+}
+
+.admin-nav-group.is-active .admin-nav-group-toggle .admin-nav-index,
+.admin-nav-group.is-open .admin-nav-group-toggle .admin-nav-index {
+  color: var(--is-gold);
+}
+
+.admin-nav-chevron {
+  flex-shrink: 0;
+  justify-self: end;
+  width: 0.45rem;
+  height: 0.45rem;
+  margin-right: 0.15rem;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform 0.18s ease;
+  opacity: 0.7;
+}
+
+.admin-nav-group.is-open .admin-nav-chevron {
+  transform: rotate(45deg);
+}
+
+.admin-nav-group-items {
+  display: grid;
+  gap: 0.15rem;
+  padding-left: 1.35rem;
+}
+
+.admin-nav-group-items[hidden] {
+  display: none;
+}
+
+.admin-nav-group-items button {
+  grid-template-columns: 1fr;
+  padding: 0.4rem 0.55rem;
+}
+
+.admin-nav-group-items .admin-nav-text {
+  font-size: 0.84rem;
+  font-weight: 650;
+}
+
 .admin-sidebar-foot {
   position: relative;
   z-index: 1;
@@ -2473,6 +2552,37 @@
   display: grid;
   gap: 0.85rem;
   max-width: 1100px;
+}
+
+.home-main:has(.quest-catalog) {
+  width: min(1480px, calc(100% - 2rem));
+}
+
+.admin-section.quest-catalog {
+  max-width: min(1480px, 100%);
+}
+
+.quest-catalog .admin-table-wrap {
+  overflow-x: visible;
+}
+
+.quest-catalog .admin-table {
+  min-width: 0;
+  table-layout: fixed;
+  width: 100%;
+}
+
+.quest-catalog .admin-table th,
+.quest-catalog .admin-table td {
+  white-space: normal;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+.quest-catalog .admin-table .col-action {
+  width: 4.5rem;
+  white-space: nowrap;
+  overflow-wrap: normal;
 }
 
 .admin-dash {
@@ -3241,6 +3351,74 @@
   color: var(--is-grey);
 }
 
+.quest-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.7rem;
+}
+
+.quest-section-head > h3 {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--is-grey);
+}
+
+.quest-edit-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border: 1px solid var(--is-grey-lighter);
+  border-radius: 8px;
+  background: var(--is-white);
+  color: var(--is-grey);
+  cursor: pointer;
+}
+
+.quest-edit-icon-btn:hover {
+  color: var(--is-dark);
+  border-color: var(--is-grey);
+}
+
+.quest-walkthrough-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.quest-walkthrough-textarea {
+  width: 100%;
+  min-height: 12rem;
+  resize: vertical;
+  box-sizing: border-box;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid var(--is-grey-lighter);
+  border-radius: 10px;
+  background: var(--is-white);
+  color: var(--is-dark);
+  font: inherit;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.quest-walkthrough-textarea:focus {
+  outline: 2px solid color-mix(in srgb, var(--is-dark) 25%, transparent);
+  outline-offset: 1px;
+}
+
+.quest-walkthrough-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
 .quest-muted {
   margin: 0;
   color: var(--is-grey);
@@ -3605,6 +3783,10 @@
     padding-top: 1.1rem;
   }
 
+  .home-main:has(.quest-catalog) {
+    width: min(1480px, calc(100% - 1.25rem));
+  }
+
   .admin-page-head {
     align-items: flex-start;
   }
@@ -3681,6 +3863,15 @@
     grid-column: 1 / -1;
   }
 
+  .admin-nav-group {
+    grid-column: 1 / -1;
+  }
+
+  .admin-nav-group-items {
+    grid-template-columns: 1fr 1fr;
+    padding-left: 0.55rem;
+  }
+
   .admin-sidebar-foot {
     margin-top: 0;
   }
@@ -3700,6 +3891,10 @@
 
 @media (max-width: 420px) {
   .admin-sidebar-nav {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-nav-group-items {
     grid-template-columns: 1fr;
   }
 

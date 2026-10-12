@@ -14,7 +14,10 @@ import {
   validatePostBody,
   validatePostTitle,
 } from './boardStore.mjs'
-import { loadAdminCatalogCounts } from './adminStats.mjs'
+import {
+  ensureCatalogStats,
+  loadAdminCatalogCounts,
+} from './adminStats.mjs'
 import { hasDatabaseUrl } from './db.mjs'
 import {
   countUnread,
@@ -132,6 +135,7 @@ async function ensureStore() {
   await ensurePortStore()
   await ensureDiscoveryStore()
   await ensureLibraryLanguageStore()
+  await ensureCatalogStats()
 }
 
 function requireAuthDb(res) {
@@ -1202,7 +1206,13 @@ export async function handleRequest(req, res) {
             ? null
             : body.difficulty
       }
-      if (!('difficulty' in patch)) {
+      if ('walkthrough' in body) {
+        patch.walkthrough =
+          body.walkthrough === null || body.walkthrough === undefined
+            ? null
+            : String(body.walkthrough)
+      }
+      if (!('difficulty' in patch) && !('walkthrough' in patch)) {
         sendJson(res, 400, { error: '변경할 필드가 없습니다.' })
         return
       }
