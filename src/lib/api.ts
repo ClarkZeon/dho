@@ -574,6 +574,7 @@ export function fetchAdminStats(token: string) {
       discoveries: number
       skills: number
       fields: number
+      seaAreas: number
       materials: number
       featureRequests: number
     }

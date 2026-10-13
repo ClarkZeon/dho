@@ -170,9 +170,15 @@ export function SeaAreaCatalog({ token }: SeaAreaCatalogProps) {
         </div>
       )}
 
-      <DetailModal open={Boolean(detail)} onClose={() => setDetail(null)}>
-        {detail && <SeaAreaDetailView seaArea={detail} />}
-      </DetailModal>
+      {detail && (
+        <DetailModal
+          title="해역 상세"
+          label={`${detail.name} 상세`}
+          onClose={() => setDetail(null)}
+        >
+          <SeaAreaDetailView seaArea={detail} />
+        </DetailModal>
+      )}
     </section>
   )
 }
