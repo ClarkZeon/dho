@@ -14,6 +14,7 @@ export type MenuTarget =
   | { name: 'discoveries' }
   | { name: 'skills' }
   | { name: 'fields' }
+  | { name: 'sea-areas' }
   | { name: 'ship-materials' }
 
 type MenuSectionId =
@@ -44,7 +45,13 @@ function sectionForActive(active: MenuTarget): MenuSectionId | null {
     return 'ships'
   }
   if (active.name === 'quests' || active.name === 'discoveries') return 'atlas'
-  if (active.name === 'ports' || active.name === 'fields') return 'pioneer'
+  if (
+    active.name === 'ports' ||
+    active.name === 'fields' ||
+    active.name === 'sea-areas'
+  ) {
+    return 'pioneer'
+  }
   if (active.name === 'skills') return 'captain'
   return null
 }
@@ -143,7 +150,9 @@ export function SlideMenu({
   const atlasActive =
     active.name === 'quests' || active.name === 'discoveries'
   const pioneerActive =
-    active.name === 'ports' || active.name === 'fields'
+    active.name === 'ports' ||
+    active.name === 'fields' ||
+    active.name === 'sea-areas'
   const captainActive = active.name === 'skills'
 
   return (
@@ -294,6 +303,13 @@ export function SlideMenu({
               onClick={() => go({ name: 'fields' })}
             >
               필드
+            </button>
+            <button
+              type="button"
+              className={active.name === 'sea-areas' ? 'active' : ''}
+              onClick={() => go({ name: 'sea-areas' })}
+            >
+              해역
             </button>
           </MenuSection>
 

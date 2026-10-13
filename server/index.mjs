@@ -75,6 +75,15 @@ import {
 } from './fieldStore.mjs'
 import { parseFieldText } from './fieldTextParse.mjs'
 import {
+  deleteSeaArea,
+  ensureSeaAreaStore,
+  getSeaAreaById,
+  listSeaAreas,
+  updateSeaAreaFields,
+  upsertSeaAreaFromParsed,
+} from './seaAreaStore.mjs'
+import { parseSeaAreaText } from './seaAreaTextParse.mjs'
+import {
   deleteConsumable,
   ensureConsumableStore,
   getConsumableById,
@@ -164,6 +173,7 @@ async function ensureStore() {
   await ensureDiscoveryStore()
   await ensureSkillStore()
   await ensureFieldStore()
+  await ensureSeaAreaStore()
   await ensureConsumableStore()
   await ensureCatalogStats()
 }
@@ -1100,6 +1110,99 @@ export async function handleRequest(req, res) {
       }
       const fields = await listFields()
       sendJson(res, 200, { fields })
+      return
+    }
+
+    if (req.method === 'GET' && pathname === '/api/sea-areas') {
+      const authUser = await getAuthUser(req)
+      if (!authUser) {
+        sendJson(res, 401, { error: '로그인이 필요합니다.' })
+        return
+      }
+      const seaAreas = await listSeaAreas()
+      sendJson(res, 200, { seaAreas })
+      return
+    }
+
+    if (req.method === 'POST' && pathname === '/api/sea-areas/import-text') {
+      const authUser = await getAuthUser(req)
+      if (!authUser) {
+        sendJson(res, 401, { error: '로그인이 필요합니다.' })
+        return
+      }
+      if (!requireAdmin(authUser, res)) return
+      const body = await readBody(req)
+      const text = typeof body.text === 'string' ? body.text : ''
+      try {
+        const parsed = parseSeaAreaText(text)
+        const seaArea = await upsertSeaAreaFromParsed(parsed)
+        sendJson(res, 201, { seaArea })
+      } catch (err) {
+        sendJson(res, 400, {
+          error:
+            err instanceof Error
+              ? err.message
+              : '해역 텍스트 파싱에 실패했습니다.',
+        })
+      }
+      return
+    }
+
+    const seaAreaMatch = pathname.match(/^\/api\/sea-areas\/([^/]+)$/)
+    if (seaAreaMatch && req.method === 'PATCH') {
+      const authUser = await getAuthUser(req)
+      if (!authUser) {
+        sendJson(res, 401, { error: '로그인이 필요합니다.' })
+        return
+      }
+      if (!requireAdmin(authUser, res)) return
+      const seaAreaId = Number(decodeURIComponent(seaAreaMatch[1]))
+      if (!Number.isFinite(seaAreaId)) {
+        sendJson(res, 400, { error: '잘못된 해역 ID입니다.' })
+        return
+      }
+      const existing = await getSeaAreaById(seaAreaId)
+      if (!existing) {
+        sendJson(res, 404, { error: '해역을 찾을 수 없습니다.' })
+        return
+      }
+      const body = await readBody(req)
+      try {
+        const seaArea = await updateSeaAreaFields(seaAreaId, body)
+        sendJson(res, 200, { seaArea })
+      } catch (err) {
+        sendJson(res, 400, {
+          error:
+            err instanceof Error ? err.message : '해역 수정에 실패했습니다.',
+        })
+      }
+      return
+    }
+
+    if (seaAreaMatch && req.method === 'DELETE') {
+      const authUser = await getAuthUser(req)
+      if (!authUser) {
+        sendJson(res, 401, { error: '로그인이 필요합니다.' })
+        return
+      }
+      if (!requireAdmin(authUser, res)) return
+      const seaAreaId = Number(decodeURIComponent(seaAreaMatch[1]))
+      if (!Number.isFinite(seaAreaId)) {
+        sendJson(res, 400, { error: '잘못된 해역 ID입니다.' })
+        return
+      }
+      try {
+        await deleteSeaArea(seaAreaId)
+        sendJson(res, 200, { ok: true })
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : '해역 삭제에 실패했습니다.'
+        sendJson(
+          res,
+          message.includes('찾을 수 없') ? 404 : 400,
+          { error: message },
+        )
+      }
       return
     }
 

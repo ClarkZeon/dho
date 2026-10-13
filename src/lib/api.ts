@@ -7,6 +7,7 @@ import type {
   DiscoveryDetail,
   SkillDetail,
   FieldDetail,
+  SeaAreaDetail,
   ConsumableDetail,
   PortDetail,
   QuestDetail,
@@ -364,6 +365,39 @@ export function deletePort(token: string, portId: number) {
 
 export function fetchFields(token: string) {
   return request<{ fields: FieldDetail[] }>('/api/fields', { token })
+}
+
+export function fetchSeaAreas(token: string) {
+  return request<{ seaAreas: SeaAreaDetail[] }>('/api/sea-areas', { token })
+}
+
+export function importSeaAreaText(token: string, text: string) {
+  return request<{ seaArea: SeaAreaDetail }>('/api/sea-areas/import-text', {
+    token,
+    body: { text },
+  })
+}
+
+export function deleteSeaArea(token: string, seaAreaId: number) {
+  return request<{ ok: boolean }>(
+    `/api/sea-areas/${encodeURIComponent(String(seaAreaId))}`,
+    { method: 'DELETE', token },
+  )
+}
+
+export function updateSeaArea(
+  token: string,
+  seaAreaId: number,
+  patch: Partial<SeaAreaDetail>,
+) {
+  return request<{ seaArea: SeaAreaDetail }>(
+    `/api/sea-areas/${encodeURIComponent(String(seaAreaId))}`,
+    {
+      method: 'PATCH',
+      token,
+      body: patch,
+    },
+  )
 }
 
 export function importFieldText(token: string, text: string) {

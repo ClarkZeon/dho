@@ -4,6 +4,7 @@ import {
   deleteConsumable,
   deleteDiscovery,
   deleteField,
+  deleteSeaArea,
   deleteSkill,
   deletePort,
   deleteQuest,
@@ -14,6 +15,7 @@ import {
   fetchConsumables,
   fetchDiscoveries,
   fetchFields,
+  fetchSeaAreas,
   fetchSkills,
   fetchPorts,
   fetchQuest,
@@ -23,6 +25,7 @@ import {
   importConsumableText,
   importDiscoveryText,
   importFieldText,
+  importSeaAreaText,
   importSkillText,
   importPortText,
   importQuestText,
@@ -39,6 +42,7 @@ import type {
   DiscoveryDetail,
   DiscoveryQuestRef,
   FieldDetail,
+  SeaAreaDetail,
   SkillDetail,
   PortDetail,
   QuestDetail,
@@ -53,6 +57,7 @@ import { ConsumableDetailView } from './ConsumableDetailView'
 import { DetailModal } from './DetailModal'
 import { DiscoveryDetailView } from './DiscoveryDetailView'
 import { FieldDetailView } from './FieldDetailView'
+import { SeaAreaDetailView } from './SeaAreaDetailView'
 import { SkillDetailView } from './SkillDetailView'
 import { PortDetailView } from './PortDetailView'
 import { QuestDiscoveryLabel } from './DiscoveryRankMark'
@@ -113,6 +118,7 @@ type AdminNav =
   | 'discoveries'
   | 'skills'
   | 'fields'
+  | 'sea-areas'
   | 'materials'
   | 'consumables'
 
@@ -171,7 +177,7 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
     if (next === 'quests' || next === 'discoveries') {
       setAtlasMenuOpen(true)
     }
-    if (next === 'ports' || next === 'fields') {
+    if (next === 'ports' || next === 'fields' || next === 'sea-areas') {
       setRegionsMenuOpen(true)
     }
     if (next === 'consumables') {
@@ -252,6 +258,16 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
   const [fieldImportNote, setFieldImportNote] = useState('')
   const [detailField, setDetailField] = useState<FieldDetail | null>(null)
   const [fieldQuery, setFieldQuery] = useState('')
+
+  const [seaAreas, setSeaAreas] = useState<SeaAreaDetail[]>([])
+  const [loadingSeaAreas, setLoadingSeaAreas] = useState(false)
+  const [seaAreasError, setSeaAreasError] = useState('')
+  const [showSeaAreaImport, setShowSeaAreaImport] = useState(false)
+  const [seaAreaImportText, setSeaAreaImportText] = useState('')
+  const [importingSeaArea, setImportingSeaArea] = useState(false)
+  const [seaAreaImportNote, setSeaAreaImportNote] = useState('')
+  const [detailSeaArea, setDetailSeaArea] = useState<SeaAreaDetail | null>(null)
+  const [seaAreaQuery, setSeaAreaQuery] = useState('')
 
   const [consumables, setConsumables] = useState<ConsumableDetail[]>([])
   const [loadingConsumables, setLoadingConsumables] = useState(false)
@@ -396,6 +412,21 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
       )
     } finally {
       setLoadingFields(false)
+    }
+  }, [token])
+
+  const loadSeaAreas = useCallback(async () => {
+    setLoadingSeaAreas(true)
+    setSeaAreasError('')
+    try {
+      const res = await fetchSeaAreas(token)
+      setSeaAreas(res.seaAreas)
+    } catch (err) {
+      setSeaAreasError(
+        err instanceof Error ? err.message : '해역 목록을 불러오지 못했습니다.',
+      )
+    } finally {
+      setLoadingSeaAreas(false)
     }
   }, [token])
 
@@ -544,6 +575,7 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
     }
     if (nav === 'skills') void loadSkills()
     if (nav === 'fields') void loadFields()
+    if (nav === 'sea-areas') void loadSeaAreas()
     if (nav === 'consumables') void loadConsumables()
     if (nav === 'materials') void loadMaterials()
   }, [
@@ -554,6 +586,7 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
     loadDiscoveries,
     loadSkills,
     loadFields,
+    loadSeaAreas,
     loadConsumables,
     loadMaterials,
   ])
@@ -686,6 +719,22 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
       setFields((prev) => prev.filter((f) => f.id !== field.id))
       if (detailField?.id === field.id) setDetailField(null)
       onToast(`필드 「${field.name}」을(를) 삭제했습니다.`)
+    } catch (err) {
+      onToast(err instanceof Error ? err.message : '삭제에 실패했습니다.')
+    } finally {
+      setDeletingKey(null)
+    }
+  }
+
+  async function handleDeleteSeaArea(seaArea: SeaAreaDetail) {
+    if (!window.confirm(`「${seaArea.name}」 해역을 삭제할까요?`)) return
+    const key = `sea-area:${seaArea.id}`
+    setDeletingKey(key)
+    try {
+      await deleteSeaArea(token, seaArea.id)
+      setSeaAreas((prev) => prev.filter((s) => s.id !== seaArea.id))
+      if (detailSeaArea?.id === seaArea.id) setDetailSeaArea(null)
+      onToast(`해역 「${seaArea.name}」을(를) 삭제했습니다.`)
     } catch (err) {
       onToast(err instanceof Error ? err.message : '삭제에 실패했습니다.')
     } finally {
@@ -828,6 +877,32 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
       )
     } finally {
       setImportingField(false)
+    }
+  }
+
+  async function handleSeaAreaImport(e: FormEvent) {
+    e.preventDefault()
+    if (!seaAreaImportText.trim()) {
+      setSeaAreaImportNote('텍스트를 붙여넣어 주세요.')
+      return
+    }
+    setImportingSeaArea(true)
+    setSeaAreaImportNote('')
+    try {
+      const res = await importSeaAreaText(token, seaAreaImportText)
+      setSeaAreaImportText('')
+      setShowSeaAreaImport(false)
+      setSeaAreaImportNote(
+        `「${res.seaArea.name}」을(를) 저장했습니다. (동일 이름이면 내용이 갱신됩니다)`,
+      )
+      onToast(`해역 「${res.seaArea.name}」 저장 완료`)
+      await loadSeaAreas()
+    } catch (err) {
+      setSeaAreaImportNote(
+        err instanceof Error ? err.message : '저장에 실패했습니다.',
+      )
+    } finally {
+      setImportingSeaArea(false)
     }
   }
 
@@ -1186,7 +1261,9 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
           </div>
           <div
             className={`admin-nav-group${
-              nav === 'ports' || nav === 'fields' ? ' is-active' : ''
+              nav === 'ports' || nav === 'fields' || nav === 'sea-areas'
+                ? ' is-active'
+                : ''
             }${regionsMenuOpen ? ' is-open' : ''}`}
           >
             <button
@@ -1218,6 +1295,13 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
                 onClick={() => goNav('fields')}
               >
                 <span className="admin-nav-text">필드 리스트</span>
+              </button>
+              <button
+                type="button"
+                className={nav === 'sea-areas' ? 'active' : ''}
+                onClick={() => goNav('sea-areas')}
+              >
+                <span className="admin-nav-text">해역 리스트</span>
               </button>
             </div>
           </div>
@@ -2544,6 +2628,178 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
           </section>
         )}
 
+        {nav === 'sea-areas' && (
+          <section className="admin-section">
+            <div className="admin-page-head">
+              <div>
+                <h1>해역 리스트</h1>
+                <p>
+                  위키 텍스트로 추가·갱신합니다. 같은 이름이면 기본 정보·장소·수집·목적지·해상
+                  NPC를 덮어씁니다.
+                </p>
+              </div>
+              <div className="admin-page-actions">
+                <button
+                  type="button"
+                  className="admin-btn"
+                  onClick={() => void loadSeaAreas()}
+                  disabled={loadingSeaAreas}
+                >
+                  새로고침
+                </button>
+                <button
+                  type="button"
+                  className="admin-btn admin-btn-primary"
+                  onClick={() => {
+                    setShowSeaAreaImport((v) => !v)
+                    setSeaAreaImportNote('')
+                  }}
+                >
+                  {showSeaAreaImport ? '닫기' : '해역 추가'}
+                </button>
+              </div>
+            </div>
+
+            {showSeaAreaImport && (
+              <form
+                className="admin-import-form"
+                onSubmit={handleSeaAreaImport}
+              >
+                <label className="field">
+                  <span>해역 텍스트</span>
+                  <textarea
+                    className="quest-import-textarea"
+                    rows={20}
+                    value={seaAreaImportText}
+                    onChange={(e) => setSeaAreaImportText(e.target.value)}
+                    placeholder={`해역 | 동 캐롤라인 해저분지\n분류\t남태평양\t지역\t동남아시아\n경계\t북 : 4096, 서 : 6400, 남 : 5120, 동 : 7168\t파도\t12\n조류\t16\t최대 속도 증가\t50%\n해역 내 장소\n종류\t내용\n도시\t괌\n상륙지\t뉴기니 섬 남해안\n수집 아이템\n낚시\n랭크\t종류\t아이템\n1\t교역품\t정어리\n목적지\n보물지도\n발견물\t내용\n[지리] 1 비스마크 제도\t다 쓰여지지 않은 지도 …\n해상 NPC\n함대 수\t특징\t해상 NPC\n2\t기습\t표류선습격단`}
+                    disabled={importingSeaArea}
+                  />
+                </label>
+                <div className="form-actions">
+                  <button
+                    type="submit"
+                    className="admin-btn admin-btn-primary"
+                    disabled={importingSeaArea}
+                  >
+                    {importingSeaArea ? '저장 중…' : '저장'}
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {seaAreaImportNote && (
+              <p
+                className={`form-note${
+                  /실패|못|오류|에러|중복/.test(seaAreaImportNote)
+                    ? ' error'
+                    : ''
+                }`}
+              >
+                {seaAreaImportNote}
+              </p>
+            )}
+
+            {seaAreasError && (
+              <p className="form-note error" role="alert">
+                {seaAreasError}
+              </p>
+            )}
+
+            <label className="field catalog-search">
+              <input
+                type="search"
+                value={seaAreaQuery}
+                onChange={(e) => setSeaAreaQuery(e.target.value)}
+                placeholder="이름·분류·지역으로 검색"
+                aria-label="해역 검색"
+                autoComplete="off"
+                disabled={loadingSeaAreas}
+              />
+            </label>
+
+            {loadingSeaAreas && seaAreas.length === 0 ? (
+              <p className="form-note">불러오는 중…</p>
+            ) : (
+              <div className="admin-table-wrap">
+                <table className="admin-table">
+                  <thead>
+                    <tr>
+                      <th>이름</th>
+                      <th className="col-desk">분류</th>
+                      <th className="col-desk">지역</th>
+                      <th className="col-desk">파도</th>
+                      <th className="col-desk">조류</th>
+                      <th className="col-desk col-action">삭제</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {seaAreas
+                      .filter((item) => {
+                        const q = seaAreaQuery.trim().toLowerCase()
+                        if (!q) return true
+                        const hay = [
+                          item.name,
+                          item.category,
+                          item.region,
+                          item.wave,
+                          item.current,
+                        ]
+                          .filter((v) => v != null && v !== '')
+                          .join(' ')
+                          .toLowerCase()
+                        return hay.includes(q)
+                      })
+                      .slice()
+                      .sort(compareIdDesc)
+                      .map((item, index) => (
+                        <tr
+                          key={item.id}
+                          className={`admin-row-clickable${index % 2 === 0 ? ' is-even' : ' is-odd'}`}
+                          tabIndex={0}
+                          onClick={() => setDetailSeaArea(item)}
+                          onKeyDown={(
+                            event: KeyboardEvent<HTMLTableRowElement>,
+                          ) => {
+                            if (event.key === 'Enter' || event.key === ' ') {
+                              event.preventDefault()
+                              setDetailSeaArea(item)
+                            }
+                          }}
+                        >
+                          <td>{item.name}</td>
+                          <td className="col-desk">{item.category || '-'}</td>
+                          <td className="col-desk">{item.region || '-'}</td>
+                          <td className="col-desk">{item.wave ?? '-'}</td>
+                          <td className="col-desk">{item.current ?? '-'}</td>
+                          <td
+                            className="admin-cell-control col-desk col-action"
+                            onClick={(e) => e.stopPropagation()}
+                            onKeyDown={(e) => e.stopPropagation()}
+                          >
+                            <button
+                              type="button"
+                              className="admin-danger-btn"
+                              disabled={deletingKey === `sea-area:${item.id}`}
+                              onClick={() => void handleDeleteSeaArea(item)}
+                            >
+                              삭제
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    {seaAreas.length === 0 && (
+                      <tr>
+                        <td colSpan={6}>등록된 해역이 없습니다.</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+        )}
+
         {nav === 'fields' && (
           <section className="admin-section">
             <div className="admin-page-head">
@@ -3016,6 +3272,28 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
                   prev.map((f) => (f.id === next.id ? next : f)),
                 )
                 setDetailField(next)
+              },
+            }}
+          />
+        </DetailModal>
+      )}
+
+      {detailSeaArea && (
+        <DetailModal
+          title="해역 상세"
+          label={`${detailSeaArea.name} 상세`}
+          onClose={() => setDetailSeaArea(null)}
+        >
+          <SeaAreaDetailView
+            seaArea={detailSeaArea}
+            edit={{
+              token,
+              onToast,
+              onSaved: (next) => {
+                setSeaAreas((prev) =>
+                  prev.map((s) => (s.id === next.id ? next : s)),
+                )
+                setDetailSeaArea(next)
               },
             }}
           />

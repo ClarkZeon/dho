@@ -10,6 +10,7 @@ import { BoardView } from './BoardView'
 import { Messages } from './Messages'
 import { DiscoveryCatalog } from './DiscoveryCatalog'
 import { FieldCatalog } from './FieldCatalog'
+import { SeaAreaCatalog } from './SeaAreaCatalog'
 import { SkillCatalog } from './SkillCatalog'
 import { PortCatalog } from './PortCatalog'
 import { QuestCatalog } from './QuestCatalog'
@@ -33,6 +34,7 @@ type View =
   | { name: 'discoveries' }
   | { name: 'skills' }
   | { name: 'fields' }
+  | { name: 'sea-areas' }
 
 type DashboardProps = {
   user: User
@@ -64,6 +66,8 @@ function viewToHash(view: View): string {
       return '#/skills'
     case 'fields':
       return '#/fields'
+    case 'sea-areas':
+      return '#/sea-areas'
     case 'board':
       return view.postId
         ? `#/board/${encodeURIComponent(view.boardId)}/${encodeURIComponent(view.postId)}`
@@ -104,6 +108,7 @@ function hashToView(hash: string): View {
     return { name: 'skills' }
   }
   if (parts[0] === 'fields') return { name: 'fields' }
+  if (parts[0] === 'sea-areas') return { name: 'sea-areas' }
   if (parts[0] === 'board' && parts[1]) {
     return {
       name: 'board',
@@ -190,6 +195,7 @@ function toMenuTarget(view: View): MenuTarget {
   if (view.name === 'discoveries') return { name: 'discoveries' }
   if (view.name === 'skills') return { name: 'skills' }
   if (view.name === 'fields') return { name: 'fields' }
+  if (view.name === 'sea-areas') return { name: 'sea-areas' }
   return { name: 'home' }
 }
 
@@ -352,6 +358,10 @@ export function Dashboard({ user, token, onLogout, onToast }: DashboardProps) {
     }
     if (target.name === 'fields') {
       go({ name: 'fields' })
+      return
+    }
+    if (target.name === 'sea-areas') {
+      go({ name: 'sea-areas' })
       return
     }
     go({ name: 'board', boardId: target.boardId })
@@ -579,6 +589,14 @@ export function Dashboard({ user, token, onLogout, onToast }: DashboardProps) {
                       <strong>필드</strong>
                       <span>필드·육지 조사</span>
                     </button>
+                    <button
+                      type="button"
+                      className="dash-link"
+                      onClick={() => go({ name: 'sea-areas' })}
+                    >
+                      <strong>해역</strong>
+                      <span>해역·수집·목적지</span>
+                    </button>
                   </div>
                 </div>
 
@@ -671,6 +689,8 @@ export function Dashboard({ user, token, onLogout, onToast }: DashboardProps) {
         {view.name === 'skills' && <SkillCatalog token={token} />}
 
         {view.name === 'fields' && <FieldCatalog token={token} />}
+
+        {view.name === 'sea-areas' && <SeaAreaCatalog token={token} />}
 
       </main>
     </div>

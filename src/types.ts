@@ -282,6 +282,58 @@ export type FieldDetail = {
   resurveyRewards: FieldResurveyReward[]
 }
 
+export type SeaAreaPlace = {
+  kind: string
+  name: string
+}
+
+/** 낚시·채집·애완동물 항목 (1행 = 1아이템) */
+export type SeaAreaCollectItem = {
+  source: string
+  name: string
+  rank: number | null
+  type: string | null
+  recommendSpot: string | null
+  canExchange: boolean | null
+  canRelease: boolean | null
+}
+
+export type SeaAreaDestination = {
+  source: string
+  discovery: string
+  content: string
+}
+
+export type SeaAreaNpc = {
+  fleetCount: number | null
+  trait: string | null
+  names: string[]
+}
+
+export type SeaAreaDetail = {
+  id: number
+  slug: string
+  name: string
+  /** 추가 이름 */
+  altName: string | null
+  description: string | null
+  category: string | null
+  /** 대표 지역 (regions[0]) */
+  region: string | null
+  regions: string[]
+  boundNorth: number | null
+  boundWest: number | null
+  boundSouth: number | null
+  boundEast: number | null
+  wave: number | null
+  current: number | null
+  maxSpeedBonus: string | null
+  places: SeaAreaPlace[]
+  collectItems: SeaAreaCollectItem[]
+  destinations: SeaAreaDestination[]
+  seaNpcs: SeaAreaNpc[]
+}
+
 export type ConsumablePurchase = {
   npc: string
   region: string
