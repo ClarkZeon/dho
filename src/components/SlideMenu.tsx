@@ -11,6 +11,8 @@ export type MenuTarget =
   | { name: 'ship-compare' }
   | { name: 'quests' }
   | { name: 'ports' }
+  | { name: 'regions' }
+  | { name: 'entry-permits' }
   | { name: 'discoveries' }
   | { name: 'skills' }
   | { name: 'fields' }
@@ -47,6 +49,8 @@ function sectionForActive(active: MenuTarget): MenuSectionId | null {
   if (active.name === 'quests' || active.name === 'discoveries') return 'atlas'
   if (
     active.name === 'ports' ||
+    active.name === 'regions' ||
+    active.name === 'entry-permits' ||
     active.name === 'fields' ||
     active.name === 'sea-areas'
   ) {
@@ -151,6 +155,8 @@ export function SlideMenu({
     active.name === 'quests' || active.name === 'discoveries'
   const pioneerActive =
     active.name === 'ports' ||
+    active.name === 'regions' ||
+    active.name === 'entry-permits' ||
     active.name === 'fields' ||
     active.name === 'sea-areas'
   const captainActive = active.name === 'skills'
@@ -276,7 +282,8 @@ export function SlideMenu({
               className={active.name === 'quests' ? 'active' : ''}
               onClick={() => go({ name: 'quests' })}
             >
-              퀘스트
+              <span>퀘스트</span>
+              <span className="ver2-chip">ver.2</span>
             </button>
             <button
               type="button"
@@ -299,21 +306,40 @@ export function SlideMenu({
               className={active.name === 'ports' ? 'active' : ''}
               onClick={() => go({ name: 'ports' })}
             >
-              항구
+              <span>항구</span>
+              <span className="ver2-chip">ver.2</span>
+            </button>
+            <button
+              type="button"
+              className={active.name === 'regions' ? 'active' : ''}
+              onClick={() => go({ name: 'regions' })}
+            >
+              <span>지역</span>
+              <span className="ver2-chip">ver.2</span>
+            </button>
+            <button
+              type="button"
+              className={active.name === 'entry-permits' ? 'active' : ''}
+              onClick={() => go({ name: 'entry-permits' })}
+            >
+              <span>입항허가</span>
+              <span className="ver2-chip">ver.2</span>
             </button>
             <button
               type="button"
               className={active.name === 'fields' ? 'active' : ''}
               onClick={() => go({ name: 'fields' })}
             >
-              필드
+              <span>필드</span>
+              <span className="ver2-chip">ver.2</span>
             </button>
             <button
               type="button"
               className={active.name === 'sea-areas' ? 'active' : ''}
               onClick={() => go({ name: 'sea-areas' })}
             >
-              해역
+              <span>해역</span>
+              <span className="ver2-chip">ver.2</span>
             </button>
           </MenuSection>
 
@@ -329,7 +355,8 @@ export function SlideMenu({
               className={active.name === 'skills' ? 'active' : ''}
               onClick={() => go({ name: 'skills' })}
             >
-              스킬
+              <span>스킬</span>
+              <span className="ver2-chip">ver.2</span>
             </button>
           </MenuSection>
         </nav>

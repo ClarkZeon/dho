@@ -287,6 +287,48 @@ export type PortDetail = {
   saleItems: PortSaleItem[]
 }
 
+export type RegionSeaGroup = {
+  group: string
+  seaAreas: string[]
+}
+
+export type RegionDetail = {
+  id: number
+  slug: string
+  name: string
+  altName: string | null
+  description: string | null
+  seaGroups: RegionSeaGroup[]
+}
+
+export type EntryPermitQuest = {
+  kind: string
+  difficulty: number | null
+  name: string
+}
+
+export type EntryPermitCityQuests = {
+  city: string
+  quests: EntryPermitQuest[]
+}
+
+export type EntryPermitFame = {
+  nationality: string | null
+  general: string | null
+  countryEvent: string | null
+}
+
+export type EntryPermitDetail = {
+  id: number
+  slug: string
+  name: string
+  altName: string | null
+  description: string | null
+  requirement: string | null
+  fame: EntryPermitFame[]
+  cityQuests: EntryPermitCityQuests[]
+}
+
 export type FieldSurveyTask = {
   required: boolean
   kind: string | null
@@ -483,10 +525,25 @@ export type SkillAcquireCondition = {
   content: string
 }
 
+export type SkillOfficer = {
+  name: string
+  job: string | null
+  adventure: string | null
+  trade: string | null
+  battle: string | null
+  trait: string | null
+}
+
+export type SkillEffectItem = {
+  kind: string
+  item: string
+}
+
 export type SkillDetail = {
   id: number
   slug: string
   name: string
+  altName: string | null
   description: string | null
   category: string | null
   officerDuty: string | null
@@ -495,11 +552,14 @@ export type SkillDetail = {
   autoEffect: string | null
   refineEffect: string | null
   learnCost: number | null
+  equipCost: number | null
   prerequisite: string | null
   preferredJobs: string[]
   acquireConditions: SkillAcquireCondition[]
   learnPlaces: SkillPlace[]
   useCities: SkillCity[]
+  officers: SkillOfficer[]
+  effectItems: SkillEffectItem[]
 }
 
 export type ShipMaterialEffect = {

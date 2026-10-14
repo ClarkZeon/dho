@@ -1,20 +1,9 @@
 ﻿/**
  * 위키형 스킬 텍스트 → DB용 객체
  *
- * 스킬생태 조사 / 스킬 | 생태 조사
- * 동식물의 생태를 연구하고 발견한다.
- * 분류	모험	부관담당	감시
- * 행동력	5	범위	자신
- * 습득 비용	3,000두캇	연성 효과	발견 시 피로 회복
- * 우대 직업	궁정 정원사*, …
- * 습득 조건
- * 종류	내용
- * 레벨	모험 Lv3
- * 스킬 습득
- * 지역	도시	도시 인물
+ * 스킬중국어 / 스킬 | 생태 조사
  * …
- *
- * 언어 스킬(분류=언어, 사용 도시, 자동효과)도 동일 파서로 처리.
+ * 스킬 습득 / 사용 도시 / 부관 / 효과 아이템 / 습득 조건
  */
 
 import { createHash } from 'node:crypto'
@@ -34,10 +23,16 @@ function toNum(value) {
   const n = Number(
     String(value)
       .replace(/,/g, '')
-      .replace(/두캇|D|d/g, '')
+      .replace(/두캇|학점|D|d/g, '')
       .trim(),
   )
   return Number.isFinite(n) ? n : null
+}
+
+function emptyCell(v) {
+  const t = String(v ?? '').trim()
+  if (!t || t === '-') return null
+  return t
 }
 
 function splitTabs(line) {
@@ -51,10 +46,12 @@ const META_KEYS = [
   { re: /^행동력$/, key: 'actionPower' },
   { re: /^범위$/, key: 'rangeScope' },
   { re: /^(습득\s*비용|학습\s*비용|비용)$/, key: 'learnCost' },
+  { re: /^장착\s*비용$/, key: 'equipCost' },
   { re: /^연성\s*효과$/, key: 'refineEffect' },
   { re: /^자동\s*효과$/, key: 'autoEffect' },
   { re: /^(선행\s*스킬|선행)$/, key: 'prerequisite' },
   { re: /^우대\s*직업$/, key: 'preferredJobs' },
+  { re: /^추가\s*이름$/, key: 'altName' },
 ]
 
 function matchMetaKey(cell) {
@@ -72,38 +69,46 @@ function isMetaLabel(cell) {
 
 function applyMeta(state, key, rawValue) {
   const value = String(rawValue ?? '').trim()
-  if (!value) return
 
   switch (key) {
     case 'category':
-      state.category = value
+      if (value) state.category = value
       break
     case 'officerDuty':
-      state.officerDuty = value
+      if (value) state.officerDuty = value
       break
     case 'actionPower':
-      state.actionPower = value
+      if (value) state.actionPower = value
       break
     case 'rangeScope':
-      state.rangeScope = value
+      if (value) state.rangeScope = value
       break
     case 'learnCost':
       state.learnCost = toNum(value)
       break
+    case 'equipCost':
+      state.equipCost = toNum(value)
+      break
     case 'refineEffect':
-      state.refineEffect = value
+      if (value) state.refineEffect = value
       break
     case 'autoEffect':
-      state.autoEffect = value
+      // 값 없이 라벨만 있으면 자동효과 ON (Y)
+      state.autoEffect = value || 'Y'
       break
     case 'prerequisite':
-      state.prerequisite = value
+      if (value) state.prerequisite = value
       break
     case 'preferredJobs':
-      state.preferredJobs = value
-        .split(/[,，]/)
-        .map((s) => s.trim())
-        .filter(Boolean)
+      if (value) {
+        state.preferredJobs = value
+          .split(/[,，]/)
+          .map((s) => s.trim())
+          .filter(Boolean)
+      }
+      break
+    case 'altName':
+      if (value) state.altName = value
       break
     default:
       break
@@ -124,6 +129,7 @@ function applyMetaCols(state, cols) {
       applyMeta(state, key, next)
       i += 2
     } else {
+      if (key === 'autoEffect') applyMeta(state, key, '')
       i += 1
     }
   }
@@ -155,6 +161,22 @@ function isConditionHeader(cols) {
   )
 }
 
+function isOfficerHeader(cols) {
+  return (
+    cols.length >= 2 &&
+    /^부관$/.test(cols[0] || '') &&
+    /^직업$/.test(cols[1] || '')
+  )
+}
+
+function isEffectHeader(cols) {
+  return (
+    cols.length >= 2 &&
+    /^종류$/.test(cols[0] || '') &&
+    /^아이템$/.test(cols[1] || '')
+  )
+}
+
 /**
  * @param {string} text
  */
@@ -173,7 +195,9 @@ export function parseSkillText(text) {
       /^스킬\s*습득/.test(line) ||
       /^사용\s*도시/.test(line) ||
       /^습득\s*조건/.test(line) ||
-      /^우대\s*직업/.test(line)
+      /^우대\s*직업/.test(line) ||
+      /^부관$/.test(line) ||
+      /^효과\s*아이템/.test(line)
     ) {
       continue
     }
@@ -210,12 +234,14 @@ export function parseSkillText(text) {
   const state = {
     description: '',
     category: '언어',
+    altName: null,
     officerDuty: null,
     rangeScope: null,
     actionPower: null,
     autoEffect: null,
     refineEffect: null,
     learnCost: null,
+    equipCost: null,
     prerequisite: null,
     /** @type {string[]} */
     preferredJobs: [],
@@ -225,10 +251,15 @@ export function parseSkillText(text) {
     learnPlaces: [],
     /** @type {Array<{ region: string, city: string }>} */
     useCities: [],
+    /** @type {Array<{ name: string, job: string|null, adventure: string|null, trade: string|null, battle: string|null, trait: string|null }>} */
+    officers: [],
+    /** @type {Array<{ kind: string, item: string }>} */
+    effectItems: [],
   }
 
-  /** @type {null | 'meta' | 'learn' | 'use' | 'conditions'} */
+  /** @type {null | 'meta' | 'learn' | 'use' | 'conditions' | 'officers' | 'effects'} */
   let mode = null
+  let lastLearnRegion = ''
 
   for (let i = nameIdx + 1; i < lines.length; i++) {
     const line = lines[i].replace(/^[\uFEFF\u200B\u200C\u200D]+/, '').trim()
@@ -246,16 +277,35 @@ export function parseSkillText(text) {
       mode = 'conditions'
       continue
     }
+    if (/^부관$/.test(line)) {
+      mode = 'officers'
+      continue
+    }
+    if (/^효과\s*아이템/.test(line)) {
+      mode = 'effects'
+      continue
+    }
 
     const cols = splitTabs(line)
 
     if (mode === 'learn') {
       if (isLearnHeader(cols) || isUseHeader(cols)) continue
-      if (cols[0] && cols[1]) {
+      // 동아시아	마카오	마테오 리치
+      if (cols.length >= 3 && cols[0] && cols[1]) {
+        lastLearnRegion = cols[0]
         state.learnPlaces.push({
           region: cols[0],
           city: cols[1],
-          npc: cols[2] || null,
+          npc: emptyCell(cols[2]),
+        })
+        continue
+      }
+      // 이어붙임: 안평	하빈 (지역 생략)
+      if (cols.length === 2 && cols[0] && cols[1] && lastLearnRegion) {
+        state.learnPlaces.push({
+          region: lastLearnRegion,
+          city: cols[0],
+          npc: emptyCell(cols[1]),
         })
       }
       continue
@@ -280,21 +330,44 @@ export function parseSkillText(text) {
       continue
     }
 
-    // 우대 직업만 단독 행
+    if (mode === 'officers') {
+      if (isOfficerHeader(cols)) continue
+      if (cols[0] && cols[0] !== '부관') {
+        state.officers.push({
+          name: cols[0],
+          job: emptyCell(cols[1]),
+          adventure: emptyCell(cols[2]),
+          trade: emptyCell(cols[3]),
+          battle: emptyCell(cols[4]),
+          trait: emptyCell(cols[5]),
+        })
+      }
+      continue
+    }
+
+    if (mode === 'effects') {
+      if (isEffectHeader(cols)) continue
+      if (cols[0] && cols[1] && cols[0] !== '종류') {
+        state.effectItems.push({
+          kind: cols[0],
+          item: cols.slice(1).join('\t').trim(),
+        })
+      }
+      continue
+    }
+
     if (/^우대\s*직업$/.test(cols[0] || '')) {
       applyMetaCols(state, cols)
       mode = 'meta'
       continue
     }
 
-    // 메타 키로 시작하는 행
     if (matchMetaKey(cols[0])) {
       applyMetaCols(state, cols)
       mode = 'meta'
       continue
     }
 
-    // 메타 헤더 전 설명
     if (!mode || mode === 'meta') {
       if (!matchMetaKey(cols[0])) {
         state.description = state.description
@@ -304,7 +377,6 @@ export function parseSkillText(text) {
     }
   }
 
-  // 습득 조건만 있고 선행 스킬 문자열이 없으면 요약
   if (!state.prerequisite && state.acquireConditions.length > 0) {
     state.prerequisite = state.acquireConditions
       .map((c) => `${c.kind} ${c.content}`.trim())
@@ -314,6 +386,7 @@ export function parseSkillText(text) {
   return {
     name,
     slug: slugify(name),
+    altName: state.altName,
     description: state.description || null,
     category: state.category,
     officerDuty: state.officerDuty,
@@ -322,10 +395,13 @@ export function parseSkillText(text) {
     autoEffect: state.autoEffect,
     refineEffect: state.refineEffect,
     learnCost: state.learnCost,
+    equipCost: state.equipCost,
     prerequisite: state.prerequisite,
     preferredJobs: state.preferredJobs,
     acquireConditions: state.acquireConditions,
     learnPlaces: state.learnPlaces,
     useCities: state.useCities,
+    officers: state.officers,
+    effectItems: state.effectItems,
   }
 }

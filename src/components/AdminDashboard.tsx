@@ -7,6 +7,8 @@ export type AdminDashboardNav =
   | 'ships'
   | 'quests'
   | 'ports'
+  | 'regions'
+  | 'entry-permits'
   | 'discoveries'
   | 'skills'
   | 'fields'
@@ -23,6 +25,8 @@ type CatalogCounts = {
   ships: number
   quests: number
   ports: number
+  regions: number
+  entryPermits: number
   discoveries: number
   skills: number
   fields: number
@@ -178,6 +182,8 @@ export function AdminDashboard({ token, onNavigate }: AdminDashboardProps) {
                   ['ships', '선박', counts?.ships],
                   ['quests', '퀘스트', counts?.quests],
                   ['ports', '항구', counts?.ports],
+                  ['regions', '지역', counts?.regions],
+                  ['entry-permits', '입항허가', counts?.entryPermits],
                   ['discoveries', '발견물', counts?.discoveries],
                   ['skills', '스킬', counts?.skills],
                   ['fields', '필드', counts?.fields],

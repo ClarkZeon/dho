@@ -1311,15 +1311,32 @@
 }
 
 .dash-link strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
   font-size: 0.95rem;
   color: var(--is-blue);
 }
 
-.dash-link span {
+.dash-link > span {
   font-size: 0.8rem;
   color: var(--is-grey);
   line-height: 1.4;
   word-break: keep-all;
+}
+
+.ver2-chip {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  padding: 0.1rem 0.34rem;
+  border-radius: 999px;
+  background: var(--is-gold);
+  color: var(--is-white);
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  line-height: 1.25;
 }
 
 .toast {
@@ -2570,6 +2587,15 @@
 .admin-nav-group-items button {
   grid-template-columns: 1fr;
   padding: 0.4rem 0.55rem;
+}
+
+.admin-nav-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+  width: 100%;
+  min-width: 0;
 }
 
 .admin-nav-empty {

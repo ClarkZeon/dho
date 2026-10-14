@@ -67,6 +67,22 @@ import {
 } from './portStore.mjs'
 import { parsePortText } from './portTextParse.mjs'
 import {
+  deleteRegion,
+  ensureRegionStore,
+  listRegions,
+  updateRegionFields,
+  upsertRegionFromParsed,
+} from './regionStore.mjs'
+import { parseRegionText } from './regionTextParse.mjs'
+import {
+  deleteEntryPermit,
+  ensureEntryPermitStore,
+  listEntryPermits,
+  updateEntryPermitFields,
+  upsertEntryPermitFromParsed,
+} from './entryPermitStore.mjs'
+import { parseEntryPermitText } from './entryPermitTextParse.mjs'
+import {
   deleteField,
   ensureFieldStore,
   getFieldById,
@@ -172,6 +188,8 @@ async function ensureStore() {
   await ensureShipStore()
   await ensureQuestStore()
   await ensurePortStore()
+  await ensureRegionStore()
+  await ensureEntryPermitStore()
   await ensureDiscoveryStore()
   await ensureSkillStore()
   await ensureFieldStore()
@@ -1122,6 +1140,186 @@ export async function handleRequest(req, res) {
       } catch (err) {
         const message =
           err instanceof Error ? err.message : '항구(도시) 삭제에 실패했습니다.'
+        sendJson(
+          res,
+          message.includes('찾을 수 없') ? 404 : 400,
+          { error: message },
+        )
+      }
+      return
+    }
+
+    if (req.method === 'GET' && pathname === '/api/regions') {
+      const authUser = await getAuthUser(req)
+      if (!authUser) {
+        sendJson(res, 401, { error: '로그인이 필요합니다.' })
+        return
+      }
+      const regions = await listRegions()
+      sendJson(res, 200, { regions })
+      return
+    }
+
+    if (req.method === 'POST' && pathname === '/api/regions/import-text') {
+      const authUser = await getAuthUser(req)
+      if (!authUser) {
+        sendJson(res, 401, { error: '로그인이 필요합니다.' })
+        return
+      }
+      if (!requireAdmin(authUser, res)) return
+      const body = await readBody(req)
+      const text = typeof body.text === 'string' ? body.text : ''
+      try {
+        const parsed = parseRegionText(text)
+        const region = await upsertRegionFromParsed(parsed)
+        sendJson(res, 201, { region })
+      } catch (err) {
+        sendJson(res, 400, {
+          error:
+            err instanceof Error
+              ? err.message
+              : '지역 텍스트 파싱에 실패했습니다.',
+        })
+      }
+      return
+    }
+
+    const regionMatch = pathname.match(/^\/api\/regions\/([^/]+)$/)
+    if (regionMatch && req.method === 'PATCH') {
+      const authUser = await getAuthUser(req)
+      if (!authUser) {
+        sendJson(res, 401, { error: '로그인이 필요합니다.' })
+        return
+      }
+      if (!requireAdmin(authUser, res)) return
+      const regionId = Number(decodeURIComponent(regionMatch[1]))
+      if (!Number.isFinite(regionId)) {
+        sendJson(res, 400, { error: '잘못된 지역 ID입니다.' })
+        return
+      }
+      const body = await readBody(req)
+      try {
+        const region = await updateRegionFields(regionId, body)
+        sendJson(res, 200, { region })
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : '지역 수정에 실패했습니다.'
+        sendJson(
+          res,
+          message.includes('찾을 수 없') ? 404 : 400,
+          { error: message },
+        )
+      }
+      return
+    }
+    if (regionMatch && req.method === 'DELETE') {
+      const authUser = await getAuthUser(req)
+      if (!authUser) {
+        sendJson(res, 401, { error: '로그인이 필요합니다.' })
+        return
+      }
+      if (!requireAdmin(authUser, res)) return
+      const regionId = Number(decodeURIComponent(regionMatch[1]))
+      if (!Number.isFinite(regionId)) {
+        sendJson(res, 400, { error: '잘못된 지역 ID입니다.' })
+        return
+      }
+      try {
+        await deleteRegion(regionId)
+        sendJson(res, 200, { ok: true })
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : '지역 삭제에 실패했습니다.'
+        sendJson(
+          res,
+          message.includes('찾을 수 없') ? 404 : 400,
+          { error: message },
+        )
+      }
+      return
+    }
+
+    if (req.method === 'GET' && pathname === '/api/entry-permits') {
+      const authUser = await getAuthUser(req)
+      if (!authUser) {
+        sendJson(res, 401, { error: '로그인이 필요합니다.' })
+        return
+      }
+      const entryPermits = await listEntryPermits()
+      sendJson(res, 200, { entryPermits })
+      return
+    }
+
+    if (req.method === 'POST' && pathname === '/api/entry-permits/import-text') {
+      const authUser = await getAuthUser(req)
+      if (!authUser) {
+        sendJson(res, 401, { error: '로그인이 필요합니다.' })
+        return
+      }
+      if (!requireAdmin(authUser, res)) return
+      const body = await readBody(req)
+      const text = typeof body.text === 'string' ? body.text : ''
+      try {
+        const parsed = parseEntryPermitText(text)
+        const entryPermit = await upsertEntryPermitFromParsed(parsed)
+        sendJson(res, 201, { entryPermit })
+      } catch (err) {
+        sendJson(res, 400, {
+          error:
+            err instanceof Error
+              ? err.message
+              : '입항허가 텍스트 파싱에 실패했습니다.',
+        })
+      }
+      return
+    }
+
+    const entryPermitMatch = pathname.match(/^\/api\/entry-permits\/([^/]+)$/)
+    if (entryPermitMatch && req.method === 'PATCH') {
+      const authUser = await getAuthUser(req)
+      if (!authUser) {
+        sendJson(res, 401, { error: '로그인이 필요합니다.' })
+        return
+      }
+      if (!requireAdmin(authUser, res)) return
+      const permitId = Number(decodeURIComponent(entryPermitMatch[1]))
+      if (!Number.isFinite(permitId)) {
+        sendJson(res, 400, { error: '잘못된 입항허가 ID입니다.' })
+        return
+      }
+      const body = await readBody(req)
+      try {
+        const entryPermit = await updateEntryPermitFields(permitId, body)
+        sendJson(res, 200, { entryPermit })
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : '입항허가 수정에 실패했습니다.'
+        sendJson(
+          res,
+          message.includes('찾을 수 없') ? 404 : 400,
+          { error: message },
+        )
+      }
+      return
+    }
+    if (entryPermitMatch && req.method === 'DELETE') {
+      const authUser = await getAuthUser(req)
+      if (!authUser) {
+        sendJson(res, 401, { error: '로그인이 필요합니다.' })
+        return
+      }
+      if (!requireAdmin(authUser, res)) return
+      const permitId = Number(decodeURIComponent(entryPermitMatch[1]))
+      if (!Number.isFinite(permitId)) {
+        sendJson(res, 400, { error: '잘못된 입항허가 ID입니다.' })
+        return
+      }
+      try {
+        await deleteEntryPermit(permitId)
+        sendJson(res, 200, { ok: true })
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : '입항허가 삭제에 실패했습니다.'
         sendJson(
           res,
           message.includes('찾을 수 없') ? 404 : 400,

@@ -1,6 +1,6 @@
 ﻿import { useEffect, useState } from 'react'
 import { updateSkill } from '../lib/api'
-import type { SkillDetail } from '../types'
+import type { SkillDetail, SkillOfficer } from '../types'
 import {
   DetailSectionActions,
   DetailSectionHead,
@@ -17,11 +17,15 @@ type SkillDetailViewProps = {
 
 type EditSection =
   | 'basic'
-  | 'description'
   | 'jobs'
   | 'conditions'
   | 'learn'
   | 'useCities'
+  | 'officers'
+  | 'effects'
+
+const SKILL_CATEGORIES = ['언어', '모험', '교역', '전투', '기타']
+const RANGE_SCOPES = ['함대', '자신', '적', '아군', '기타']
 
 function Row({ label, value }: { label: string; value: string | null }) {
   return (
@@ -32,9 +36,15 @@ function Row({ label, value }: { label: string; value: string | null }) {
   )
 }
 
-function formatCost(n: number | null) {
+function formatCost(n: number | null, unit = '두캇') {
   if (n == null) return null
-  return `${n.toLocaleString('ko-KR')}두캇`
+  return `${n.toLocaleString('ko-KR')}${unit}`
+}
+
+function formatAutoEffect(value: string | null) {
+  if (value == null) return null
+  if (value === 'Y' || value === '1') return '예'
+  return value
 }
 
 function cloneSkill(skill: SkillDetail): SkillDetail {
@@ -44,6 +54,8 @@ function cloneSkill(skill: SkillDetail): SkillDetail {
     acquireConditions: (skill.acquireConditions || []).map((c) => ({ ...c })),
     learnPlaces: (skill.learnPlaces || []).map((p) => ({ ...p })),
     useCities: (skill.useCities || []).map((c) => ({ ...c })),
+    officers: (skill.officers || []).map((o) => ({ ...o })),
+    effectItems: (skill.effectItems || []).map((e) => ({ ...e })),
   }
 }
 
@@ -79,6 +91,9 @@ export function SkillDetailView({ skill, edit }: SkillDetailViewProps) {
   const useCities = skill.useCities || []
   const preferredJobs = skill.preferredJobs || []
   const acquireConditions = skill.acquireConditions || []
+  const officers = skill.officers || []
+  const effectItems = skill.effectItems || []
+  const autoEffectOn = draft.autoEffect != null
 
   function startEdit(section: EditSection) {
     setDraft(cloneSkill(skill))
@@ -104,17 +119,18 @@ export function SkillDetailView({ skill, edit }: SkillDetailViewProps) {
         if (!draft.name.trim()) throw new Error('스킬 이름이 필요합니다.')
         patch = {
           name: draft.name,
+          altName: draft.altName,
+          description: draft.description,
           category: draft.category,
           officerDuty: draft.officerDuty,
           actionPower: draft.actionPower,
           rangeScope: draft.rangeScope,
           learnCost: draft.learnCost,
+          equipCost: draft.equipCost,
           refineEffect: draft.refineEffect,
           autoEffect: draft.autoEffect,
           prerequisite: draft.prerequisite,
         }
-      } else if (editing === 'description') {
-        patch = { description: draft.description }
       } else if (editing === 'jobs') {
         patch = {
           preferredJobs: jobsDraft
@@ -140,6 +156,18 @@ export function SkillDetailView({ skill, edit }: SkillDetailViewProps) {
             (c) => c.region.trim() || c.city.trim(),
           ),
         }
+      } else if (editing === 'officers') {
+        patch = {
+          officers: draft.officers.filter(
+            (o) => o.name.trim() || o.job || o.adventure || o.trade || o.battle,
+          ),
+        }
+      } else if (editing === 'effects') {
+        patch = {
+          effectItems: draft.effectItems.filter(
+            (e) => e.kind.trim() || e.item.trim(),
+          ),
+        }
       }
       const res = await updateSkill(edit.token, skill.id, patch)
       edit.onSaved(res.skill)
@@ -159,7 +187,17 @@ export function SkillDetailView({ skill, edit }: SkillDetailViewProps) {
   const showConditions = canEdit || acquireConditions.length > 0
   const showLearn = canEdit || learnPlaces.length > 0
   const showUse = canEdit || useCities.length > 0
-  const showDescription = canEdit || Boolean(skill.description)
+  const showOfficers = canEdit || officers.length > 0
+  const showEffects = canEdit || effectItems.length > 0
+
+  const categoryOptions =
+    skill.category && !SKILL_CATEGORIES.includes(skill.category)
+      ? [skill.category, ...SKILL_CATEGORIES]
+      : SKILL_CATEGORIES
+  const rangeOptions =
+    skill.rangeScope && !RANGE_SCOPES.includes(skill.rangeScope)
+      ? [skill.rangeScope, ...RANGE_SCOPES]
+      : RANGE_SCOPES
 
   return (
     <div className="quest-detail">
@@ -170,8 +208,13 @@ export function SkillDetailView({ skill, edit }: SkillDetailViewProps) {
             <span className="quest-badge">{skill.category}</span>
           ) : null}
         </div>
-        <h2>{skill.name}</h2>
-        {!canEdit && skill.description ? (
+        <h2>
+          {skill.name}
+          {skill.altName ? (
+            <span className="port-alt-name"> ({skill.altName})</span>
+          ) : null}
+        </h2>
+        {skill.description ? (
           <p style={{ whiteSpace: 'pre-wrap' }}>{skill.description}</p>
         ) : null}
       </header>
@@ -193,7 +236,27 @@ export function SkillDetailView({ skill, edit }: SkillDetailViewProps) {
           <>
             <div className="quest-kv-grid sea-area-edit-grid">
               <label className="field">
-                <span>이름</span>
+                <span>분류</span>
+                <select
+                  value={draft.category || ''}
+                  disabled={saving}
+                  onChange={(e) =>
+                    setDraft((prev) => ({
+                      ...prev,
+                      category: e.target.value || null,
+                    }))
+                  }
+                >
+                  <option value="">선택</option>
+                  {categoryOptions.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="field">
+                <span>스킬</span>
                 <input
                   value={draft.name}
                   disabled={saving}
@@ -203,14 +266,14 @@ export function SkillDetailView({ skill, edit }: SkillDetailViewProps) {
                 />
               </label>
               <label className="field">
-                <span>분류</span>
+                <span>추가 이름</span>
                 <input
-                  value={draft.category || ''}
+                  value={draft.altName || ''}
                   disabled={saving}
                   onChange={(e) =>
                     setDraft((prev) => ({
                       ...prev,
-                      category: e.target.value || null,
+                      altName: e.target.value || null,
                     }))
                   }
                 />
@@ -220,6 +283,7 @@ export function SkillDetailView({ skill, edit }: SkillDetailViewProps) {
                 <input
                   value={draft.officerDuty || ''}
                   disabled={saving}
+                  placeholder="- 없음 -"
                   onChange={(e) =>
                     setDraft((prev) => ({
                       ...prev,
@@ -230,20 +294,40 @@ export function SkillDetailView({ skill, edit }: SkillDetailViewProps) {
               </label>
               <label className="field">
                 <span>행동력</span>
-                <input
-                  value={draft.actionPower || ''}
-                  disabled={saving}
-                  onChange={(e) =>
-                    setDraft((prev) => ({
-                      ...prev,
-                      actionPower: e.target.value || null,
-                    }))
-                  }
-                />
+                <div className="port-clearable">
+                  <input
+                    value={draft.actionPower || ''}
+                    disabled={saving}
+                    onChange={(e) =>
+                      setDraft((prev) => ({
+                        ...prev,
+                        actionPower: e.target.value || null,
+                      }))
+                    }
+                  />
+                  <label className="port-facility-check">
+                    <input
+                      type="checkbox"
+                      checked={autoEffectOn}
+                      disabled={saving}
+                      onChange={(e) =>
+                        setDraft((prev) => ({
+                          ...prev,
+                          autoEffect: e.target.checked
+                            ? prev.autoEffect && prev.autoEffect !== 'Y'
+                              ? prev.autoEffect
+                              : 'Y'
+                            : null,
+                        }))
+                      }
+                    />
+                    자동효과
+                  </label>
+                </div>
               </label>
               <label className="field">
                 <span>범위</span>
-                <input
+                <select
                   value={draft.rangeScope || ''}
                   disabled={saving}
                   onChange={(e) =>
@@ -252,23 +336,50 @@ export function SkillDetailView({ skill, edit }: SkillDetailViewProps) {
                       rangeScope: e.target.value || null,
                     }))
                   }
-                />
+                >
+                  <option value="">선택</option>
+                  {rangeOptions.map((r) => (
+                    <option key={r} value={r}>
+                      {r}
+                    </option>
+                  ))}
+                </select>
               </label>
               <label className="field">
                 <span>습득 비용</span>
-                <input
-                  inputMode="numeric"
-                  value={numOrEmpty(draft.learnCost)}
-                  disabled={saving}
-                  onChange={(e) =>
-                    setDraft((prev) => ({
-                      ...prev,
-                      learnCost: parseOptionalInt(e.target.value),
-                    }))
-                  }
-                />
+                <div className="port-clearable">
+                  <input
+                    inputMode="numeric"
+                    value={numOrEmpty(draft.learnCost)}
+                    disabled={saving}
+                    onChange={(e) =>
+                      setDraft((prev) => ({
+                        ...prev,
+                        learnCost: parseOptionalInt(e.target.value),
+                      }))
+                    }
+                  />
+                  <span className="port-unit">두캇</span>
+                </div>
               </label>
               <label className="field">
+                <span>장착 비용</span>
+                <div className="port-clearable">
+                  <input
+                    inputMode="numeric"
+                    value={numOrEmpty(draft.equipCost)}
+                    disabled={saving}
+                    onChange={(e) =>
+                      setDraft((prev) => ({
+                        ...prev,
+                        equipCost: parseOptionalInt(e.target.value),
+                      }))
+                    }
+                  />
+                  <span className="port-unit">학점</span>
+                </div>
+              </label>
+              <label className="field" style={{ gridColumn: '1 / -1' }}>
                 <span>연성 효과</span>
                 <input
                   value={draft.refineEffect || ''}
@@ -281,28 +392,16 @@ export function SkillDetailView({ skill, edit }: SkillDetailViewProps) {
                   }
                 />
               </label>
-              <label className="field">
-                <span>자동효과</span>
-                <input
-                  value={draft.autoEffect || ''}
+              <label className="field" style={{ gridColumn: '1 / -1' }}>
+                <span>설명</span>
+                <textarea
+                  rows={4}
+                  value={draft.description || ''}
                   disabled={saving}
                   onChange={(e) =>
                     setDraft((prev) => ({
                       ...prev,
-                      autoEffect: e.target.value || null,
-                    }))
-                  }
-                />
-              </label>
-              <label className="field">
-                <span>선행 스킬</span>
-                <input
-                  value={draft.prerequisite || ''}
-                  disabled={saving}
-                  onChange={(e) =>
-                    setDraft((prev) => ({
-                      ...prev,
-                      prerequisite: e.target.value || null,
+                      description: e.target.value || null,
                     }))
                   }
                 />
@@ -317,55 +416,22 @@ export function SkillDetailView({ skill, edit }: SkillDetailViewProps) {
         ) : (
           <div className="quest-kv-grid">
             <Row label="분류" value={skill.category || '언어'} />
-            <Row label="부관담당" value={skill.officerDuty} />
             <Row label="행동력" value={skill.actionPower} />
+            <Row label="자동효과" value={formatAutoEffect(skill.autoEffect)} />
             <Row label="범위" value={skill.rangeScope} />
             <Row label="습득 비용" value={formatCost(skill.learnCost)} />
+            <Row
+              label="장착 비용"
+              value={formatCost(skill.equipCost, '학점')}
+            />
+            <Row label="부관담당" value={skill.officerDuty} />
             <Row label="연성 효과" value={skill.refineEffect} />
-            <Row label="자동효과" value={skill.autoEffect} />
             {skill.prerequisite && acquireConditions.length === 0 ? (
               <Row label="선행 스킬" value={skill.prerequisite} />
             ) : null}
           </div>
         )}
       </section>
-
-      {showDescription && (
-        <section className="quest-detail-section">
-          <DetailSectionHead
-            title="설명"
-            canEdit={canEdit}
-            editing={editing === 'description'}
-            onEdit={() => startEdit('description')}
-          />
-          {editing === 'description' ? (
-            <>
-              <label className="field">
-                <textarea
-                  rows={5}
-                  value={draft.description || ''}
-                  disabled={saving}
-                  onChange={(e) =>
-                    setDraft((prev) => ({
-                      ...prev,
-                      description: e.target.value || null,
-                    }))
-                  }
-                />
-              </label>
-              <DetailSectionActions
-                busy={saving}
-                onCancel={cancelEdit}
-                onSave={() => void saveSection()}
-              />
-            </>
-          ) : (
-            <p style={{ whiteSpace: 'pre-wrap' }}>
-              {skill.description || '설명이 없습니다.'}
-            </p>
-          )}
-        </section>
-      )}
 
       {showJobs && (
         <section className="quest-detail-section">
@@ -560,7 +626,218 @@ export function SkillDetailView({ skill, edit }: SkillDetailViewProps) {
           )}
         </section>
       )}
+
+      {showOfficers && (
+        <section className="quest-detail-section">
+          <DetailSectionHead
+            title="부관"
+            canEdit={canEdit}
+            editing={editing === 'officers'}
+            onEdit={() => startEdit('officers')}
+          />
+          {editing === 'officers' ? (
+            <>
+              <EditOfficers
+                officers={draft.officers}
+                disabled={saving}
+                onChange={(next) =>
+                  setDraft((prev) => ({ ...prev, officers: next }))
+                }
+              />
+              <DetailSectionActions
+                busy={saving}
+                onCancel={cancelEdit}
+                onSave={() => void saveSection()}
+              />
+            </>
+          ) : officers.length > 0 ? (
+            <div className="admin-table-wrap">
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th>부관</th>
+                    <th>직업</th>
+                    <th>모험</th>
+                    <th>교역</th>
+                    <th>전투</th>
+                    <th>특성</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {officers.map((row, index) => (
+                    <tr key={`${row.name}-${index}`}>
+                      <td>{row.name}</td>
+                      <td>{row.job || '-'}</td>
+                      <td>{row.adventure || '-'}</td>
+                      <td>{row.trade || '-'}</td>
+                      <td>{row.battle || '-'}</td>
+                      <td>{row.trait || '-'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="form-note">등록된 부관이 없습니다.</p>
+          )}
+        </section>
+      )}
+
+      {showEffects && (
+        <section className="quest-detail-section">
+          <DetailSectionHead
+            title="효과 아이템"
+            canEdit={canEdit}
+            editing={editing === 'effects'}
+            onEdit={() => startEdit('effects')}
+          />
+          {editing === 'effects' ? (
+            <>
+              <EditKvTable
+                rows={draft.effectItems}
+                disabled={saving}
+                colA="종류"
+                colB="아이템"
+                onChange={(next) =>
+                  setDraft((prev) => ({ ...prev, effectItems: next }))
+                }
+                emptyRow={() => ({ kind: '', item: '' })}
+                getA={(r) => r.kind}
+                getB={(r) => r.item}
+                setA={(r, v) => ({ ...r, kind: v })}
+                setB={(r, v) => ({ ...r, item: v })}
+              />
+              <DetailSectionActions
+                busy={saving}
+                onCancel={cancelEdit}
+                onSave={() => void saveSection()}
+              />
+            </>
+          ) : effectItems.length > 0 ? (
+            <div className="admin-table-wrap">
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th>종류</th>
+                    <th>아이템</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {effectItems.map((row, index) => (
+                    <tr key={`${row.item}-${index}`}>
+                      <td>{row.kind || '-'}</td>
+                      <td>{row.item || '-'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="form-note">등록된 효과 아이템이 없습니다.</p>
+          )}
+        </section>
+      )}
     </div>
+  )
+}
+
+function EditOfficers({
+  officers,
+  onChange,
+  disabled,
+}: {
+  officers: SkillOfficer[]
+  onChange: (officers: SkillOfficer[]) => void
+  disabled?: boolean
+}) {
+  return (
+    <>
+      <div className="admin-table-wrap">
+        <table className="admin-table">
+          <thead>
+            <tr>
+              <th>부관</th>
+              <th>직업</th>
+              <th>모험</th>
+              <th>교역</th>
+              <th>전투</th>
+              <th>특성</th>
+              <th className="col-action">삭제</th>
+            </tr>
+          </thead>
+          <tbody>
+            {officers.map((row, idx) => (
+              <tr key={`off-${idx}`}>
+                {(
+                  [
+                    'name',
+                    'job',
+                    'adventure',
+                    'trade',
+                    'battle',
+                    'trait',
+                  ] as const
+                ).map((key) => (
+                  <td key={key}>
+                    <input
+                      value={row[key] || ''}
+                      disabled={disabled}
+                      onChange={(e) =>
+                        onChange(
+                          officers.map((o, i) =>
+                            i === idx
+                              ? {
+                                  ...o,
+                                  [key]:
+                                    key === 'name'
+                                      ? e.target.value
+                                      : e.target.value || null,
+                                }
+                              : o,
+                          ),
+                        )
+                      }
+                    />
+                  </td>
+                ))}
+                <td className="col-action">
+                  <button
+                    type="button"
+                    className="admin-danger-btn"
+                    disabled={disabled}
+                    onClick={() =>
+                      onChange(officers.filter((_, i) => i !== idx))
+                    }
+                  >
+                    삭제
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <button
+        type="button"
+        className="admin-btn"
+        disabled={disabled}
+        onClick={() =>
+          onChange([
+            ...officers,
+            {
+              name: '',
+              job: null,
+              adventure: null,
+              trade: null,
+              battle: null,
+              trait: null,
+            },
+          ])
+        }
+      >
+        추가
+      </button>
+    </>
   )
 }
 

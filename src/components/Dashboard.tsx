@@ -13,6 +13,8 @@ import { FieldCatalog } from './FieldCatalog'
 import { SeaAreaCatalog } from './SeaAreaCatalog'
 import { SkillCatalog } from './SkillCatalog'
 import { PortCatalog } from './PortCatalog'
+import { RegionCatalog } from './RegionCatalog'
+import { EntryPermitCatalog } from './EntryPermitCatalog'
 import { QuestCatalog } from './QuestCatalog'
 import { ShipAccel } from './ShipAccel'
 import { ShipCompare } from './ShipCompare'
@@ -31,6 +33,8 @@ type View =
   | { name: 'ship-materials' }
   | { name: 'quests' }
   | { name: 'ports' }
+  | { name: 'regions' }
+  | { name: 'entry-permits' }
   | { name: 'discoveries' }
   | { name: 'skills' }
   | { name: 'fields' }
@@ -60,6 +64,10 @@ function viewToHash(view: View): string {
       return '#/quests'
     case 'ports':
       return '#/ports'
+    case 'regions':
+      return '#/regions'
+    case 'entry-permits':
+      return '#/entry-permits'
     case 'discoveries':
       return '#/discoveries'
     case 'skills':
@@ -103,6 +111,8 @@ function hashToView(hash: string): View {
   if (parts[0] === 'ship-materials') return { name: 'ship-materials' }
   if (parts[0] === 'quests') return { name: 'quests' }
   if (parts[0] === 'ports') return { name: 'ports' }
+  if (parts[0] === 'regions') return { name: 'regions' }
+  if (parts[0] === 'entry-permits') return { name: 'entry-permits' }
   if (parts[0] === 'discoveries') return { name: 'discoveries' }
   if (parts[0] === 'skills' || parts[0] === 'languages') {
     return { name: 'skills' }
@@ -192,6 +202,8 @@ function toMenuTarget(view: View): MenuTarget {
   if (view.name === 'ship-materials') return { name: 'ship-materials' }
   if (view.name === 'quests') return { name: 'quests' }
   if (view.name === 'ports') return { name: 'ports' }
+  if (view.name === 'regions') return { name: 'regions' }
+  if (view.name === 'entry-permits') return { name: 'entry-permits' }
   if (view.name === 'discoveries') return { name: 'discoveries' }
   if (view.name === 'skills') return { name: 'skills' }
   if (view.name === 'fields') return { name: 'fields' }
@@ -346,6 +358,14 @@ export function Dashboard({ user, token, onLogout, onToast }: DashboardProps) {
     }
     if (target.name === 'ports') {
       go({ name: 'ports' })
+      return
+    }
+    if (target.name === 'regions') {
+      go({ name: 'regions' })
+      return
+    }
+    if (target.name === 'entry-permits') {
+      go({ name: 'entry-permits' })
       return
     }
     if (target.name === 'discoveries') {
@@ -556,7 +576,10 @@ export function Dashboard({ user, token, onLogout, onToast }: DashboardProps) {
                       className="dash-link"
                       onClick={() => go({ name: 'quests' })}
                     >
-                      <strong>퀘스트</strong>
+                      <strong>
+                        퀘스트
+                        <span className="ver2-chip">ver.2</span>
+                      </strong>
                       <span>퀘스트 목록·연계</span>
                     </button>
                     <button
@@ -578,15 +601,43 @@ export function Dashboard({ user, token, onLogout, onToast }: DashboardProps) {
                       className="dash-link"
                       onClick={() => go({ name: 'ports' })}
                     >
-                      <strong>항구</strong>
+                      <strong>
+                        항구
+                        <span className="ver2-chip">ver.2</span>
+                      </strong>
                       <span>항구·도시 정보</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="dash-link"
+                      onClick={() => go({ name: 'regions' })}
+                    >
+                      <strong>
+                        지역
+                        <span className="ver2-chip">ver.2</span>
+                      </strong>
+                      <span>지역·해역 그룹</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="dash-link"
+                      onClick={() => go({ name: 'entry-permits' })}
+                    >
+                      <strong>
+                        입항허가
+                        <span className="ver2-chip">ver.2</span>
+                      </strong>
+                      <span>입항허가·택일 퀘스트</span>
                     </button>
                     <button
                       type="button"
                       className="dash-link"
                       onClick={() => go({ name: 'fields' })}
                     >
-                      <strong>필드</strong>
+                      <strong>
+                        필드
+                        <span className="ver2-chip">ver.2</span>
+                      </strong>
                       <span>필드·육지 조사</span>
                     </button>
                     <button
@@ -594,7 +645,10 @@ export function Dashboard({ user, token, onLogout, onToast }: DashboardProps) {
                       className="dash-link"
                       onClick={() => go({ name: 'sea-areas' })}
                     >
-                      <strong>해역</strong>
+                      <strong>
+                        해역
+                        <span className="ver2-chip">ver.2</span>
+                      </strong>
                       <span>해역·수집·목적지</span>
                     </button>
                   </div>
@@ -608,7 +662,10 @@ export function Dashboard({ user, token, onLogout, onToast }: DashboardProps) {
                       className="dash-link"
                       onClick={() => go({ name: 'skills' })}
                     >
-                      <strong>스킬</strong>
+                      <strong>
+                        스킬
+                        <span className="ver2-chip">ver.2</span>
+                      </strong>
                       <span>스킬·습득 정보</span>
                     </button>
                   </div>
@@ -683,6 +740,12 @@ export function Dashboard({ user, token, onLogout, onToast }: DashboardProps) {
         )}
 
         {view.name === 'ports' && <PortCatalog token={token} />}
+
+        {view.name === 'regions' && <RegionCatalog token={token} />}
+
+        {view.name === 'entry-permits' && (
+          <EntryPermitCatalog token={token} />
+        )}
 
         {view.name === 'discoveries' && <DiscoveryCatalog token={token} />}
 

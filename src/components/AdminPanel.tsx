@@ -7,6 +7,8 @@ import {
   deleteSeaArea,
   deleteSkill,
   deletePort,
+  deleteRegion,
+  deleteEntryPermit,
   deleteQuest,
   deleteShip,
   deleteShipMaterial,
@@ -18,6 +20,8 @@ import {
   fetchSeaAreas,
   fetchSkills,
   fetchPorts,
+  fetchRegions,
+  fetchEntryPermits,
   fetchQuest,
   fetchQuests,
   fetchShipMaterials,
@@ -28,6 +32,8 @@ import {
   importSeaAreaText,
   importSkillText,
   importPortText,
+  importRegionText,
+  importEntryPermitText,
   importQuestText,
   importShipMaterialText,
   importShipText,
@@ -45,6 +51,8 @@ import type {
   SeaAreaDetail,
   SkillDetail,
   PortDetail,
+  RegionDetail,
+  EntryPermitDetail,
   QuestDetail,
   ShipDetail,
   ShipMaterialDetail,
@@ -60,6 +68,8 @@ import { FieldDetailView } from './FieldDetailView'
 import { SeaAreaDetailView } from './SeaAreaDetailView'
 import { SkillDetailView } from './SkillDetailView'
 import { PortDetailView } from './PortDetailView'
+import { RegionDetailView } from './RegionDetailView'
+import { EntryPermitDetailView } from './EntryPermitDetailView'
 import { QuestDiscoveryLabel } from './DiscoveryRankMark'
 import { QuestDetailView } from './QuestDetailView'
 import { ShipDetailView } from './ShipDetailView'
@@ -69,6 +79,8 @@ import { ShipMaterialList } from './ShipMaterialList'
 import { SortableTh } from './SortableTh'
 import { formatDiscoveryAcquire } from '../lib/discoveryAcquire'
 import { matchesPortQuery } from '../lib/portSearch'
+import { matchesRegionQuery } from '../lib/regionSearch'
+import { matchesEntryPermitQuery } from '../lib/entryPermitSearch'
 import { compareIdDesc, useTableSort } from '../lib/tableSort'
 
 const SKILL_PAGE_SIZE = 15
@@ -95,6 +107,8 @@ type PortSortKey =
   | 'seaArea'
   | 'entryPermit'
   | 'language'
+type RegionSortKey = 'name' | 'altName'
+type EntryPermitSortKey = 'name' | 'altName'
 type DiscoverySortKey =
   | 'name'
   | 'category'
@@ -115,6 +129,8 @@ type AdminNav =
   | 'ships'
   | 'quests'
   | 'ports'
+  | 'regions'
+  | 'entry-permits'
   | 'discoveries'
   | 'skills'
   | 'fields'
@@ -177,7 +193,13 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
     if (next === 'quests' || next === 'discoveries') {
       setAtlasMenuOpen(true)
     }
-    if (next === 'ports' || next === 'fields' || next === 'sea-areas') {
+    if (
+      next === 'ports' ||
+      next === 'regions' ||
+      next === 'entry-permits' ||
+      next === 'fields' ||
+      next === 'sea-areas'
+    ) {
       setRegionsMenuOpen(true)
     }
     if (next === 'consumables') {
@@ -227,6 +249,27 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
   const [portImportNote, setPortImportNote] = useState('')
   const [detailPort, setDetailPort] = useState<PortDetail | null>(null)
   const [portQuery, setPortQuery] = useState('')
+
+  const [regions, setRegions] = useState<RegionDetail[]>([])
+  const [loadingRegions, setLoadingRegions] = useState(false)
+  const [regionsError, setRegionsError] = useState('')
+  const [showRegionImport, setShowRegionImport] = useState(false)
+  const [regionImportText, setRegionImportText] = useState('')
+  const [importingRegion, setImportingRegion] = useState(false)
+  const [regionImportNote, setRegionImportNote] = useState('')
+  const [detailRegion, setDetailRegion] = useState<RegionDetail | null>(null)
+  const [regionQuery, setRegionQuery] = useState('')
+
+  const [entryPermits, setEntryPermits] = useState<EntryPermitDetail[]>([])
+  const [loadingEntryPermits, setLoadingEntryPermits] = useState(false)
+  const [entryPermitsError, setEntryPermitsError] = useState('')
+  const [showEntryPermitImport, setShowEntryPermitImport] = useState(false)
+  const [entryPermitImportText, setEntryPermitImportText] = useState('')
+  const [importingEntryPermit, setImportingEntryPermit] = useState(false)
+  const [entryPermitImportNote, setEntryPermitImportNote] = useState('')
+  const [detailEntryPermit, setDetailEntryPermit] =
+    useState<EntryPermitDetail | null>(null)
+  const [entryPermitQuery, setEntryPermitQuery] = useState('')
 
   const [discoveries, setDiscoveries] = useState<DiscoveryDetail[]>([])
   const [loadingDiscoveries, setLoadingDiscoveries] = useState(false)
@@ -365,6 +408,40 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
     }
   }, [token])
 
+  const loadRegions = useCallback(async () => {
+    setLoadingRegions(true)
+    setRegionsError('')
+    try {
+      const res = await fetchRegions(token)
+      setRegions(res.regions)
+    } catch (err) {
+      setRegionsError(
+        err instanceof Error
+          ? err.message
+          : '지역 목록을 불러오지 못했습니다.',
+      )
+    } finally {
+      setLoadingRegions(false)
+    }
+  }, [token])
+
+  const loadEntryPermits = useCallback(async () => {
+    setLoadingEntryPermits(true)
+    setEntryPermitsError('')
+    try {
+      const res = await fetchEntryPermits(token)
+      setEntryPermits(res.entryPermits)
+    } catch (err) {
+      setEntryPermitsError(
+        err instanceof Error
+          ? err.message
+          : '입항허가 목록을 불러오지 못했습니다.',
+      )
+    } finally {
+      setLoadingEntryPermits(false)
+    }
+  }, [token])
+
   const loadDiscoveries = useCallback(async () => {
     setLoadingDiscoveries(true)
     setDiscoveriesError('')
@@ -449,6 +526,8 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
 
   const usersSort = useTableSort<UserSortKey>()
   const portsSort = useTableSort<PortSortKey>()
+  const regionsSort = useTableSort<RegionSortKey>()
+  const entryPermitsSort = useTableSort<EntryPermitSortKey>()
   const discoveriesSort = useTableSort<DiscoverySortKey>()
   const skillsSort = useTableSort<SkillSortKey>()
 
@@ -493,6 +572,18 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
   const sortedPorts = portsSort.sortRows(
     ports.filter((port) => matchesPortQuery(port, portQuery)),
     (port, key) => port[key],
+    (a, b) => a.id - b.id,
+    compareIdDesc,
+  )
+  const sortedRegions = regionsSort.sortRows(
+    regions.filter((region) => matchesRegionQuery(region, regionQuery)),
+    (region, key) => region[key],
+    (a, b) => a.id - b.id,
+    compareIdDesc,
+  )
+  const sortedEntryPermits = entryPermitsSort.sortRows(
+    entryPermits.filter((item) => matchesEntryPermitQuery(item, entryPermitQuery)),
+    (item, key) => item[key],
     (a, b) => a.id - b.id,
     compareIdDesc,
   )
@@ -570,6 +661,8 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
     if (nav === 'users') void loadUsers()
     if (nav === 'ships') void loadShips()
     if (nav === 'ports') void loadPorts()
+    if (nav === 'regions') void loadRegions()
+    if (nav === 'entry-permits') void loadEntryPermits()
     if (nav === 'discoveries') {
       void loadDiscoveries()
     }
@@ -583,6 +676,8 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
     loadUsers,
     loadShips,
     loadPorts,
+    loadRegions,
+    loadEntryPermits,
     loadDiscoveries,
     loadSkills,
     loadFields,
@@ -703,6 +798,38 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
       setPorts((prev) => prev.filter((p) => p.id !== port.id))
       if (detailPort?.id === port.id) setDetailPort(null)
       onToast(`항구 「${port.name}」을(를) 삭제했습니다.`)
+    } catch (err) {
+      onToast(err instanceof Error ? err.message : '삭제에 실패했습니다.')
+    } finally {
+      setDeletingKey(null)
+    }
+  }
+
+  async function handleDeleteRegion(region: RegionDetail) {
+    if (!window.confirm(`「${region.name}」 지역을 삭제할까요?`)) return
+    const key = `region:${region.id}`
+    setDeletingKey(key)
+    try {
+      await deleteRegion(token, region.id)
+      setRegions((prev) => prev.filter((r) => r.id !== region.id))
+      if (detailRegion?.id === region.id) setDetailRegion(null)
+      onToast(`지역 「${region.name}」을(를) 삭제했습니다.`)
+    } catch (err) {
+      onToast(err instanceof Error ? err.message : '삭제에 실패했습니다.')
+    } finally {
+      setDeletingKey(null)
+    }
+  }
+
+  async function handleDeleteEntryPermit(permit: EntryPermitDetail) {
+    if (!window.confirm(`「${permit.name}」 입항허가를 삭제할까요?`)) return
+    const key = `entry-permit:${permit.id}`
+    setDeletingKey(key)
+    try {
+      await deleteEntryPermit(token, permit.id)
+      setEntryPermits((prev) => prev.filter((p) => p.id !== permit.id))
+      if (detailEntryPermit?.id === permit.id) setDetailEntryPermit(null)
+      onToast(`입항허가 「${permit.name}」을(를) 삭제했습니다.`)
     } catch (err) {
       onToast(err instanceof Error ? err.message : '삭제에 실패했습니다.')
     } finally {
@@ -929,6 +1056,58 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
       )
     } finally {
       setImportingPort(false)
+    }
+  }
+
+  async function handleRegionImport(e: FormEvent) {
+    e.preventDefault()
+    if (!regionImportText.trim()) {
+      setRegionImportNote('텍스트를 붙여넣어 주세요.')
+      return
+    }
+    setImportingRegion(true)
+    setRegionImportNote('')
+    try {
+      const res = await importRegionText(token, regionImportText)
+      setRegionImportText('')
+      setShowRegionImport(false)
+      setRegionImportNote(
+        `「${res.region.name}」을(를) 저장했습니다. (동일 이름이면 내용이 갱신됩니다)`,
+      )
+      onToast(`지역 「${res.region.name}」 저장 완료`)
+      await loadRegions()
+    } catch (err) {
+      setRegionImportNote(
+        err instanceof Error ? err.message : '저장에 실패했습니다.',
+      )
+    } finally {
+      setImportingRegion(false)
+    }
+  }
+
+  async function handleEntryPermitImport(e: FormEvent) {
+    e.preventDefault()
+    if (!entryPermitImportText.trim()) {
+      setEntryPermitImportNote('텍스트를 붙여넣어 주세요.')
+      return
+    }
+    setImportingEntryPermit(true)
+    setEntryPermitImportNote('')
+    try {
+      const res = await importEntryPermitText(token, entryPermitImportText)
+      setEntryPermitImportText('')
+      setShowEntryPermitImport(false)
+      setEntryPermitImportNote(
+        `「${res.entryPermit.name}」을(를) 저장했습니다. (동일 이름이면 내용이 갱신됩니다)`,
+      )
+      onToast(`입항허가 「${res.entryPermit.name}」 저장 완료`)
+      await loadEntryPermits()
+    } catch (err) {
+      setEntryPermitImportNote(
+        err instanceof Error ? err.message : '저장에 실패했습니다.',
+      )
+    } finally {
+      setImportingEntryPermit(false)
     }
   }
 
@@ -1248,7 +1427,10 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
                 className={nav === 'quests' ? 'active' : ''}
                 onClick={() => goNav('quests')}
               >
-                <span className="admin-nav-text">퀘스트 리스트</span>
+                <span className="admin-nav-row">
+                  <span className="admin-nav-text">퀘스트 리스트</span>
+                  <span className="ver2-chip">ver.2</span>
+                </span>
               </button>
               <button
                 type="button"
@@ -1261,7 +1443,11 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
           </div>
           <div
             className={`admin-nav-group${
-              nav === 'ports' || nav === 'fields' || nav === 'sea-areas'
+              nav === 'ports' ||
+              nav === 'regions' ||
+              nav === 'entry-permits' ||
+              nav === 'fields' ||
+              nav === 'sea-areas'
                 ? ' is-active'
                 : ''
             }${regionsMenuOpen ? ' is-open' : ''}`}
@@ -1287,21 +1473,50 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
                 className={nav === 'ports' ? 'active' : ''}
                 onClick={() => goNav('ports')}
               >
-                <span className="admin-nav-text">항구(도시) 리스트</span>
+                <span className="admin-nav-row">
+                  <span className="admin-nav-text">항구(도시) 리스트</span>
+                  <span className="ver2-chip">ver.2</span>
+                </span>
+              </button>
+              <button
+                type="button"
+                className={nav === 'regions' ? 'active' : ''}
+                onClick={() => goNav('regions')}
+              >
+                <span className="admin-nav-row">
+                  <span className="admin-nav-text">지역 리스트</span>
+                  <span className="ver2-chip">ver.2</span>
+                </span>
+              </button>
+              <button
+                type="button"
+                className={nav === 'entry-permits' ? 'active' : ''}
+                onClick={() => goNav('entry-permits')}
+              >
+                <span className="admin-nav-row">
+                  <span className="admin-nav-text">입항허가 리스트</span>
+                  <span className="ver2-chip">ver.2</span>
+                </span>
               </button>
               <button
                 type="button"
                 className={nav === 'fields' ? 'active' : ''}
                 onClick={() => goNav('fields')}
               >
-                <span className="admin-nav-text">필드 리스트</span>
+                <span className="admin-nav-row">
+                  <span className="admin-nav-text">필드 리스트</span>
+                  <span className="ver2-chip">ver.2</span>
+                </span>
               </button>
               <button
                 type="button"
                 className={nav === 'sea-areas' ? 'active' : ''}
                 onClick={() => goNav('sea-areas')}
               >
-                <span className="admin-nav-text">해역 리스트</span>
+                <span className="admin-nav-row">
+                  <span className="admin-nav-text">해역 리스트</span>
+                  <span className="ver2-chip">ver.2</span>
+                </span>
               </button>
             </div>
           </div>
@@ -1361,7 +1576,10 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
                 className={nav === 'skills' ? 'active' : ''}
                 onClick={() => goNav('skills')}
               >
-                <span className="admin-nav-text">스킬 리스트</span>
+                <span className="admin-nav-row">
+                  <span className="admin-nav-text">스킬 리스트</span>
+                  <span className="ver2-chip">ver.2</span>
+                </span>
               </button>
             </div>
           </div>
@@ -1970,6 +2188,345 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
                 </div>
               )}
               </>
+            )}
+          </section>
+        )}
+
+        {nav === 'regions' && (
+          <section className="admin-section">
+            <div className="admin-page-head">
+              <div>
+                <h1>지역 리스트</h1>
+                <p>
+                  위키 텍스트로 추가·갱신합니다. 같은 이름이면 내용을 덮어씁니다.
+                </p>
+              </div>
+              <div className="admin-page-actions">
+                <button
+                  type="button"
+                  className="admin-btn"
+                  onClick={() => void loadRegions()}
+                  disabled={loadingRegions}
+                >
+                  새로고침
+                </button>
+                <button
+                  type="button"
+                  className="admin-btn admin-btn-primary"
+                  onClick={() => {
+                    setShowRegionImport((v) => !v)
+                    setRegionImportNote('')
+                  }}
+                >
+                  {showRegionImport ? '닫기' : '지역 추가'}
+                </button>
+              </div>
+            </div>
+
+            {showRegionImport && (
+              <form className="admin-import-form" onSubmit={handleRegionImport}>
+                <label className="field">
+                  <span>지역 텍스트</span>
+                  <textarea
+                    className="quest-import-textarea"
+                    rows={14}
+                    value={regionImportText}
+                    onChange={(e) => setRegionImportText(e.target.value)}
+                    placeholder={`지역아프리카 동부-인도\n해역\n해역 그룹\t해역\n홍해\t메소포타미아 유역, 아라비아 해, …\n인도양\t남동인도양, 남인도양, …`}
+                    disabled={importingRegion}
+                  />
+                </label>
+                <div className="form-actions">
+                  <button
+                    type="submit"
+                    className="admin-btn admin-btn-primary"
+                    disabled={importingRegion}
+                  >
+                    {importingRegion ? '저장 중…' : '저장'}
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {regionImportNote && (
+              <p
+                className={`form-note${
+                  /실패|못|오류|에러|중복/.test(regionImportNote)
+                    ? ' error'
+                    : ''
+                }`}
+              >
+                {regionImportNote}
+              </p>
+            )}
+
+            {regionsError && (
+              <p className="form-note error" role="alert">
+                {regionsError}
+              </p>
+            )}
+
+            <label className="field catalog-search">
+              <input
+                type="search"
+                value={regionQuery}
+                onChange={(e) => setRegionQuery(e.target.value)}
+                placeholder="이름·해역으로 검색"
+                aria-label="지역 검색"
+                autoComplete="off"
+                disabled={loadingRegions}
+              />
+            </label>
+
+            {loadingRegions ? (
+              <p className="form-note">불러오는 중…</p>
+            ) : (
+              <div className="admin-table-wrap">
+                <table className="admin-table">
+                  <thead>
+                    <tr>
+                      <SortableTh
+                        label="이름"
+                        sortKey="name"
+                        activeKey={regionsSort.sortKey}
+                        dir={regionsSort.sortDir}
+                        onSort={regionsSort.toggleSort}
+                      />
+                      <SortableTh
+                        className="col-desk"
+                        label="추가 이름"
+                        sortKey="altName"
+                        activeKey={regionsSort.sortKey}
+                        dir={regionsSort.sortDir}
+                        onSort={regionsSort.toggleSort}
+                      />
+                      <th className="col-desk">해역 그룹</th>
+                      <th className="col-desk">삭제</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sortedRegions.map((region, index) => (
+                      <tr
+                        key={region.id}
+                        className={`admin-row-clickable${index % 2 === 0 ? ' is-even' : ' is-odd'}`}
+                        tabIndex={0}
+                        onClick={() => setDetailRegion(region)}
+                        onKeyDown={(
+                          event: KeyboardEvent<HTMLTableRowElement>,
+                        ) => {
+                          if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault()
+                            setDetailRegion(region)
+                          }
+                        }}
+                      >
+                        <td>{region.name}</td>
+                        <td className="col-desk">{region.altName || '-'}</td>
+                        <td className="col-desk">
+                          {(region.seaGroups || [])
+                            .map((g) => g.group)
+                            .join(', ') || '-'}
+                        </td>
+                        <td
+                          className="admin-cell-control col-desk"
+                          onClick={(e) => e.stopPropagation()}
+                          onKeyDown={(e) => e.stopPropagation()}
+                        >
+                          <button
+                            type="button"
+                            className="admin-danger-btn"
+                            disabled={deletingKey === `region:${region.id}`}
+                            onClick={() => void handleDeleteRegion(region)}
+                          >
+                            삭제
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                    {sortedRegions.length === 0 && (
+                      <tr>
+                        <td colSpan={4}>
+                          {regions.length === 0
+                            ? '등록된 지역이 없습니다.'
+                            : '검색 결과가 없습니다.'}
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+        )}
+
+        {nav === 'entry-permits' && (
+          <section className="admin-section">
+            <div className="admin-page-head">
+              <div>
+                <h1>입항허가 리스트</h1>
+                <p>
+                  위키 텍스트로 추가·갱신합니다. 같은 이름이면 내용을 덮어씁니다.
+                </p>
+              </div>
+              <div className="admin-page-actions">
+                <button
+                  type="button"
+                  className="admin-btn"
+                  onClick={() => void loadEntryPermits()}
+                  disabled={loadingEntryPermits}
+                >
+                  새로고침
+                </button>
+                <button
+                  type="button"
+                  className="admin-btn admin-btn-primary"
+                  onClick={() => {
+                    setShowEntryPermitImport((v) => !v)
+                    setEntryPermitImportNote('')
+                  }}
+                >
+                  {showEntryPermitImport ? '닫기' : '입항허가 추가'}
+                </button>
+              </div>
+            </div>
+
+            {showEntryPermitImport && (
+              <form
+                className="admin-import-form"
+                onSubmit={handleEntryPermitImport}
+              >
+                <label className="field">
+                  <span>입항허가 텍스트</span>
+                  <textarea
+                    className="quest-import-textarea"
+                    rows={16}
+                    value={entryPermitImportText}
+                    onChange={(e) => setEntryPermitImportText(e.target.value)}
+                    placeholder={`입항허가동남아시아\n퀘스트 (택일)\n캘리컷\n종류\t난이도\t퀘스트\n모험\t4\t미지의 매력\n…`}
+                    disabled={importingEntryPermit}
+                  />
+                </label>
+                <div className="form-actions">
+                  <button
+                    type="submit"
+                    className="admin-btn admin-btn-primary"
+                    disabled={importingEntryPermit}
+                  >
+                    {importingEntryPermit ? '저장 중…' : '저장'}
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {entryPermitImportNote && (
+              <p
+                className={`form-note${
+                  /실패|못|오류|에러|중복/.test(entryPermitImportNote)
+                    ? ' error'
+                    : ''
+                }`}
+              >
+                {entryPermitImportNote}
+              </p>
+            )}
+
+            {entryPermitsError && (
+              <p className="form-note error" role="alert">
+                {entryPermitsError}
+              </p>
+            )}
+
+            <label className="field catalog-search">
+              <input
+                type="search"
+                value={entryPermitQuery}
+                onChange={(e) => setEntryPermitQuery(e.target.value)}
+                placeholder="이름·도시·퀘스트로 검색"
+                aria-label="입항허가 검색"
+                autoComplete="off"
+                disabled={loadingEntryPermits}
+              />
+            </label>
+
+            {loadingEntryPermits ? (
+              <p className="form-note">불러오는 중…</p>
+            ) : (
+              <div className="admin-table-wrap">
+                <table className="admin-table">
+                  <thead>
+                    <tr>
+                      <SortableTh
+                        label="이름"
+                        sortKey="name"
+                        activeKey={entryPermitsSort.sortKey}
+                        dir={entryPermitsSort.sortDir}
+                        onSort={entryPermitsSort.toggleSort}
+                      />
+                      <SortableTh
+                        className="col-desk"
+                        label="추가 이름"
+                        sortKey="altName"
+                        activeKey={entryPermitsSort.sortKey}
+                        dir={entryPermitsSort.sortDir}
+                        onSort={entryPermitsSort.toggleSort}
+                      />
+                      <th className="col-desk">도시</th>
+                      <th className="col-desk">삭제</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sortedEntryPermits.map((permit, index) => (
+                      <tr
+                        key={permit.id}
+                        className={`admin-row-clickable${index % 2 === 0 ? ' is-even' : ' is-odd'}`}
+                        tabIndex={0}
+                        onClick={() => setDetailEntryPermit(permit)}
+                        onKeyDown={(
+                          event: KeyboardEvent<HTMLTableRowElement>,
+                        ) => {
+                          if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault()
+                            setDetailEntryPermit(permit)
+                          }
+                        }}
+                      >
+                        <td>{permit.name}</td>
+                        <td className="col-desk">{permit.altName || '-'}</td>
+                        <td className="col-desk">
+                          {(permit.cityQuests || [])
+                            .map((c) => c.city)
+                            .join(', ') || '-'}
+                        </td>
+                        <td
+                          className="admin-cell-control col-desk"
+                          onClick={(e) => e.stopPropagation()}
+                          onKeyDown={(e) => e.stopPropagation()}
+                        >
+                          <button
+                            type="button"
+                            className="admin-danger-btn"
+                            disabled={
+                              deletingKey === `entry-permit:${permit.id}`
+                            }
+                            onClick={() => void handleDeleteEntryPermit(permit)}
+                          >
+                            삭제
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                    {sortedEntryPermits.length === 0 && (
+                      <tr>
+                        <td colSpan={4}>
+                          {entryPermits.length === 0
+                            ? '등록된 입항허가가 없습니다.'
+                            : '검색 결과가 없습니다.'}
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
             )}
           </section>
         )}
@@ -3262,6 +3819,50 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
                   prev.map((p) => (p.id === next.id ? next : p)),
                 )
                 setDetailPort(next)
+              },
+            }}
+          />
+        </DetailModal>
+      )}
+
+      {detailRegion && (
+        <DetailModal
+          title="지역 상세"
+          label={`${detailRegion.name} 상세`}
+          onClose={() => setDetailRegion(null)}
+        >
+          <RegionDetailView
+            region={detailRegion}
+            edit={{
+              token,
+              onToast,
+              onSaved: (next) => {
+                setRegions((prev) =>
+                  prev.map((r) => (r.id === next.id ? next : r)),
+                )
+                setDetailRegion(next)
+              },
+            }}
+          />
+        </DetailModal>
+      )}
+
+      {detailEntryPermit && (
+        <DetailModal
+          title="입항허가 상세"
+          label={`${detailEntryPermit.name} 상세`}
+          onClose={() => setDetailEntryPermit(null)}
+        >
+          <EntryPermitDetailView
+            permit={detailEntryPermit}
+            edit={{
+              token,
+              onToast,
+              onSaved: (next) => {
+                setEntryPermits((prev) =>
+                  prev.map((p) => (p.id === next.id ? next : p)),
+                )
+                setDetailEntryPermit(next)
               },
             }}
           />

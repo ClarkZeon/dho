@@ -10,6 +10,8 @@ import type {
   SeaAreaDetail,
   ConsumableDetail,
   PortDetail,
+  RegionDetail,
+  EntryPermitDetail,
   QuestDetail,
   Session,
   ShipDetail,
@@ -378,6 +380,77 @@ export function updatePort(
   )
 }
 
+export function fetchRegions(token: string) {
+  return request<{ regions: RegionDetail[] }>('/api/regions', { token })
+}
+
+export function importRegionText(token: string, text: string) {
+  return request<{ region: RegionDetail }>('/api/regions/import-text', {
+    token,
+    body: { text },
+  })
+}
+
+export function deleteRegion(token: string, regionId: number) {
+  return request<{ ok: boolean }>(
+    `/api/regions/${encodeURIComponent(String(regionId))}`,
+    { method: 'DELETE', token },
+  )
+}
+
+export function updateRegion(
+  token: string,
+  regionId: number,
+  patch: Partial<RegionDetail>,
+) {
+  return request<{ region: RegionDetail }>(
+    `/api/regions/${encodeURIComponent(String(regionId))}`,
+    {
+      method: 'PATCH',
+      token,
+      body: patch,
+    },
+  )
+}
+
+export function fetchEntryPermits(token: string) {
+  return request<{ entryPermits: EntryPermitDetail[] }>('/api/entry-permits', {
+    token,
+  })
+}
+
+export function importEntryPermitText(token: string, text: string) {
+  return request<{ entryPermit: EntryPermitDetail }>(
+    '/api/entry-permits/import-text',
+    {
+      token,
+      body: { text },
+    },
+  )
+}
+
+export function deleteEntryPermit(token: string, permitId: number) {
+  return request<{ ok: boolean }>(
+    `/api/entry-permits/${encodeURIComponent(String(permitId))}`,
+    { method: 'DELETE', token },
+  )
+}
+
+export function updateEntryPermit(
+  token: string,
+  permitId: number,
+  patch: Partial<EntryPermitDetail>,
+) {
+  return request<{ entryPermit: EntryPermitDetail }>(
+    `/api/entry-permits/${encodeURIComponent(String(permitId))}`,
+    {
+      method: 'PATCH',
+      token,
+      body: patch,
+    },
+  )
+}
+
 export function fetchFields(token: string) {
   return request<{ fields: FieldDetail[] }>('/api/fields', { token })
 }
@@ -601,6 +674,8 @@ export function fetchAdminStats(token: string) {
       ships: number
       quests: number
       ports: number
+      regions: number
+      entryPermits: number
       discoveries: number
       skills: number
       fields: number
