@@ -22,6 +22,13 @@ Chromium에서 `overflow: hidden` 은 스크롤 컨테이너로 취급된다.
 - 모서리만 자를 때 → `overflow: clip` (또는 공용 `.surface-clip`)
 - **금지**: 그런 래퍼에 `overflow: hidden`만 두고 페이지 스크롤에 의존하기
 
+`html` / `body` / `#root` / `.app-shell`:
+
+- **금지**: 여러 겹에 `overflow-x: hidden` (CSS 스펙상 `overflow-y`가 `auto`로 승격 → 스크롤 컨테이너 중첩 → 휠만 죽음)
+- 가로 클리핑은 **한 곳**만, 가능하면 `overflow-x: clip` + `overflow-y: visible`
+- `html { height: 100% }` 로 문서 스크롤을 가두지 말 것 (`min-height` 사용)
+- `overscroll-behavior: none` 전체 축 금지 → 필요하면 `overscroll-behavior-x`만
+
 아래는 `overflow: hidden` 유지 OK:
 
 - 고정 높이 진행바·아이콘 마스크·텍스트 ellipsis (`text-overflow`)

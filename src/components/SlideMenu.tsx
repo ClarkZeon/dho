@@ -156,7 +156,11 @@ export function SlideMenu({
   const captainActive = active.name === 'skills'
 
   return (
-    <div className={`slide-menu ${open ? 'open' : ''}`} aria-hidden={!open}>
+    <div
+      className={`slide-menu ${open ? 'open' : ''}`}
+      aria-hidden={!open}
+      inert={!open ? true : undefined}
+    >
       <button
         type="button"
         className="slide-menu-backdrop"
@@ -168,7 +172,7 @@ export function SlideMenu({
       <aside
         className="slide-menu-panel"
         role="dialog"
-        aria-modal="true"
+        aria-modal={open ? true : undefined}
         aria-label="사이트 메뉴"
         onClick={(event) => event.stopPropagation()}
       >

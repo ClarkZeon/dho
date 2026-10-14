@@ -1205,7 +1205,8 @@
 .app-shell {
   min-height: 100dvh;
   max-width: 100%;
-  overflow-x: hidden;
+  overflow-x: clip;
+  overflow-y: visible;
   background: var(--is-light);
 }
 
