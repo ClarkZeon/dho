@@ -424,6 +424,15 @@ export function parseQuestText(text) {
       }
       continue
     }
+    // 보상/필요 뒤에 바로 오는 「연결 지도/퀘스트」(연속 퀘스트 없이도)
+    if (LINKED_HEADING_RE.test(line) && !looksLikeChainEntry(line)) {
+      mode = 'linked'
+      const rest = lineAfterLinkedHeading(line)
+      if (rest && (looksLikeChainEntry(rest) || QUEST_TAG_RE.test(rest))) {
+        linkedQuests.push(parseChainLine(rest))
+      }
+      continue
+    }
     if (/^공략/.test(line)) {
       mode = 'walkthrough'
       const rest = line.replace(/^공략\s*/, '').trim()
@@ -434,6 +443,16 @@ export function parseQuestText(text) {
       mode = 'progress'
       const rest = line.replace(/^진행\s*/, '').trim()
       if (rest) progressLines.push(rest)
+      continue
+    }
+
+    // 헤더 없이 [퀘스트] 연결 줄만 보상/필요 구간에 붙은 경우
+    if (
+      (mode === 'reward' || mode === 'need' || mode === 'meta') &&
+      (QUEST_TAG_RE.test(line) || looksLikeChainEntry(line))
+    ) {
+      mode = 'linked'
+      linkedQuests.push(parseChainLine(line))
       continue
     }
 

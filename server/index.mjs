@@ -2161,11 +2161,47 @@ export async function handleRequest(req, res) {
 }
 
 if (!process.env.VERCEL) {
+  console.log('DHO API boot…')
   await ensureReady()
-  const server = createServer((req, res) => {
-    void handleRequest(req, res)
-  })
-  server.listen(PORT, () => {
-    console.log(`DHO API listening on http://localhost:${PORT}`)
-  })
+  console.log('DHO API store ready')
+
+  const maxListenAttempts = 25
+  for (let attempt = 1; attempt <= maxListenAttempts; attempt++) {
+    try {
+      await new Promise((resolve, reject) => {
+        const server = createServer((req, res) => {
+          void handleRequest(req, res)
+        })
+        const onError = (err) => {
+          server.off('listening', onListening)
+          try {
+            server.close()
+          } catch {
+            // ignore
+          }
+          reject(err)
+        }
+        const onListening = () => {
+          server.off('error', onError)
+          console.log(`DHO API listening on http://localhost:${PORT}`)
+          resolve(server)
+        }
+        server.once('error', onError)
+        server.once('listening', onListening)
+        server.listen(PORT)
+      })
+      break
+    } catch (err) {
+      const code = err && typeof err === 'object' ? err.code : ''
+      if (code === 'EADDRINUSE' && attempt < maxListenAttempts) {
+        console.warn(
+          `DHO API port ${PORT} busy; retry ${attempt}/${maxListenAttempts}…`,
+        )
+        await new Promise((r) => setTimeout(r, 200 + attempt * 50))
+        continue
+      }
+      console.error(err)
+      process.exit(1)
+    }
+  }
 }

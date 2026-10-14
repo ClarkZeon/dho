@@ -91,7 +91,7 @@ function applyMetaLine(line, fields) {
 const TASK_KINDS = /^(채집|퀘스트|조사|전투|인식|낚시|탐색)$/
 
 const COLLECT_TABS = ['탐색', '채집', '조달', '애완동물', '낚시']
-const DEST_TABS = ['보물지도', '퀘스트']
+const DEST_TABS = ['발견물', '보물지도', '퀘스트']
 
 /** 탭이 뭉개진 "탐색채집조달애완동물" / 정상 탭 분리 모두 처리 */
 function matchTabHeader(line, tabs) {
@@ -296,7 +296,7 @@ export function parseFieldText(text) {
     }
     if (/^목적지/.test(line)) {
       mode = 'dest'
-      destSource = '보물지도'
+      destSource = '발견물'
       continue
     }
     if (/^육상\s*NPC/.test(line)) {
@@ -448,7 +448,7 @@ export function parseFieldText(text) {
       }
       if (cols.length >= 2 && cols[0] && !/^(발견물|내용)$/.test(cols[0])) {
         destinations.push({
-          source: destSource || '보물지도',
+          source: destSource || '발견물',
           discovery: cols[0],
           content: cols.slice(1).join('\t').trim(),
         })
@@ -459,7 +459,7 @@ export function parseFieldText(text) {
         !/^(발견물|내용)$/.test(cols[0])
       ) {
         destinations.push({
-          source: destSource || '보물지도',
+          source: destSource || '발견물',
           discovery: '',
           content: cols[0],
         })

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { updateField } from '../lib/api'
 import type {
   FieldCollectItem,
@@ -38,7 +38,7 @@ type EditSection =
 
 const FIELD_KINDS = ['상륙지', '도시', '기타']
 const COLLECT_SOURCES = ['탐색', '채집', '조달', '낚시', '애완동물']
-const DEST_SOURCES = ['보물지도', '퀘스트']
+const DEST_SOURCES = ['발견물', '보물지도', '퀘스트']
 
 function cloneField(field: FieldDetail): FieldDetail {
   return {
@@ -146,9 +146,9 @@ function ReadCollectTable({
       <table className="admin-table">
         <thead>
           <tr>
-            <th>이름</th>
             {!pet && <th>랭크</th>}
-            {!pet && <th className="col-desk">종류</th>}
+            {!pet && <th>종류</th>}
+            <th>아이템</th>
             {!pet && <th className="col-desk">추천 지점</th>}
             {fish && <th className="col-desk">교환</th>}
             {fish && <th className="col-desk">방생</th>}
@@ -157,9 +157,9 @@ function ReadCollectTable({
         <tbody>
           {items.map((item, idx) => (
             <tr key={`${item.source}-${item.name}-${idx}`}>
-              <td>{item.name || '-'}</td>
               {!pet && <td>{item.rank ?? '-'}</td>}
-              {!pet && <td className="col-desk">{item.type || '-'}</td>}
+              {!pet && <td>{item.type || '-'}</td>}
+              <td>{item.name || '-'}</td>
               {!pet && (
                 <td className="col-desk">{item.recommendSpot || '-'}</td>
               )}
@@ -187,6 +187,7 @@ export function FieldDetailView({
   const [editing, setEditing] = useState<EditSection | null>(null)
   const [draft, setDraft] = useState(() => cloneField(field))
   const [collectTab, setCollectTab] = useState(COLLECT_SOURCES[0])
+  const [destTab, setDestTab] = useState(DEST_SOURCES[0])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -194,6 +195,14 @@ export function FieldDetailView({
     setDraft(cloneField(field))
     setEditing(null)
     setError('')
+    const firstCollect = COLLECT_SOURCES.find((s) =>
+      (field.collectItems || []).some((i) => i.source === s),
+    )
+    setCollectTab(firstCollect || COLLECT_SOURCES[0])
+    const firstDest = DEST_SOURCES.find((s) =>
+      (field.destinations || []).some((d) => d.source === s),
+    )
+    setDestTab(firstDest || DEST_SOURCES[0])
   }, [field])
 
   function startEdit(section: EditSection) {
@@ -297,33 +306,51 @@ export function FieldDetailView({
       : null
 
   const collectItems = field.collectItems || []
-  const collectGroups = [
-    ...COLLECT_SOURCES,
-    ...Array.from(
+  const collectTabs = useMemo(() => {
+    const extras = Array.from(
       new Set(
         collectItems
           .map((i) => i.source)
-          .filter((s) => s && !COLLECT_SOURCES.includes(s)),
+          .filter((s): s is string => Boolean(s) && !COLLECT_SOURCES.includes(s)),
       ),
-    ),
-  ]
-    .map((source) => ({
-      source,
-      items: collectItems.filter((i) => i.source === source),
-    }))
-    .filter((g) => g.items.length > 0)
+    )
+    const all = [...COLLECT_SOURCES, ...extras]
+    if (canEdit || editing === 'collect') return all
+    return all.filter((s) => collectItems.some((i) => i.source === s))
+  }, [canEdit, editing, collectItems])
 
-  const destGroups = Object.entries(
-    (field.destinations || []).reduce<Record<string, FieldDestination[]>>(
-      (acc, item) => {
-        const key = item.source || '보물지도'
-        if (!acc[key]) acc[key] = []
-        acc[key].push(item)
-        return acc
-      },
-      {},
-    ),
-  )
+  const viewCollectRows = collectItems.filter((i) => i.source === collectTab)
+
+  const destinations = field.destinations || []
+  const destTabs = useMemo(() => {
+    const extras = Array.from(
+      new Set(
+        destinations
+          .map((d) => d.source)
+          .filter((s): s is string => Boolean(s) && !DEST_SOURCES.includes(s)),
+      ),
+    )
+    const all = [...DEST_SOURCES, ...extras]
+    if (canEdit || editing === 'destinations') return all
+    return all.filter((s) => destinations.some((d) => d.source === s))
+  }, [canEdit, editing, destinations])
+
+  const viewDestRows = destinations.filter((d) => d.source === destTab)
+  const draftDestRows = draft.destinations
+    .map((item, index) => ({ item, index }))
+    .filter(({ item }) => item.source === destTab)
+
+  useEffect(() => {
+    if (collectTabs.length && !collectTabs.includes(collectTab)) {
+      setCollectTab(collectTabs[0])
+    }
+  }, [collectTabs, collectTab])
+
+  useEffect(() => {
+    if (destTabs.length && !destTabs.includes(destTab)) {
+      setDestTab(destTabs[0])
+    }
+  }, [destTabs, destTab])
 
   const surveys = field.landSurveys || []
   const showPlaces = canEdit || (field.linkedPlaces || []).length > 0
@@ -1001,31 +1028,24 @@ export function FieldDetailView({
             editing={editing === 'collect'}
             onEdit={() => startEdit('collect')}
           />
+          {collectTabs.length > 0 ? (
+            <div className="port-subtabs" role="tablist" aria-label="수집 아이템">
+              {collectTabs.map((source) => (
+                <button
+                  key={source}
+                  type="button"
+                  role="tab"
+                  className={source === collectTab ? 'active' : ''}
+                  aria-selected={source === collectTab}
+                  onClick={() => setCollectTab(source)}
+                >
+                  {source}
+                </button>
+              ))}
+            </div>
+          ) : null}
           {editing === 'collect' ? (
             <>
-              <div className="sea-area-chip-row" role="tablist">
-                {COLLECT_SOURCES.map((source) => {
-                  const count = draft.collectItems.filter(
-                    (i) => i.source === source,
-                  ).length
-                  return (
-                    <button
-                      key={source}
-                      type="button"
-                      role="tab"
-                      aria-selected={collectTab === source}
-                      className={
-                        collectTab === source
-                          ? 'admin-btn admin-btn-primary'
-                          : 'admin-btn'
-                      }
-                      onClick={() => setCollectTab(source)}
-                    >
-                      {source} ({count})
-                    </button>
-                  )
-                })}
-              </div>
               {(() => {
                 const fish = collectTab === '낚시'
                 const pet = collectTab === '애완동물'
@@ -1038,9 +1058,9 @@ export function FieldDetailView({
                       <table className="admin-table">
                         <thead>
                           <tr>
-                            <th>이름</th>
                             {!pet && <th>랭크</th>}
-                            {!pet && <th className="col-desk">종류</th>}
+                            {!pet && <th>종류</th>}
+                            <th>아이템</th>
                             {!pet && <th className="col-desk">추천 지점</th>}
                             {fish && <th className="col-desk">교환</th>}
                             {fish && <th className="col-desk">방생</th>}
@@ -1050,15 +1070,6 @@ export function FieldDetailView({
                         <tbody>
                           {rows.map(({ item, index }) => (
                             <tr key={`collect-${index}`}>
-                              <td>
-                                <input
-                                  value={item.name}
-                                  disabled={saving}
-                                  onChange={(e) =>
-                                    setCollect(index, { name: e.target.value })
-                                  }
-                                />
-                              </td>
                               {!pet && (
                                 <td>
                                   <input
@@ -1074,7 +1085,7 @@ export function FieldDetailView({
                                 </td>
                               )}
                               {!pet && (
-                                <td className="col-desk">
+                                <td>
                                   <input
                                     value={item.type || ''}
                                     disabled={saving}
@@ -1086,6 +1097,15 @@ export function FieldDetailView({
                                   />
                                 </td>
                               )}
+                              <td>
+                                <input
+                                  value={item.name}
+                                  disabled={saving}
+                                  onChange={(e) =>
+                                    setCollect(index, { name: e.target.value })
+                                  }
+                                />
+                              </td>
                               {!pet && (
                                 <td className="col-desk">
                                   <input
@@ -1168,15 +1188,8 @@ export function FieldDetailView({
               })()}
               {actions()}
             </>
-          ) : collectGroups.length > 0 ? (
-            collectGroups.map((group) => (
-              <div key={group.source} style={{ marginBottom: '0.85rem' }}>
-                <p className="quest-badge" style={{ display: 'inline-block' }}>
-                  {group.source}
-                </p>
-                <ReadCollectTable items={group.items} source={group.source} />
-              </div>
-            ))
+          ) : viewCollectRows.length > 0 ? (
+            <ReadCollectTable items={viewCollectRows} source={collectTab} />
           ) : (
             <p className="form-note">등록된 수집 아이템이 없습니다.</p>
           )}
@@ -1192,48 +1205,48 @@ export function FieldDetailView({
             editing={editing === 'destinations'}
             onEdit={() => startEdit('destinations')}
           />
+          {destTabs.length > 0 ? (
+            <div className="port-subtabs" role="tablist" aria-label="목적지">
+              {destTabs.map((tab) => (
+                <button
+                  key={tab}
+                  type="button"
+                  role="tab"
+                  className={tab === destTab ? 'active' : ''}
+                  aria-selected={tab === destTab}
+                  onClick={() => setDestTab(tab)}
+                >
+                  {tab}
+                </button>
+              ))}
+            </div>
+          ) : null}
           {editing === 'destinations' ? (
             <>
               <div className="admin-table-wrap">
                 <table className="admin-table">
                   <thead>
                     <tr>
-                      <th>구분</th>
-                      <th>발견물</th>
+                      <th>
+                        {destTab === '퀘스트'
+                          ? '퀘스트'
+                          : destTab === '보물지도'
+                            ? '보물지도'
+                            : '발견물'}
+                      </th>
                       <th>내용</th>
                       <th className="col-action">삭제</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {draft.destinations.map((item, idx) => (
-                      <tr key={`dest-${idx}`}>
-                        <td>
-                          <select
-                            value={item.source}
-                            disabled={saving}
-                            onChange={(e) =>
-                              setDestination(idx, { source: e.target.value })
-                            }
-                          >
-                            {DEST_SOURCES.map((s) => (
-                              <option key={s} value={s}>
-                                {s}
-                              </option>
-                            ))}
-                            {item.source &&
-                              !DEST_SOURCES.includes(item.source) && (
-                                <option value={item.source}>
-                                  {item.source}
-                                </option>
-                              )}
-                          </select>
-                        </td>
+                    {draftDestRows.map(({ item, index }) => (
+                      <tr key={`dest-${index}`}>
                         <td>
                           <input
                             value={item.discovery}
                             disabled={saving}
                             onChange={(e) =>
-                              setDestination(idx, {
+                              setDestination(index, {
                                 discovery: e.target.value,
                               })
                             }
@@ -1244,7 +1257,9 @@ export function FieldDetailView({
                             value={item.content}
                             disabled={saving}
                             onChange={(e) =>
-                              setDestination(idx, { content: e.target.value })
+                              setDestination(index, {
+                                content: e.target.value,
+                              })
                             }
                           />
                         </td>
@@ -1256,7 +1271,7 @@ export function FieldDetailView({
                             onClick={() =>
                               patchDraft({
                                 destinations: draft.destinations.filter(
-                                  (_, i) => i !== idx,
+                                  (_, i) => i !== index,
                                 ),
                               })
                             }
@@ -1277,41 +1292,44 @@ export function FieldDetailView({
                   patchDraft({
                     destinations: [
                       ...draft.destinations,
-                      { source: '보물지도', discovery: '', content: '' },
+                      {
+                        source: destTab,
+                        discovery: '',
+                        content: '',
+                      },
                     ],
                   })
                 }
               >
-                추가
+                {destTab} 추가
               </button>
               {actions()}
             </>
-          ) : destGroups.length > 0 ? (
-            destGroups.map(([source, items]) => (
-              <div key={source} style={{ marginBottom: '0.85rem' }}>
-                <p className="quest-badge" style={{ display: 'inline-block' }}>
-                  {source}
-                </p>
-                <div className="admin-table-wrap">
-                  <table className="admin-table">
-                    <thead>
-                      <tr>
-                        <th>발견물</th>
-                        <th>내용</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {items.map((item, idx) => (
-                        <tr key={`${source}-${item.discovery}-${idx}`}>
-                          <td>{item.discovery || '-'}</td>
-                          <td>{item.content || '-'}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            ))
+          ) : viewDestRows.length > 0 ? (
+            <div className="admin-table-wrap">
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th>
+                      {destTab === '퀘스트'
+                        ? '퀘스트'
+                        : destTab === '보물지도'
+                          ? '보물지도'
+                          : '발견물'}
+                    </th>
+                    <th>내용</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {viewDestRows.map((item, idx) => (
+                    <tr key={`${destTab}-${item.discovery}-${idx}`}>
+                      <td>{item.discovery || '-'}</td>
+                      <td>{item.content || '-'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           ) : (
             <p className="form-note">등록된 목적지가 없습니다.</p>
           )}

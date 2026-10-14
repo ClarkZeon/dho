@@ -492,7 +492,7 @@ export async function upsertQuestFromParsed(parsed) {
         description = ${parsed.description},
         category = ${parsed.category},
         quest_type = ${parsed.questType},
-        difficulty = ${parsed.difficulty},
+        difficulty = COALESCE(${parsed.difficulty}, difficulty),
         request_places = ${parsed.requestPlaces},
         destination = ${parsed.destination},
         discovery_category = ${parsed.discoveryCategory},
