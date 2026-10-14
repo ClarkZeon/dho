@@ -7,23 +7,36 @@
  * 분류	아이템 획득	사용효과	의뢰 알선
  * 획득 방법
  * 구입생산퀘스트…
+ * 구입
  * 판매 NPC	지역	장소
  * 모험가조합 마스터	유럽 북부	런던 모험가조합, …
- * 유럽 서부	리스본 모험가조합, …
+ * 생산
+ * …
  */
 
 import { createHash } from 'node:crypto'
 
-const ACQUIRE_METHODS = [
-  '육지 재조사',
+export const ACQUIRE_METHODS = [
+  '구입',
+  '생산',
+  '퀘스트',
   '아이템 사용',
   '트레져박스',
-  '애완동물',
   '이벤트',
-  '퀘스트',
-  '생산',
-  '구입',
+  '육지 재조사',
+  '애완동물',
 ]
+
+const SECTION_BY_LABEL = {
+  구입: 'purchase',
+  생산: 'production',
+  퀘스트: 'quest',
+  '아이템 사용': 'itemUse',
+  트레져박스: 'treasureBox',
+  이벤트: 'event',
+  '육지 재조사': 'landResurvey',
+  애완동물: 'pet',
+}
 
 function slugify(name) {
   const normalized = String(name).trim().toLowerCase()
@@ -70,16 +83,17 @@ function splitAcquireMethods(line) {
   let rest = String(line || '').replace(/\s+/g, ' ').trim()
   if (!rest) return []
   const found = []
+  // 긴 라벨 우선
+  const ordered = [...ACQUIRE_METHODS].sort((a, b) => b.length - a.length)
   while (rest) {
     let hit = null
-    for (const method of ACQUIRE_METHODS) {
+    for (const method of ordered) {
       if (rest.startsWith(method)) {
         hit = method
         break
       }
     }
     if (!hit) {
-      // 탭/콤마 구분 시도
       const parts = rest
         .split(/[\t,，/|｜]+/)
         .map((s) => s.trim())
@@ -100,6 +114,30 @@ function isPurchaseHeader(cols) {
   return /판매\s*NPC/.test(joined) && /지역/.test(joined) && /장소/.test(joined)
 }
 
+function looksLikeInfoHeader(cols) {
+  if (cols.length < 1) return false
+  const joined = cols.join(' ')
+  return /^(종류|내용|상세|이름|퀘스트|아이템|이벤트|장소|애완동물|비고)(\s|$)/.test(
+    joined,
+  )
+}
+
+function pushMethod(methods, label) {
+  if (!methods.includes(label)) methods.push(label)
+}
+
+function emptyInfoRows() {
+  return {
+    productions: [],
+    quests: [],
+    itemUses: [],
+    treasureBoxes: [],
+    events: [],
+    landResurveys: [],
+    pets: [],
+  }
+}
+
 /**
  * @param {string} text
  */
@@ -118,6 +156,7 @@ export function parseConsumableText(text) {
   let acquireMethods = []
   /** @type {Array<{ npc: string, region: string, place: string }>} */
   const purchases = []
+  const info = emptyInfoRows()
 
   let i = 0
   while (i < lines.length && !lines[i].trim()) i++
@@ -136,7 +175,13 @@ export function parseConsumableText(text) {
       continue
     }
     if (/^분류(\t|$)/.test(t) || /^획득\s*방법/.test(t)) break
-    if (/^(판매\s*NPC|구입|생산|퀘스트)/.test(t)) break
+    if (
+      /^(판매\s*NPC|구입|생산|퀘스트|아이템\s*사용|트레져박스|이벤트|육지\s*재조사|애완동물)/.test(
+        t,
+      )
+    ) {
+      break
+    }
     descLines.push(t)
     i++
   }
@@ -161,10 +206,8 @@ export function parseConsumableText(text) {
         if (/^분류$/.test(label)) category = value
         if (/^사용효과$/.test(label)) useEffect = value
       }
-      category =
-        pickLabeledValue(t, /분류/, [/사용효과/]) || category
-      useEffect =
-        pickLabeledValue(t, /사용효과/, [/분류/]) || useEffect
+      category = pickLabeledValue(t, /분류/, [/사용효과/]) || category
+      useEffect = pickLabeledValue(t, /사용효과/, [/분류/]) || useEffect
       i++
       continue
     }
@@ -175,7 +218,14 @@ export function parseConsumableText(text) {
   while (i < lines.length && !lines[i].trim()) i++
   if (i < lines.length) {
     const t = lines[i].trim()
-    if (!isPurchaseHeader(splitTabs(t)) && !/^판매\s*NPC/.test(t)) {
+    const cols = splitTabs(t)
+    const isSectionOnly =
+      cols.length === 1 && Object.prototype.hasOwnProperty.call(SECTION_BY_LABEL, cols[0])
+    if (
+      !isPurchaseHeader(cols) &&
+      !/^판매\s*NPC/.test(t) &&
+      !isSectionOnly
+    ) {
       const methods = splitAcquireMethods(t)
       if (methods.length) {
         acquireMethods = methods
@@ -184,43 +234,81 @@ export function parseConsumableText(text) {
     }
   }
 
-  // 구입 테이블
-  let inPurchase = false
+  /** @type {null | 'purchase' | 'production' | 'quest' | 'itemUse' | 'treasureBox' | 'event' | 'landResurvey' | 'pet'} */
+  let mode = null
   let currentNpc = ''
+
+  const infoTarget = {
+    production: { key: 'productions', label: '생산' },
+    quest: { key: 'quests', label: '퀘스트' },
+    itemUse: { key: 'itemUses', label: '아이템 사용' },
+    treasureBox: { key: 'treasureBoxes', label: '트레져박스' },
+    event: { key: 'events', label: '이벤트' },
+    landResurvey: { key: 'landResurveys', label: '육지 재조사' },
+    pet: { key: 'pets', label: '애완동물' },
+  }
+
   while (i < lines.length) {
     const t = lines[i].trim()
     i++
     if (!t) continue
     const cols = splitTabs(t)
-    if (isPurchaseHeader(cols) || /^판매\s*NPC/.test(t)) {
-      inPurchase = true
-      if (!acquireMethods.includes('구입')) acquireMethods.push('구입')
+
+    if (cols.length === 1 && Object.prototype.hasOwnProperty.call(SECTION_BY_LABEL, cols[0])) {
+      mode = SECTION_BY_LABEL[cols[0]]
+      if (mode === 'purchase') {
+        pushMethod(acquireMethods, '구입')
+        currentNpc = ''
+      } else {
+        pushMethod(acquireMethods, infoTarget[mode].label)
+      }
       continue
     }
-    if (!inPurchase) {
-      // 헤더 없이 바로 데이터일 수 있음
-      if (cols.length >= 2) {
-        inPurchase = true
-        if (!acquireMethods.includes('구입')) acquireMethods.push('구입')
-      } else {
-        continue
-      }
+
+    if (isPurchaseHeader(cols) || /^판매\s*NPC/.test(t)) {
+      mode = 'purchase'
+      pushMethod(acquireMethods, '구입')
+      currentNpc = ''
+      continue
     }
 
-    if (cols.length >= 3) {
-      const npc = cols[0] || currentNpc
-      const region = cols[1] || ''
-      const place = cols.slice(2).join('\t').trim()
-      if (cols[0]) currentNpc = cols[0]
-      if (npc && (region || place)) {
-        purchases.push({ npc, region, place })
+    if (mode === 'purchase') {
+      if (cols.length >= 3) {
+        const npc = cols[0] || currentNpc
+        const region = cols[1] || ''
+        const place = cols.slice(2).join('\t').trim()
+        if (cols[0]) currentNpc = cols[0]
+        if (npc && (region || place)) {
+          purchases.push({ npc, region, place })
+        }
+      } else if (cols.length === 2 && currentNpc) {
+        purchases.push({
+          npc: currentNpc,
+          region: cols[0],
+          place: cols[1],
+        })
       }
-    } else if (cols.length === 2 && currentNpc) {
-      purchases.push({
-        npc: currentNpc,
-        region: cols[0],
-        place: cols[1],
-      })
+      continue
+    }
+
+    if (mode && mode !== 'purchase') {
+      const target = infoTarget[mode]
+      if (looksLikeInfoHeader(cols)) continue
+      if (cols.length >= 1 && cols[0]) {
+        info[target.key].push({
+          name: cols[0],
+          detail: cols.length >= 2 ? cols.slice(1).join('\t').trim() || null : null,
+        })
+        pushMethod(acquireMethods, target.label)
+      }
+      continue
+    }
+
+    // 모드 없이 표가 오면 구입으로 간주 (기존 호환)
+    if (cols.length >= 2) {
+      mode = 'purchase'
+      pushMethod(acquireMethods, '구입')
+      i -= 1
     }
   }
 
@@ -236,5 +324,6 @@ export function parseConsumableText(text) {
     useEffect,
     acquireMethods,
     purchases,
+    ...info,
   }
 }

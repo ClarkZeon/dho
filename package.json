@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "dev:api": "node server/index.mjs",
+    "dev:api": "node --watch server/index.mjs",
     "db:migrate-users": "node server/scripts/migrate-users-to-neon.mjs",
     "db:migrate": "node server/scripts/migrate-all-to-neon.mjs",
     "build": "tsc -b && vite build",

@@ -543,11 +543,7 @@ export function deleteConsumable(token: string, consumableId: number) {
 export function updateConsumable(
   token: string,
   consumableId: number,
-  patch: {
-    category?: string | null
-    useEffect?: string | null
-    acquireMethods?: string[] | string
-  },
+  patch: Partial<ConsumableDetail>,
 ) {
   return request<{ consumable: ConsumableDetail }>(
     `/api/consumables/${encodeURIComponent(String(consumableId))}`,

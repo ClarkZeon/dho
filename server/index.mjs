@@ -1491,6 +1491,14 @@ export async function handleRequest(req, res) {
       if ('category' in body) patch.category = body.category
       if ('useEffect' in body) patch.useEffect = body.useEffect
       if ('acquireMethods' in body) patch.acquireMethods = body.acquireMethods
+      if ('purchases' in body) patch.purchases = body.purchases
+      if ('productions' in body) patch.productions = body.productions
+      if ('quests' in body) patch.quests = body.quests
+      if ('itemUses' in body) patch.itemUses = body.itemUses
+      if ('treasureBoxes' in body) patch.treasureBoxes = body.treasureBoxes
+      if ('events' in body) patch.events = body.events
+      if ('landResurveys' in body) patch.landResurveys = body.landResurveys
+      if ('pets' in body) patch.pets = body.pets
       if (!Object.keys(patch).length) {
         sendJson(res, 400, { error: '변경할 필드가 없습니다.' })
         return

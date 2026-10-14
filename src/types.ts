@@ -458,6 +458,12 @@ export type ConsumablePurchase = {
   place: string
 }
 
+/** 생산·퀘스트·아이템 사용 등 획득 상세 행 */
+export type ConsumableInfoRow = {
+  name: string
+  detail: string | null
+}
+
 export type ConsumableDetail = {
   id: number
   slug: string
@@ -467,6 +473,13 @@ export type ConsumableDetail = {
   useEffect: string | null
   acquireMethods: string[]
   purchases: ConsumablePurchase[]
+  productions: ConsumableInfoRow[]
+  quests: ConsumableInfoRow[]
+  itemUses: ConsumableInfoRow[]
+  treasureBoxes: ConsumableInfoRow[]
+  events: ConsumableInfoRow[]
+  landResurveys: ConsumableInfoRow[]
+  pets: ConsumableInfoRow[]
 }
 
 export type DiscoveryCategory = {
