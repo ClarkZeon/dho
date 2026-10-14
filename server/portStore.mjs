@@ -7,6 +7,7 @@ import { getSql, hasDatabaseUrl, runSqlFile } from './db.mjs'
 export async function ensurePortStore() {
   if (!hasDatabaseUrl()) throw new Error('DATABASE_URL 이 없습니다.')
   await runSqlFile('sql/009_ports.sql')
+  await runSqlFile('sql/027_port_detail_extra.sql')
 }
 
 function normalizePortName(name) {
@@ -28,11 +29,56 @@ function asJsonArray(value) {
   return []
 }
 
+function asNullableText(value) {
+  if (value == null) return null
+  const text = String(value).trim()
+  return text ? text : null
+}
+
+function asOptionalNumber(value) {
+  if (value == null || value === '') return null
+  const n = Number(value)
+  if (!Number.isFinite(n)) throw new Error('숫자 값이 올바르지 않습니다.')
+  return n
+}
+
+function asOptionalBool(value) {
+  if (value == null || value === '') return null
+  if (typeof value === 'boolean') return value
+  if (value === true || value === 'true' || value === 1 || value === '1') {
+    return true
+  }
+  if (value === false || value === 'false' || value === 0 || value === '0') {
+    return false
+  }
+  return null
+}
+
+function normalizeCollectItem(item) {
+  const name =
+    item?.name != null && String(item.name).trim()
+      ? String(item.name).trim()
+      : String(item?.items || '').trim()
+  return {
+    source: String(item?.source || '기타'),
+    name,
+    rank:
+      item?.rank == null || item?.rank === ''
+        ? null
+        : Number(item.rank),
+    type: item?.type == null || item?.type === '' ? null : String(item.type),
+    recommendSpot: asNullableText(item?.recommendSpot),
+    canExchange: asOptionalBool(item?.canExchange),
+    canRelease: asOptionalBool(item?.canRelease),
+  }
+}
+
 function decoratePort(row) {
   return {
     id: Number(row.id),
     slug: String(row.slug),
     name: String(row.name),
+    altName: row.alt_name == null ? null : String(row.alt_name),
     description: row.description == null ? null : String(row.description),
     category: row.category == null ? null : String(row.category),
     region: row.region == null ? null : String(row.region),
@@ -42,8 +88,45 @@ function decoratePort(row) {
     entryPermit: row.entry_permit == null ? null : String(row.entry_permit),
     culture: row.culture == null ? null : String(row.culture),
     language: row.language == null ? null : String(row.language),
-    rewards: asJsonArray(row.rewards),
-    collectItems: asJsonArray(row.collect_items),
+    facilities: row.facilities == null ? null : String(row.facilities),
+    flagQuest: row.flag_quest == null ? null : String(row.flag_quest),
+    rewards: asJsonArray(row.rewards).map((item) => ({
+      kind: String(item?.kind || ''),
+      amount: String(item?.amount || ''),
+      reward: String(item?.reward || ''),
+    })),
+    collectItems: asJsonArray(row.collect_items).map(normalizeCollectItem),
+    linkedPlaces: asJsonArray(row.linked_places).map((item) => ({
+      kind: String(item?.kind || ''),
+      content: String(item?.content || item?.name || ''),
+    })),
+    characters: asJsonArray(row.characters).map((item) => ({
+      name: String(item?.name || ''),
+      preferredReport: asNullableText(item?.preferredReport),
+      skills: asNullableText(item?.skills),
+      tarot: asNullableText(item?.tarot),
+    })),
+    productions: asJsonArray(row.productions).map((item) => ({
+      tab: String(item?.tab || '장식품 제작'),
+      maker: String(item?.maker || ''),
+      items: String(item?.items || ''),
+    })),
+    destinations: asJsonArray(row.destinations).map((item) => ({
+      source: String(item?.source || '보물지도'),
+      discovery: String(item?.discovery || ''),
+      content: String(item?.content || ''),
+    })),
+    saleItems: asJsonArray(row.sale_items).map((item) => ({
+      vendor: String(item?.vendor || ''),
+      category: String(item?.category || ''),
+      item: String(item?.item || ''),
+      development: asNullableText(item?.development),
+      investment: asNullableText(item?.investment),
+      contribution: asNullableText(item?.contribution),
+      capital: asNullableText(item?.capital),
+      era: asNullableText(item?.era),
+      price: asNullableText(item?.price),
+    })),
   }
 }
 
@@ -73,17 +156,64 @@ export async function getPortById(id) {
   return rows[0] ? decoratePort(rows[0]) : null
 }
 
-function asNullableText(value) {
-  if (value == null) return null
-  const text = String(value).trim()
-  return text ? text : null
+function normalizeRewards(list) {
+  if (!Array.isArray(list)) throw new Error('보상 형식이 올바르지 않습니다.')
+  return list.map((item) => ({
+    kind: String(item?.kind || ''),
+    amount: String(item?.amount || ''),
+    reward: String(item?.reward || ''),
+  }))
 }
 
-function asOptionalNumber(value) {
-  if (value == null || value === '') return null
-  const n = Number(value)
-  if (!Number.isFinite(n)) throw new Error('숫자 값이 올바르지 않습니다.')
-  return n
+function normalizeLinkedPlaces(list) {
+  if (!Array.isArray(list)) throw new Error('연결된 장소 형식이 올바르지 않습니다.')
+  return list.map((item) => ({
+    kind: String(item?.kind || ''),
+    content: String(item?.content || item?.name || ''),
+  }))
+}
+
+function normalizeCharacters(list) {
+  if (!Array.isArray(list)) throw new Error('도시 인물 형식이 올바르지 않습니다.')
+  return list.map((item) => ({
+    name: String(item?.name || ''),
+    preferredReport: asNullableText(item?.preferredReport),
+    skills: asNullableText(item?.skills),
+    tarot: asNullableText(item?.tarot),
+  }))
+}
+
+function normalizeProductions(list) {
+  if (!Array.isArray(list)) throw new Error('생산 형식이 올바르지 않습니다.')
+  return list.map((item) => ({
+    tab: String(item?.tab || '장식품 제작'),
+    maker: String(item?.maker || ''),
+    items: String(item?.items || ''),
+  }))
+}
+
+function normalizeDestinations(list) {
+  if (!Array.isArray(list)) throw new Error('목적지 형식이 올바르지 않습니다.')
+  return list.map((item) => ({
+    source: String(item?.source || '보물지도'),
+    discovery: String(item?.discovery || ''),
+    content: String(item?.content || ''),
+  }))
+}
+
+function normalizeSaleItems(list) {
+  if (!Array.isArray(list)) throw new Error('판매 아이템 형식이 올바르지 않습니다.')
+  return list.map((item) => ({
+    vendor: String(item?.vendor || ''),
+    category: String(item?.category || ''),
+    item: String(item?.item || ''),
+    development: asNullableText(item?.development),
+    investment: asNullableText(item?.investment),
+    contribution: asNullableText(item?.contribution),
+    capital: asNullableText(item?.capital),
+    era: asNullableText(item?.era),
+    price: asNullableText(item?.price),
+  }))
 }
 
 /** @param {number} id */
@@ -102,6 +232,7 @@ export async function updatePortFields(id, patch) {
     next.name = name
   }
   for (const key of [
+    'altName',
     'description',
     'category',
     'region',
@@ -109,39 +240,38 @@ export async function updatePortFields(id, patch) {
     'entryPermit',
     'culture',
     'language',
+    'facilities',
+    'flagQuest',
   ]) {
     if (key in patch) next[key] = asNullableText(patch[key])
   }
   if ('coordX' in patch) next.coordX = asOptionalNumber(patch.coordX)
   if ('coordY' in patch) next.coordY = asOptionalNumber(patch.coordY)
-  if ('rewards' in patch) {
-    if (!Array.isArray(patch.rewards)) throw new Error('보상 형식이 올바르지 않습니다.')
-    next.rewards = patch.rewards.map((item) => ({
-      kind: String(item?.kind || ''),
-      amount: String(item?.amount || ''),
-      reward: String(item?.reward || ''),
-    }))
-  }
+  if ('rewards' in patch) next.rewards = normalizeRewards(patch.rewards)
   if ('collectItems' in patch) {
     if (!Array.isArray(patch.collectItems)) {
       throw new Error('수집 아이템 형식이 올바르지 않습니다.')
     }
-    next.collectItems = patch.collectItems.map((item) => ({
-      source: String(item?.source || '기타'),
-      rank:
-        item?.rank == null || item?.rank === ''
-          ? null
-          : Number(item.rank),
-      type: item?.type == null || item?.type === '' ? null : String(item.type),
-      items: String(item?.items || ''),
-    }))
+    next.collectItems = patch.collectItems.map(normalizeCollectItem)
   }
+  if ('linkedPlaces' in patch) next.linkedPlaces = normalizeLinkedPlaces(patch.linkedPlaces)
+  if ('characters' in patch) next.characters = normalizeCharacters(patch.characters)
+  if ('productions' in patch) next.productions = normalizeProductions(patch.productions)
+  if ('destinations' in patch) next.destinations = normalizeDestinations(patch.destinations)
+  if ('saleItems' in patch) next.saleItems = normalizeSaleItems(patch.saleItems)
 
   const rewardsJson = JSON.stringify(next.rewards || [])
   const collectJson = JSON.stringify(next.collectItems || [])
+  const linkedJson = JSON.stringify(next.linkedPlaces || [])
+  const charactersJson = JSON.stringify(next.characters || [])
+  const productionsJson = JSON.stringify(next.productions || [])
+  const destinationsJson = JSON.stringify(next.destinations || [])
+  const saleJson = JSON.stringify(next.saleItems || [])
+
   await sql`
     UPDATE ports SET
       name = ${next.name},
+      alt_name = ${next.altName},
       description = ${next.description},
       category = ${next.category},
       region = ${next.region},
@@ -151,8 +281,15 @@ export async function updatePortFields(id, patch) {
       entry_permit = ${next.entryPermit},
       culture = ${next.culture},
       language = ${next.language},
+      facilities = ${next.facilities},
+      flag_quest = ${next.flagQuest},
       rewards = ${rewardsJson},
-      collect_items = ${collectJson}
+      collect_items = ${collectJson},
+      linked_places = ${linkedJson},
+      characters = ${charactersJson},
+      productions = ${productionsJson},
+      destinations = ${destinationsJson},
+      sale_items = ${saleJson}
     WHERE id = ${portId}
   `
   return getPortById(portId)
@@ -188,6 +325,20 @@ async function findPortIdByName(sql, name) {
     : null
 }
 
+function parsedJsonBundle(parsed) {
+  return {
+    rewardsJson: JSON.stringify(parsed.rewards || []),
+    collectJson: JSON.stringify(
+      (parsed.collectItems || []).map(normalizeCollectItem),
+    ),
+    linkedJson: JSON.stringify(parsed.linkedPlaces || []),
+    charactersJson: JSON.stringify(parsed.characters || []),
+    productionsJson: JSON.stringify(parsed.productions || []),
+    destinationsJson: JSON.stringify(parsed.destinations || []),
+    saleJson: JSON.stringify(parsed.saleItems || []),
+  }
+}
+
 /** 텍스트 파싱 결과로 항구 등록. 동일 이름이면 내용 갱신 */
 export async function upsertPortFromParsed(parsed) {
   const sql = getSql()
@@ -195,13 +346,13 @@ export async function upsertPortFromParsed(parsed) {
   if (!name) throw new Error('항구(도시) 이름이 없습니다.')
 
   const existing = await findPortIdByName(sql, name)
-  const rewardsJson = JSON.stringify(parsed.rewards || [])
-  const collectJson = JSON.stringify(parsed.collectItems || [])
+  const bundle = parsedJsonBundle(parsed)
 
   if (existing) {
     await sql`
       UPDATE ports SET
         name = ${name},
+        alt_name = ${parsed.altName ?? null},
         description = ${parsed.description},
         category = ${parsed.category},
         region = ${parsed.region},
@@ -211,8 +362,15 @@ export async function upsertPortFromParsed(parsed) {
         entry_permit = ${parsed.entryPermit},
         culture = ${parsed.culture},
         language = ${parsed.language},
-        rewards = ${rewardsJson},
-        collect_items = ${collectJson},
+        facilities = ${parsed.facilities ?? null},
+        flag_quest = ${parsed.flagQuest ?? null},
+        rewards = ${bundle.rewardsJson},
+        collect_items = ${bundle.collectJson},
+        linked_places = ${bundle.linkedJson},
+        characters = ${bundle.charactersJson},
+        productions = ${bundle.productionsJson},
+        destinations = ${bundle.destinationsJson},
+        sale_items = ${bundle.saleJson},
         enabled = TRUE
       WHERE id = ${existing.id}
     `
@@ -241,15 +399,19 @@ export async function upsertPortFromParsed(parsed) {
 
   await sql`
     INSERT INTO ports (
-      id, slug, name, description, category, region, sea_area,
-      coord_x, coord_y, entry_permit, culture, language,
-      rewards, collect_items, enabled, sort_order
+      id, slug, name, alt_name, description, category, region, sea_area,
+      coord_x, coord_y, entry_permit, culture, language, facilities, flag_quest,
+      rewards, collect_items, linked_places, characters, productions,
+      destinations, sale_items, enabled, sort_order
     ) VALUES (
-      ${id}, ${slug}, ${name}, ${parsed.description},
+      ${id}, ${slug}, ${name}, ${parsed.altName ?? null}, ${parsed.description},
       ${parsed.category}, ${parsed.region}, ${parsed.seaArea},
       ${parsed.coordX}, ${parsed.coordY}, ${parsed.entryPermit},
-      ${parsed.culture}, ${parsed.language},
-      ${rewardsJson}, ${collectJson},
+      ${parsed.culture}, ${parsed.language}, ${parsed.facilities ?? null},
+      ${parsed.flagQuest ?? null},
+      ${bundle.rewardsJson}, ${bundle.collectJson}, ${bundle.linkedJson},
+      ${bundle.charactersJson}, ${bundle.productionsJson},
+      ${bundle.destinationsJson}, ${bundle.saleJson},
       TRUE, ${sortOrder}
     )
   `

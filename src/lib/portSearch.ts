@@ -6,6 +6,7 @@ export function matchesPortQuery(port: PortDetail, query: string) {
 
   const haystack = [
     port.name,
+    port.altName,
     port.slug,
     port.description,
     port.category,
@@ -14,6 +15,11 @@ export function matchesPortQuery(port: PortDetail, query: string) {
     port.entryPermit,
     port.culture,
     port.language,
+    port.facilities,
+    port.flagQuest,
+    ...(port.characters || []).map((c) => c.name),
+    ...(port.linkedPlaces || []).map((p) => `${p.kind} ${p.content}`),
+    ...(port.saleItems || []).map((s) => `${s.vendor} ${s.item}`),
   ]
     .filter((v) => v != null && v !== '')
     .join(' ')

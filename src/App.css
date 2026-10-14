@@ -4233,3 +4233,89 @@
     grid-template-columns: 1fr;
   }
 }
+
+.port-alt-name {
+  font-size: 0.72em;
+  font-weight: 600;
+  color: var(--is-grey);
+}
+
+.port-subtabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.2rem 0.85rem;
+  margin: 0 0 0.75rem;
+  border-bottom: 1px solid var(--is-grey-lighter);
+}
+
+.port-subtabs button {
+  border: 0;
+  background: none;
+  padding: 0.45rem 0.05rem 0.55rem;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--is-grey);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+
+.port-subtabs button.active {
+  color: var(--is-blue);
+  border-bottom-color: var(--is-blue);
+}
+
+.port-clearable {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.port-clearable input {
+  flex: 1;
+  min-width: 0;
+}
+
+.port-unit {
+  flex: 0 0 auto;
+  font-size: 0.85rem;
+  color: var(--is-grey);
+}
+
+.port-coord-pair {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.port-coord-pair input {
+  flex: 1;
+  min-width: 0;
+}
+
+.port-facility-field {
+  grid-column: 1 / -1;
+}
+
+.port-facility-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem 0.9rem;
+}
+
+.port-facility-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--is-dark);
+  cursor: pointer;
+}
+
+.port-collect-add {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-top: 0.55rem;
+}

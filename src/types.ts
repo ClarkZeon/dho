@@ -216,15 +216,57 @@ export type PortReward = {
 
 export type PortCollectItem = {
   source: string
+  name: string
   rank: number | null
   type: string | null
+  recommendSpot: string | null
+  canExchange: boolean | null
+  canRelease: boolean | null
+  /** @deprecated 구 데이터 호환 — name 으로 이전 */
+  items?: string
+}
+
+export type PortLinkedPlace = {
+  kind: string
+  content: string
+}
+
+export type PortCharacter = {
+  name: string
+  preferredReport: string | null
+  skills: string | null
+  tarot: string | null
+}
+
+export type PortProduction = {
+  tab: string
+  maker: string
   items: string
+}
+
+export type PortDestination = {
+  source: string
+  discovery: string
+  content: string
+}
+
+export type PortSaleItem = {
+  vendor: string
+  category: string
+  item: string
+  development: string | null
+  investment: string | null
+  contribution: string | null
+  capital: string | null
+  era: string | null
+  price: string | null
 }
 
 export type PortDetail = {
   id: number
   slug: string
   name: string
+  altName: string | null
   description: string | null
   category: string | null
   region: string | null
@@ -234,8 +276,15 @@ export type PortDetail = {
   entryPermit: string | null
   culture: string | null
   language: string | null
+  facilities: string | null
+  flagQuest: string | null
   rewards: PortReward[]
   collectItems: PortCollectItem[]
+  linkedPlaces: PortLinkedPlace[]
+  characters: PortCharacter[]
+  productions: PortProduction[]
+  destinations: PortDestination[]
+  saleItems: PortSaleItem[]
 }
 
 export type FieldSurveyTask = {
