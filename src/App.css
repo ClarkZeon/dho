@@ -202,12 +202,22 @@
 
 .slide-menu {
   position: fixed;
-  inset: 0;
   z-index: 40;
+  /* 닫힌 상태에서는 뷰포트를 덮지 않음 — inset:0 고정 레이어가
+     pointer-events:none 이어도 Chromium에서 휠을 삼키는 경우가 있음 */
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
+  overflow: hidden;
   pointer-events: none;
 }
 
 .slide-menu.open {
+  inset: 0;
+  width: auto;
+  height: auto;
+  overflow: visible;
   pointer-events: auto;
 }
 
