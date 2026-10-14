@@ -1,6 +1,10 @@
 import { useEffect, useState } from 'react'
 import { updateConsumable } from '../lib/api'
 import type { ConsumableDetail } from '../types'
+import {
+  DetailSectionActions,
+  DetailSectionHead,
+} from './DetailSectionHead'
 
 type ConsumableDetailViewProps = {
   consumable: ConsumableDetail
@@ -16,25 +20,6 @@ function Row({ label, value }: { label: string; value: string | null }) {
       <span>{label}</span>
       <strong>{value?.trim() ? value : '-'}</strong>
     </div>
-  )
-}
-
-function PencilIcon() {
-  return (
-    <svg
-      width="16"
-      height="16"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M12 20h9" />
-      <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
-    </svg>
   )
 }
 
@@ -123,20 +108,12 @@ export function ConsumableDetailView({
       </header>
 
       <section className="quest-detail-section">
-        <div className="quest-section-head">
-          <h3>기본 정보</h3>
-          {canEdit && !editing ? (
-            <button
-              type="button"
-              className="quest-edit-icon-btn"
-              aria-label="기본 정보 수정"
-              title="기본 정보 수정"
-              onClick={startEdit}
-            >
-              <PencilIcon />
-            </button>
-          ) : null}
-        </div>
+        <DetailSectionHead
+          title="기본 정보"
+          canEdit={canEdit}
+          editing={editing}
+          onEdit={startEdit}
+        />
         {editing ? (
           <div className="quest-kv-grid">
             <label className="field">
@@ -175,23 +152,12 @@ export function ConsumableDetailView({
                 {error}
               </p>
             ) : null}
-            <div className="quest-walkthrough-actions quest-kv-wide">
-              <button
-                type="button"
-                className="admin-btn"
-                disabled={busy}
-                onClick={cancelEdit}
-              >
-                취소
-              </button>
-              <button
-                type="button"
-                className="admin-btn admin-btn-primary"
-                disabled={busy}
-                onClick={() => void saveBasicInfo()}
-              >
-                {busy ? '저장 중…' : '저장'}
-              </button>
+            <div className="quest-kv-wide">
+              <DetailSectionActions
+                busy={busy}
+                onCancel={cancelEdit}
+                onSave={() => void saveBasicInfo()}
+              />
             </div>
           </div>
         ) : (

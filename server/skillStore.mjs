@@ -116,6 +116,116 @@ export async function getSkillBySlug(slug) {
   return rows[0] ? decorateSkill(rows[0]) : null
 }
 
+export async function getSkillById(id) {
+  const sql = getSql()
+  const skillId = Number(id)
+  if (!Number.isFinite(skillId)) return null
+  const rows = await sql`
+    SELECT * FROM skills
+    WHERE id = ${skillId} AND enabled = TRUE
+    LIMIT 1
+  `
+  return rows[0] ? decorateSkill(rows[0]) : null
+}
+
+function asNullableText(value) {
+  if (value == null) return null
+  const text = String(value).trim()
+  return text ? text : null
+}
+
+function asOptionalNumber(value) {
+  if (value == null || value === '') return null
+  const n = Number(value)
+  if (!Number.isFinite(n)) throw new Error('숫자 값이 올바르지 않습니다.')
+  return n
+}
+
+/** @param {number} id */
+export async function updateSkillFields(id, patch) {
+  const sql = getSql()
+  const skillId = Number(id)
+  if (!Number.isFinite(skillId)) throw new Error('잘못된 스킬 ID입니다.')
+
+  const current = await getSkillById(skillId)
+  if (!current) throw new Error('스킬을 찾을 수 없습니다.')
+
+  const next = { ...current }
+  if ('name' in patch) {
+    const name = normalizeName(patch.name)
+    if (!name) throw new Error('스킬 이름이 필요합니다.')
+    next.name = name
+  }
+  for (const key of [
+    'description',
+    'category',
+    'officerDuty',
+    'rangeScope',
+    'actionPower',
+    'autoEffect',
+    'refineEffect',
+    'prerequisite',
+  ]) {
+    if (key in patch) next[key] = asNullableText(patch[key])
+  }
+  if ('learnCost' in patch) next.learnCost = asOptionalNumber(patch.learnCost)
+  if ('preferredJobs' in patch) {
+    if (!Array.isArray(patch.preferredJobs)) {
+      throw new Error('우대 직업 형식이 올바르지 않습니다.')
+    }
+    next.preferredJobs = patch.preferredJobs.map(String).filter(Boolean)
+  }
+  if ('acquireConditions' in patch) {
+    if (!Array.isArray(patch.acquireConditions)) {
+      throw new Error('습득 조건 형식이 올바르지 않습니다.')
+    }
+    next.acquireConditions = patch.acquireConditions.map((item) => ({
+      kind: String(item?.kind || ''),
+      content: String(item?.content || ''),
+    }))
+  }
+  if ('learnPlaces' in patch) {
+    if (!Array.isArray(patch.learnPlaces)) {
+      throw new Error('습득 장소 형식이 올바르지 않습니다.')
+    }
+    next.learnPlaces = patch.learnPlaces.map((item) => ({
+      region: String(item?.region || ''),
+      city: String(item?.city || ''),
+      npc:
+        item?.npc == null || item?.npc === '' ? null : String(item.npc),
+    }))
+  }
+  if ('useCities' in patch) {
+    if (!Array.isArray(patch.useCities)) {
+      throw new Error('사용 도시 형식이 올바르지 않습니다.')
+    }
+    next.useCities = patch.useCities.map((item) => ({
+      region: String(item?.region || ''),
+      city: String(item?.city || ''),
+    }))
+  }
+
+  await sql`
+    UPDATE skills SET
+      name = ${next.name},
+      description = ${next.description},
+      category = ${next.category},
+      officer_duty = ${next.officerDuty},
+      range_scope = ${next.rangeScope},
+      action_power = ${next.actionPower},
+      auto_effect = ${next.autoEffect},
+      refine_effect = ${next.refineEffect},
+      learn_cost = ${next.learnCost},
+      prerequisite = ${next.prerequisite},
+      preferred_jobs = ${JSON.stringify(next.preferredJobs)},
+      acquire_conditions = ${JSON.stringify(next.acquireConditions)},
+      learn_places = ${JSON.stringify(next.learnPlaces)},
+      use_cities = ${JSON.stringify(next.useCities)}
+    WHERE id = ${skillId}
+  `
+  return getSkillById(skillId)
+}
+
 /** @param {number} id */
 export async function deleteSkill(id) {
   const sql = getSql()

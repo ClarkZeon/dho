@@ -320,10 +320,23 @@ export async function deleteQuest(id) {
   return { ok: true }
 }
 
+function asNullableText(value) {
+  if (value == null) return null
+  const text = String(value).trim()
+  return text ? text : null
+}
+
+function asOptionalInt(value, label) {
+  if (value == null || value === '') return null
+  const n = Number(value)
+  if (!Number.isInteger(n)) throw new Error(`${label}은(는) 정수여야 합니다.`)
+  return n
+}
+
 /**
  * 퀘스트 부분 갱신
  * @param {number} id
- * @param {{ difficulty?: number | null, walkthrough?: string | null }} patch
+ * @param {Record<string, unknown>} patch
  */
 export async function updateQuestFields(id, patch) {
   const sql = getSql()
@@ -333,27 +346,109 @@ export async function updateQuestFields(id, patch) {
   const current = await getQuestById(questId)
   if (!current) throw new Error('퀘스트를 찾을 수 없습니다.')
 
+  const next = { ...current }
+
+  if ('name' in patch) {
+    const name = normalizeQuestName(patch.name)
+    if (!name) throw new Error('퀘스트 이름이 필요합니다.')
+    next.name = name
+  }
+  for (const key of [
+    'description',
+    'category',
+    'questType',
+    'requestPlaces',
+    'destination',
+    'discoveryCategory',
+    'discoveryName',
+    'walkthrough',
+    'progress',
+  ]) {
+    if (key in patch) next[key] = asNullableText(patch[key])
+  }
   if ('difficulty' in patch) {
-    let difficulty = current.difficulty
-    if (patch.difficulty == null || patch.difficulty === '') {
-      difficulty = null
-    } else {
-      const n = Number(patch.difficulty)
-      if (!Number.isInteger(n) || n < 0 || n > 10) {
-        throw new Error('난이도는 0~10 정수여야 합니다.')
-      }
-      difficulty = n
+    const difficulty = asOptionalInt(patch.difficulty, '난이도')
+    if (difficulty != null && (difficulty < 0 || difficulty > 10)) {
+      throw new Error('난이도는 0~10 정수여야 합니다.')
     }
-    await sql`UPDATE quests SET difficulty = ${difficulty} WHERE id = ${questId}`
+    next.difficulty = difficulty
+  }
+  if ('discoveryRank' in patch) {
+    next.discoveryRank = asOptionalInt(patch.discoveryRank, '발견물 난이도')
+  }
+  for (const key of [
+    'rewardDucat',
+    'rewardAdvance',
+    'expDiscovery',
+    'expCard',
+    'expReport',
+    'fameReport',
+  ]) {
+    if (key in patch) next[key] = asOptionalInt(patch[key], key)
+  }
+  if ('skills' in patch) {
+    if (!Array.isArray(patch.skills)) throw new Error('스킬 형식이 올바르지 않습니다.')
+    next.skills = patch.skills.map((item) => ({
+      name: String(item?.name || ''),
+      level:
+        item?.level == null || item?.level === ''
+          ? null
+          : Number(item.level),
+    }))
+  }
+  if ('rewardItems' in patch) {
+    if (!Array.isArray(patch.rewardItems)) {
+      throw new Error('보상 아이템 형식이 올바르지 않습니다.')
+    }
+    next.rewardItems = patch.rewardItems.map((item) => ({
+      name: String(item?.name || ''),
+      qty: item?.qty == null || item?.qty === '' ? null : Number(item.qty),
+    }))
+  }
+  if ('chainQuests' in patch || 'linkedQuests' in patch) {
+    next.chainQuests = Array.isArray(patch.chainQuests)
+      ? patch.chainQuests
+      : current.chainQuests
+    next.linkedQuests = Array.isArray(patch.linkedQuests)
+      ? patch.linkedQuests
+      : current.linkedQuests
   }
 
-  if ('walkthrough' in patch) {
-    const walkthrough =
-      patch.walkthrough == null ? null : String(patch.walkthrough)
-    await sql`
-      UPDATE quests SET walkthrough = ${walkthrough} WHERE id = ${questId}
-    `
-  }
+  const skillsJson = JSON.stringify(next.skills || [])
+  const itemsJson = JSON.stringify(next.rewardItems || [])
+  const chainJson = JSON.stringify([
+    ...(next.chainQuests || []),
+    ...(next.linkedQuests || []).map((item) => ({
+      ...item,
+      relation: 'linked',
+    })),
+  ])
+
+  await sql`
+    UPDATE quests SET
+      name = ${next.name},
+      description = ${next.description},
+      category = ${next.category},
+      quest_type = ${next.questType},
+      difficulty = ${next.difficulty},
+      request_places = ${next.requestPlaces},
+      destination = ${next.destination},
+      discovery_category = ${next.discoveryCategory},
+      discovery_rank = ${next.discoveryRank},
+      discovery_name = ${next.discoveryName},
+      skills = ${skillsJson},
+      reward_ducat = ${next.rewardDucat},
+      reward_advance = ${next.rewardAdvance},
+      exp_discovery = ${next.expDiscovery},
+      exp_card = ${next.expCard},
+      exp_report = ${next.expReport},
+      fame_report = ${next.fameReport},
+      reward_items = ${itemsJson},
+      chain_quests = ${chainJson},
+      walkthrough = ${next.walkthrough},
+      progress = ${next.progress}
+    WHERE id = ${questId}
+  `
 
   return getQuestById(questId)
 }

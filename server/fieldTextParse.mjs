@@ -90,6 +90,23 @@ function applyMetaLine(line, fields) {
 
 const TASK_KINDS = /^(채집|퀘스트|조사|전투|인식|낚시|탐색)$/
 
+const COLLECT_TABS = ['탐색', '채집', '조달', '애완동물', '낚시']
+const DEST_TABS = ['보물지도', '퀘스트']
+
+/** 탭이 뭉개진 "탐색채집조달애완동물" / 정상 탭 분리 모두 처리 */
+function matchTabHeader(line, tabs) {
+  const trimmed = String(line || '').trim()
+  if (!trimmed) return null
+  const cols = splitTabs(trimmed).filter(Boolean)
+  if (cols.length >= 2 && cols.every((c) => tabs.includes(c))) return cols
+  if (tabs.includes(trimmed)) return [trimmed]
+  const mashed = trimmed.replace(/\s+/g, '')
+  if (mashed === tabs.join('')) return [...tabs]
+  // 탐색채집조달애완동물 (낚시 제외 4탭)
+  if (mashed === '탐색채집조달애완동물') return ['탐색', '채집', '조달', '애완동물']
+  return null
+}
+
 function isRequiredCell(value) {
   const t = String(value || '')
     .replace(/[\u200b-\u200d\ufeff]/g, '')
@@ -240,9 +257,17 @@ export function parseFieldText(text) {
   const resurveyRewards = []
   /** @type {Array<{ kind: string, name: string }>} */
   const linkedPlaces = []
+  /** @type {Array<{ source: string, name: string, rank: number|null, type: string|null, recommendSpot: string|null, canExchange: boolean|null, canRelease: boolean|null }>} */
+  const collectItems = []
+  /** @type {Array<{ source: string, discovery: string, content: string }>} */
+  const destinations = []
+  /** @type {Array<{ level: number|null, trait: string|null, names: string[] }>} */
+  const landNpcs = []
 
-  let mode = 'meta' // meta | linked | map | survey | rewards
+  let mode = 'meta' // meta | linked | map | survey | rewards | collect | dest | npc
   let currentStage = null
+  let collectSource = '탐색'
+  let destSource = '보물지도'
 
   for (let i = nameIdx + 1; i < lines.length; i++) {
     const line = lines[i].trim()
@@ -264,6 +289,20 @@ export function parseFieldText(text) {
       mode = 'rewards'
       continue
     }
+    if (/^수집\s*아이템/.test(line)) {
+      mode = 'collect'
+      collectSource = '탐색'
+      continue
+    }
+    if (/^목적지/.test(line)) {
+      mode = 'dest'
+      destSource = '보물지도'
+      continue
+    }
+    if (/^육상\s*NPC/.test(line)) {
+      mode = 'npc'
+      continue
+    }
     if (
       (mode === 'linked' || mode === 'meta') &&
       /^종류(\t|$)/.test(line) &&
@@ -283,9 +322,9 @@ export function parseFieldText(text) {
       const cols = splitTabs(line)
       if (cols.length >= 2) {
         const kind = cols[0]
-        const name = cols.slice(1).join(' ').replace(/\s+/g, ' ').trim()
-        if (kind && name && !/^(종류|내용)$/.test(kind)) {
-          linkedPlaces.push({ kind, name })
+        const placeName = cols.slice(1).join(' ').replace(/\s+/g, ' ').trim()
+        if (kind && placeName && !/^(종류|내용)$/.test(kind)) {
+          linkedPlaces.push({ kind, name: placeName })
           mode = 'linked'
         }
       }
@@ -339,6 +378,112 @@ export function parseFieldText(text) {
         items: parseRewardItems(itemsText),
         raw: itemsText,
       })
+      continue
+    }
+
+    if (mode === 'collect') {
+      const tabs = matchTabHeader(line, COLLECT_TABS)
+      if (tabs) {
+        collectSource = tabs[0]
+        continue
+      }
+      if (/^랭크\t|^랭크$/.test(line)) continue
+      const cols = splitTabs(line)
+      if (cols.length === 1 && COLLECT_TABS.includes(cols[0])) {
+        collectSource = cols[0]
+        continue
+      }
+      if (
+        cols.length === 1 &&
+        cols[0] &&
+        !/^\d+$/.test(cols[0]) &&
+        !COLLECT_TABS.includes(cols[0])
+      ) {
+        collectItems.push({
+          source: collectSource || '기타',
+          name: cols[0],
+          rank: null,
+          type: null,
+          recommendSpot: null,
+          canExchange: null,
+          canRelease: null,
+        })
+        continue
+      }
+      if (cols.length >= 3 && /^\d+$/.test(cols[0])) {
+        const rank = Number(cols[0])
+        const type = cols[1] || null
+        const names = cols
+          .slice(2)
+          .join('\t')
+          .split(/[,，]/)
+          .map((s) => s.trim())
+          .filter(Boolean)
+        for (const itemName of names) {
+          collectItems.push({
+            source: collectSource || '기타',
+            name: itemName,
+            rank,
+            type,
+            recommendSpot: null,
+            canExchange: null,
+            canRelease: null,
+          })
+        }
+      }
+      continue
+    }
+
+    if (mode === 'dest') {
+      const tabs = matchTabHeader(line, DEST_TABS)
+      if (tabs) {
+        destSource = tabs[0]
+        continue
+      }
+      if (/^발견물\t|^발견물$/.test(line)) continue
+      const cols = splitTabs(line)
+      if (cols.length === 1 && DEST_TABS.includes(cols[0])) {
+        destSource = cols[0]
+        continue
+      }
+      if (cols.length >= 2 && cols[0] && !/^(발견물|내용)$/.test(cols[0])) {
+        destinations.push({
+          source: destSource || '보물지도',
+          discovery: cols[0],
+          content: cols.slice(1).join('\t').trim(),
+        })
+      } else if (
+        cols.length === 1 &&
+        cols[0] &&
+        !DEST_TABS.includes(cols[0]) &&
+        !/^(발견물|내용)$/.test(cols[0])
+      ) {
+        destinations.push({
+          source: destSource || '보물지도',
+          discovery: '',
+          content: cols[0],
+        })
+      }
+      continue
+    }
+
+    if (mode === 'npc') {
+      if (/^레벨/.test(line)) continue
+      const cols = splitTabs(line)
+      if (cols.length >= 1 && /^\d+$/.test(cols[0])) {
+        const namesText = (cols[2] ?? cols.slice(2).join('\t')).trim()
+        const names = namesText
+          ? namesText
+              .split(/[,，]/)
+              .map((s) => s.trim())
+              .filter(Boolean)
+          : []
+        landNpcs.push({
+          level: Number(cols[0]),
+          trait: cols[1] ? cols[1].trim() || null : null,
+          names,
+        })
+      }
     }
   }
 
@@ -358,6 +503,8 @@ export function parseFieldText(text) {
   return {
     name,
     slug: slugify(name),
+    altName: null,
+    description: null,
     fieldKind: meta.fieldKind || null,
     region: meta.region || null,
     seaArea: meta.seaArea || null,
@@ -366,5 +513,8 @@ export function parseFieldText(text) {
     linkedPlaces,
     landSurveys,
     resurveyRewards,
+    collectItems,
+    destinations,
+    landNpcs,
   }
 }

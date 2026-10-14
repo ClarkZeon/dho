@@ -3252,7 +3252,19 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
           label={`${detailPort.name} 상세`}
           onClose={() => setDetailPort(null)}
         >
-          <PortDetailView port={detailPort} />
+          <PortDetailView
+            port={detailPort}
+            edit={{
+              token,
+              onToast,
+              onSaved: (next) => {
+                setPorts((prev) =>
+                  prev.map((p) => (p.id === next.id ? next : p)),
+                )
+                setDetailPort(next)
+              },
+            }}
+          />
         </DetailModal>
       )}
 
@@ -3264,7 +3276,7 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
         >
           <FieldDetailView
             field={detailField}
-            requiredEdit={{
+            edit={{
               token,
               onToast,
               onSaved: (next) => {
@@ -3330,6 +3342,16 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
           <DiscoveryDetailView
             discovery={detailDiscovery}
             onOpenQuest={(ref) => void openQuestByRef(ref)}
+            basicInfoEdit={{
+              token,
+              onToast,
+              onSaved: (next) => {
+                setDiscoveries((prev) =>
+                  prev.map((d) => (d.id === next.id ? next : d)),
+                )
+                setDetailDiscovery(next)
+              },
+            }}
           />
         </DetailModal>
       )}
@@ -3358,7 +3380,19 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
           label={`${detailSkill.name} 상세`}
           onClose={() => setDetailSkill(null)}
         >
-          <SkillDetailView skill={detailSkill} />
+          <SkillDetailView
+            skill={detailSkill}
+            edit={{
+              token,
+              onToast,
+              onSaved: (next) => {
+                setSkills((prev) =>
+                  prev.map((s) => (s.id === next.id ? next : s)),
+                )
+                setDetailSkill(next)
+              },
+            }}
+          />
         </DetailModal>
       )}
 

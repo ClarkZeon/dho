@@ -63,6 +63,101 @@ export async function getPortBySlug(slug) {
   return rows[0] ? decoratePort(rows[0]) : null
 }
 
+export async function getPortById(id) {
+  const sql = getSql()
+  const portId = Number(id)
+  if (!Number.isFinite(portId)) return null
+  const rows = await sql`
+    SELECT * FROM ports WHERE id = ${portId} AND enabled = TRUE LIMIT 1
+  `
+  return rows[0] ? decoratePort(rows[0]) : null
+}
+
+function asNullableText(value) {
+  if (value == null) return null
+  const text = String(value).trim()
+  return text ? text : null
+}
+
+function asOptionalNumber(value) {
+  if (value == null || value === '') return null
+  const n = Number(value)
+  if (!Number.isFinite(n)) throw new Error('숫자 값이 올바르지 않습니다.')
+  return n
+}
+
+/** @param {number} id */
+export async function updatePortFields(id, patch) {
+  const sql = getSql()
+  const portId = Number(id)
+  if (!Number.isFinite(portId)) throw new Error('잘못된 항구 ID입니다.')
+
+  const current = await getPortById(portId)
+  if (!current) throw new Error('항구(도시)를 찾을 수 없습니다.')
+
+  const next = { ...current }
+  if ('name' in patch) {
+    const name = normalizePortName(patch.name)
+    if (!name) throw new Error('항구(도시) 이름이 필요합니다.')
+    next.name = name
+  }
+  for (const key of [
+    'description',
+    'category',
+    'region',
+    'seaArea',
+    'entryPermit',
+    'culture',
+    'language',
+  ]) {
+    if (key in patch) next[key] = asNullableText(patch[key])
+  }
+  if ('coordX' in patch) next.coordX = asOptionalNumber(patch.coordX)
+  if ('coordY' in patch) next.coordY = asOptionalNumber(patch.coordY)
+  if ('rewards' in patch) {
+    if (!Array.isArray(patch.rewards)) throw new Error('보상 형식이 올바르지 않습니다.')
+    next.rewards = patch.rewards.map((item) => ({
+      kind: String(item?.kind || ''),
+      amount: String(item?.amount || ''),
+      reward: String(item?.reward || ''),
+    }))
+  }
+  if ('collectItems' in patch) {
+    if (!Array.isArray(patch.collectItems)) {
+      throw new Error('수집 아이템 형식이 올바르지 않습니다.')
+    }
+    next.collectItems = patch.collectItems.map((item) => ({
+      source: String(item?.source || '기타'),
+      rank:
+        item?.rank == null || item?.rank === ''
+          ? null
+          : Number(item.rank),
+      type: item?.type == null || item?.type === '' ? null : String(item.type),
+      items: String(item?.items || ''),
+    }))
+  }
+
+  const rewardsJson = JSON.stringify(next.rewards || [])
+  const collectJson = JSON.stringify(next.collectItems || [])
+  await sql`
+    UPDATE ports SET
+      name = ${next.name},
+      description = ${next.description},
+      category = ${next.category},
+      region = ${next.region},
+      sea_area = ${next.seaArea},
+      coord_x = ${next.coordX},
+      coord_y = ${next.coordY},
+      entry_permit = ${next.entryPermit},
+      culture = ${next.culture},
+      language = ${next.language},
+      rewards = ${rewardsJson},
+      collect_items = ${collectJson}
+    WHERE id = ${portId}
+  `
+  return getPortById(portId)
+}
+
 /** @param {number} id */
 export async function deletePort(id) {
   const sql = getSql()

@@ -62,6 +62,7 @@ import {
   deletePort,
   ensurePortStore,
   listPorts,
+  updatePortFields,
   upsertPortFromParsed,
 } from './portStore.mjs'
 import { parsePortText } from './portTextParse.mjs'
@@ -107,6 +108,7 @@ import {
   deleteSkill,
   ensureSkillStore,
   listSkills,
+  updateSkillFields,
   upsertSkillFromParsed,
 } from './skillStore.mjs'
 import { parseSkillText } from './skillTextParse.mjs'
@@ -1075,6 +1077,33 @@ export async function handleRequest(req, res) {
     }
 
     const portMatch = pathname.match(/^\/api\/ports\/([^/]+)$/)
+    if (portMatch && req.method === 'PATCH') {
+      const authUser = await getAuthUser(req)
+      if (!authUser) {
+        sendJson(res, 401, { error: '로그인이 필요합니다.' })
+        return
+      }
+      if (!requireAdmin(authUser, res)) return
+      const portId = Number(decodeURIComponent(portMatch[1]))
+      if (!Number.isFinite(portId)) {
+        sendJson(res, 400, { error: '잘못된 항구 ID입니다.' })
+        return
+      }
+      const body = await readBody(req)
+      try {
+        const port = await updatePortFields(portId, body)
+        sendJson(res, 200, { port })
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : '항구(도시) 수정에 실패했습니다.'
+        sendJson(
+          res,
+          message.includes('찾을 수 없') ? 404 : 400,
+          { error: message },
+        )
+      }
+      return
+    }
     if (portMatch && req.method === 'DELETE') {
       const authUser = await getAuthUser(req)
       if (!authUser) {
@@ -1352,14 +1381,12 @@ export async function handleRequest(req, res) {
         return
       }
       const body = await readBody(req)
-      const patch = {}
-      if ('landSurveys' in body) patch.landSurveys = body.landSurveys
-      if (!('landSurveys' in patch)) {
+      if (!body || typeof body !== 'object' || Array.isArray(body)) {
         sendJson(res, 400, { error: '변경할 필드가 없습니다.' })
         return
       }
       try {
-        const field = await updateFieldFields(fieldId, patch)
+        const field = await updateFieldFields(fieldId, body)
         sendJson(res, 200, { field })
       } catch (err) {
         sendJson(res, 400, {
@@ -1564,6 +1591,33 @@ export async function handleRequest(req, res) {
     }
 
     const skillMatch = pathname.match(/^\/api\/skills\/([^/]+)$/)
+    if (skillMatch && req.method === 'PATCH') {
+      const authUser = await getAuthUser(req)
+      if (!authUser) {
+        sendJson(res, 401, { error: '로그인이 필요합니다.' })
+        return
+      }
+      if (!requireAdmin(authUser, res)) return
+      const skillId = Number(decodeURIComponent(skillMatch[1]))
+      if (!Number.isFinite(skillId)) {
+        sendJson(res, 400, { error: '잘못된 스킬 ID입니다.' })
+        return
+      }
+      const body = await readBody(req)
+      try {
+        const skill = await updateSkillFields(skillId, body)
+        sendJson(res, 200, { skill })
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : '스킬 수정에 실패했습니다.'
+        sendJson(
+          res,
+          message.includes('찾을 수 없') ? 404 : 400,
+          { error: message },
+        )
+      }
+      return
+    }
     if (skillMatch && req.method === 'DELETE') {
       const authUser = await getAuthUser(req)
       if (!authUser) {
@@ -1657,25 +1711,12 @@ export async function handleRequest(req, res) {
         return
       }
       const body = await readBody(req)
-      const patch = {}
-      if ('difficulty' in body) {
-        patch.difficulty =
-          body.difficulty === null || body.difficulty === ''
-            ? null
-            : body.difficulty
-      }
-      if ('walkthrough' in body) {
-        patch.walkthrough =
-          body.walkthrough === null || body.walkthrough === undefined
-            ? null
-            : String(body.walkthrough)
-      }
-      if (!('difficulty' in patch) && !('walkthrough' in patch)) {
+      if (!body || typeof body !== 'object' || Array.isArray(body)) {
         sendJson(res, 400, { error: '변경할 필드가 없습니다.' })
         return
       }
       try {
-        const quest = await updateQuestFields(questId, patch)
+        const quest = await updateQuestFields(questId, body)
         sendJson(res, 200, { quest })
       } catch (err) {
         sendJson(res, 400, {

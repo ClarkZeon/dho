@@ -268,10 +268,34 @@ export type FieldLinkedPlace = {
   name: string
 }
 
+export type FieldCollectItem = {
+  source: string
+  name: string
+  rank: number | null
+  type: string | null
+  recommendSpot: string | null
+  canExchange: boolean | null
+  canRelease: boolean | null
+}
+
+export type FieldDestination = {
+  source: string
+  discovery: string
+  content: string
+}
+
+export type FieldLandNpc = {
+  level: number | null
+  trait: string | null
+  names: string[]
+}
+
 export type FieldDetail = {
   id: number
   slug: string
   name: string
+  altName: string | null
+  description: string | null
   fieldKind: string | null
   region: string | null
   seaArea: string | null
@@ -280,6 +304,9 @@ export type FieldDetail = {
   linkedPlaces: FieldLinkedPlace[]
   landSurveys: FieldLandSurvey[]
   resurveyRewards: FieldResurveyReward[]
+  collectItems: FieldCollectItem[]
+  destinations: FieldDestination[]
+  landNpcs: FieldLandNpc[]
 }
 
 export type SeaAreaPlace = {

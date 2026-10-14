@@ -3544,6 +3544,26 @@
   white-space: pre-wrap;
 }
 
+.quest-detail-blurb-section {
+  padding-top: 0.75rem;
+  padding-bottom: 0.85rem;
+}
+
+.quest-detail-blurb-section .quest-section-head h3 {
+  font-size: 0.72rem;
+}
+
+.quest-detail-blurb {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 500;
+  line-height: 1.7;
+  letter-spacing: -0.01em;
+  color: color-mix(in srgb, var(--is-dark) 82%, var(--is-grey));
+  word-break: keep-all;
+  white-space: pre-wrap;
+}
+
 .quest-detail-section {
   padding: 0.9rem 1rem 1rem;
   border: 1px solid var(--is-grey-lighter);

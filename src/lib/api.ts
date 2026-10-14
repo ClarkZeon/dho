@@ -310,7 +310,7 @@ export function importQuestText(token: string, text: string) {
 export function updateQuest(
   token: string,
   questId: number,
-  patch: { difficulty?: number | null; walkthrough?: string | null },
+  patch: Partial<QuestDetail>,
 ) {
   return request<{ quest: QuestDetail }>(
     `/api/quests/${encodeURIComponent(String(questId))}`,
@@ -360,6 +360,21 @@ export function deletePort(token: string, portId: number) {
   return request<{ ok: boolean }>(
     `/api/ports/${encodeURIComponent(String(portId))}`,
     { method: 'DELETE', token },
+  )
+}
+
+export function updatePort(
+  token: string,
+  portId: number,
+  patch: Partial<PortDetail>,
+) {
+  return request<{ port: PortDetail }>(
+    `/api/ports/${encodeURIComponent(String(portId))}`,
+    {
+      method: 'PATCH',
+      token,
+      body: patch,
+    },
   )
 }
 
@@ -417,7 +432,7 @@ export function deleteField(token: string, fieldId: number) {
 export function updateField(
   token: string,
   fieldId: number,
-  patch: { landSurveys?: FieldDetail['landSurveys'] },
+  patch: Partial<FieldDetail>,
 ) {
   return request<{ field: FieldDetail }>(
     `/api/fields/${encodeURIComponent(String(fieldId))}`,
@@ -538,6 +553,21 @@ export function deleteSkill(token: string, skillId: number) {
   return request<{ ok: boolean }>(
     `/api/skills/${encodeURIComponent(String(skillId))}`,
     { method: 'DELETE', token },
+  )
+}
+
+export function updateSkill(
+  token: string,
+  skillId: number,
+  patch: Partial<SkillDetail>,
+) {
+  return request<{ skill: SkillDetail }>(
+    `/api/skills/${encodeURIComponent(String(skillId))}`,
+    {
+      method: 'PATCH',
+      token,
+      body: patch,
+    },
   )
 }
 
