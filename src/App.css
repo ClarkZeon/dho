@@ -1,3 +1,12 @@
+/*
+ * 문서 흐름에서 세로로 길어지는 표면에 overflow:hidden 을 쓰지 말 것.
+ * Chromium 이 휠을 가로채 페이지 스크롤이 죽는다(스크롤바는 동작).
+ * 모서리 클리핑만 필요하면 .surface-clip / overflow: clip.
+ */
+.surface-clip {
+  overflow: clip;
+}
+
 .login-page {
   position: relative;
   min-height: 100svh;
@@ -592,7 +601,7 @@
   border: 1px solid var(--is-grey-lighter);
   border-radius: 14px;
   background: var(--is-white);
-  overflow: hidden;
+  overflow: clip;
   min-width: 0;
 }
 
@@ -1468,7 +1477,7 @@
   border: 1px solid var(--is-grey-lighter);
   border-radius: 14px;
   background: var(--is-white);
-  overflow: hidden;
+  overflow: clip;
   animation: rise-in 0.35s ease both;
 }
 
@@ -1713,7 +1722,7 @@
   border: 1px solid var(--is-grey-lighter);
   border-radius: 12px;
   background: var(--is-white);
-  overflow: hidden;
+  overflow: clip;
 }
 
 .messages-list li + li {

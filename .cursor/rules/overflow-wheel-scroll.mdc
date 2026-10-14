@@ -1,0 +1,31 @@
+---
+description: overflow:hidden 이 마우스 휠 스크롤을 가로채는 Chromium 이슈 방지
+alwaysApply: true
+---
+
+# Overflow / 마우스 휠 스크롤
+
+## 증상
+
+- 스크롤바 드래그는 되는데 **마우스 휠만** 안 움직임
+- 긴 게시글·카드·상세 패널에서 자주 발생
+
+## 원인
+
+Chromium에서 `overflow: hidden` 은 스크롤 컨테이너로 취급된다.  
+내용이 뷰포트보다 긴 블록에 붙이면 휠 델타를 가로채고, 페이지(`html`/`body`)로 전달하지 않는다.
+
+## 규칙
+
+문서 흐름 안에서 **세로로 길어질 수 있는** 표면(게시글 카드, 목록 박스, 비교 카드, 상세 래퍼 등):
+
+- 모서리만 자를 때 → `overflow: clip` (또는 공용 `.surface-clip`)
+- **금지**: 그런 래퍼에 `overflow: hidden`만 두고 페이지 스크롤에 의존하기
+
+아래는 `overflow: hidden` 유지 OK:
+
+- 고정 높이 진행바·아이콘 마스크·텍스트 ellipsis (`text-overflow`)
+- 의도적으로 **내부** 스크롤하는 패널 (`overflow-y: auto` 자식 + `max-height`)
+- 전체 화면 오버레이/모달 셸 (`position: fixed; inset: 0`)
+
+새 CSS를 쓸 때 위 구분을 따르고, 애매하면 `clip`을 택한다.
