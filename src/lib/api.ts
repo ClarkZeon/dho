@@ -533,6 +533,20 @@ export function importConsumableText(token: string, text: string) {
   )
 }
 
+export function importConsumableReadBody(
+  token: string,
+  name: string,
+  html: string,
+) {
+  return request<{ consumable: ConsumableDetail }>(
+    '/api/consumables/import-readbody',
+    {
+      token,
+      body: { name, html },
+    },
+  )
+}
+
 export function deleteConsumable(token: string, consumableId: number) {
   return request<{ ok: boolean }>(
     `/api/consumables/${encodeURIComponent(String(consumableId))}`,

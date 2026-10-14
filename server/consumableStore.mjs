@@ -34,6 +34,10 @@ function asPurchaseRows(value) {
     npc: String(item?.npc || ''),
     region: String(item?.region || ''),
     place: String(item?.place || ''),
+    price:
+      item?.price == null || String(item.price).trim() === ''
+        ? null
+        : String(item.price).trim(),
   }))
 }
 
@@ -56,6 +60,76 @@ function asInfoRows(value) {
     .filter(Boolean)
 }
 
+function asProductionRows(value) {
+  return asJsonArray(value)
+    .map((item) => {
+      if (!item || typeof item !== 'object') return null
+      if (
+        item.recipeBook != null ||
+        item.recipe != null ||
+        item.skill != null ||
+        item.materials != null
+      ) {
+        return {
+          recipeBook: String(item.recipeBook || ''),
+          recipe: String(item.recipe || ''),
+          skill: String(item.skill || ''),
+          materials: String(item.materials || ''),
+        }
+      }
+      // legacy { name, detail }
+      const recipeBook = String(item.name || '').trim()
+      const recipe = String(item.detail || '').trim()
+      if (!recipeBook && !recipe) return null
+      return { recipeBook, recipe, skill: '', materials: '' }
+    })
+    .filter(
+      (r) => r && (r.recipeBook || r.recipe || r.skill || r.materials),
+    )
+}
+
+function asLandResurveyRows(value) {
+  return asJsonArray(value)
+    .map((item) => {
+      if (!item || typeof item !== 'object') return null
+      if (item.region != null || item.fields != null) {
+        return {
+          region: String(item.region || ''),
+          fields: String(item.fields || ''),
+        }
+      }
+      return {
+        region: String(item.name || ''),
+        fields: String(item.detail || ''),
+      }
+    })
+    .filter((r) => r && (r.region || r.fields))
+}
+
+function asPetRows(value) {
+  return asJsonArray(value)
+    .map((item) => {
+      if (!item || typeof item !== 'object') return null
+      if (
+        item.category != null ||
+        item.region != null ||
+        item.place != null
+      ) {
+        return {
+          category: String(item.category || ''),
+          region: String(item.region || ''),
+          place: String(item.place || ''),
+        }
+      }
+      return {
+        category: '',
+        region: String(item.name || ''),
+        place: String(item.detail || ''),
+      }
+    })
+    .filter((r) => r && (r.category || r.region || r.place))
+}
+
 function decorateConsumable(row) {
   return {
     id: Number(row.id),
@@ -66,13 +140,13 @@ function decorateConsumable(row) {
     useEffect: row.use_effect == null ? null : String(row.use_effect),
     acquireMethods: asJsonArray(row.acquire_methods).map(String),
     purchases: asPurchaseRows(row.purchases),
-    productions: asInfoRows(row.productions),
+    productions: asProductionRows(row.productions),
     quests: asInfoRows(row.quests),
     itemUses: asInfoRows(row.item_uses),
     treasureBoxes: asInfoRows(row.treasure_boxes),
     events: asInfoRows(row.events),
-    landResurveys: asInfoRows(row.land_resurveys),
-    pets: asInfoRows(row.pets),
+    landResurveys: asLandResurveyRows(row.land_resurveys),
+    pets: asPetRows(row.pets),
   }
 }
 
@@ -164,7 +238,9 @@ export async function updateConsumableFields(id, patch) {
   const purchases =
     'purchases' in patch ? asPurchaseRows(patch.purchases) : current.purchases
   const productions =
-    'productions' in patch ? asInfoRows(patch.productions) : current.productions
+    'productions' in patch
+      ? asProductionRows(patch.productions)
+      : current.productions
   const quests = 'quests' in patch ? asInfoRows(patch.quests) : current.quests
   const itemUses =
     'itemUses' in patch ? asInfoRows(patch.itemUses) : current.itemUses
@@ -175,9 +251,9 @@ export async function updateConsumableFields(id, patch) {
   const events = 'events' in patch ? asInfoRows(patch.events) : current.events
   const landResurveys =
     'landResurveys' in patch
-      ? asInfoRows(patch.landResurveys)
+      ? asLandResurveyRows(patch.landResurveys)
       : current.landResurveys
-  const pets = 'pets' in patch ? asInfoRows(patch.pets) : current.pets
+  const pets = 'pets' in patch ? asPetRows(patch.pets) : current.pets
 
   if (!('acquireMethods' in patch)) {
     acquireMethods = syncAcquireMethods(acquireMethods, {
@@ -240,6 +316,34 @@ async function findIdByName(sql, name) {
     : null
 }
 
+/** readBody HTML 파싱 결과로 기존 소비품 갱신 (설명·이름은 유지) */
+export async function applyConsumableReadBody(parsed) {
+  const sql = getSql()
+  const name = normalizeName(parsed.name)
+  if (!name) throw new Error('소비품 이름이 없습니다.')
+
+  const existing = await findIdByName(sql, name)
+  if (!existing || !existing.enabled) {
+    throw new Error(
+      `「${name}」 소비품이 없습니다. 먼저 초기 데이터 추가로 등록하세요.`,
+    )
+  }
+
+  return updateConsumableFields(existing.id, {
+    category: parsed.category,
+    useEffect: parsed.useEffect,
+    acquireMethods: parsed.acquireMethods || [],
+    purchases: parsed.purchases || [],
+    productions: parsed.productions || [],
+    quests: parsed.quests || [],
+    itemUses: parsed.itemUses || [],
+    treasureBoxes: parsed.treasureBoxes || [],
+    events: parsed.events || [],
+    landResurveys: parsed.landResurveys || [],
+    pets: parsed.pets || [],
+  })
+}
+
 /** 텍스트 파싱 결과로 소비품 등록. 동일 이름이면 내용 갱신 */
 export async function upsertConsumableFromParsed(parsed) {
   const sql = getSql()
@@ -248,14 +352,20 @@ export async function upsertConsumableFromParsed(parsed) {
 
   const existing = await findIdByName(sql, name)
   const methodsJson = JSON.stringify(parsed.acquireMethods || [])
-  const purchasesJson = JSON.stringify(parsed.purchases || [])
-  const productionsJson = JSON.stringify(parsed.productions || [])
-  const questsJson = JSON.stringify(parsed.quests || [])
-  const itemUsesJson = JSON.stringify(parsed.itemUses || [])
-  const treasureBoxesJson = JSON.stringify(parsed.treasureBoxes || [])
-  const eventsJson = JSON.stringify(parsed.events || [])
-  const landResurveysJson = JSON.stringify(parsed.landResurveys || [])
-  const petsJson = JSON.stringify(parsed.pets || [])
+  const purchasesJson = JSON.stringify(asPurchaseRows(parsed.purchases || []))
+  const productionsJson = JSON.stringify(
+    asProductionRows(parsed.productions || []),
+  )
+  const questsJson = JSON.stringify(asInfoRows(parsed.quests || []))
+  const itemUsesJson = JSON.stringify(asInfoRows(parsed.itemUses || []))
+  const treasureBoxesJson = JSON.stringify(
+    asInfoRows(parsed.treasureBoxes || []),
+  )
+  const eventsJson = JSON.stringify(asInfoRows(parsed.events || []))
+  const landResurveysJson = JSON.stringify(
+    asLandResurveyRows(parsed.landResurveys || []),
+  )
+  const petsJson = JSON.stringify(asPetRows(parsed.pets || []))
 
   if (existing) {
     await sql`

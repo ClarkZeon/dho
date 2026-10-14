@@ -103,11 +103,13 @@ import { parseSeaAreaText } from './seaAreaTextParse.mjs'
 import {
   deleteConsumable,
   ensureConsumableStore,
+  applyConsumableReadBody,
   getConsumableById,
   listConsumables,
   updateConsumableFields,
   upsertConsumableFromParsed,
 } from './consumableStore.mjs'
+import { parseConsumableReadBody } from './consumableReadBodyParse.mjs'
 import { parseConsumableText } from './consumableTextParse.mjs'
 import {
   deleteDiscovery,
@@ -1463,6 +1465,36 @@ export async function handleRequest(req, res) {
             err instanceof Error
               ? err.message
               : '소비품 텍스트 파싱에 실패했습니다.',
+        })
+      }
+      return
+    }
+
+    if (req.method === 'POST' && pathname === '/api/consumables/import-readbody') {
+      const authUser = await getAuthUser(req)
+      if (!authUser) {
+        sendJson(res, 401, { error: '로그인이 필요합니다.' })
+        return
+      }
+      if (!requireAdmin(authUser, res)) return
+      const body = await readBody(req)
+      const html =
+        typeof body.html === 'string'
+          ? body.html
+          : typeof body.text === 'string'
+            ? body.text
+            : ''
+      const name = typeof body.name === 'string' ? body.name : ''
+      try {
+        const parsed = parseConsumableReadBody(html, { name })
+        const consumable = await applyConsumableReadBody(parsed)
+        sendJson(res, 200, { consumable })
+      } catch (err) {
+        sendJson(res, 400, {
+          error:
+            err instanceof Error
+              ? err.message
+              : 'readBody 파싱·갱신에 실패했습니다.',
         })
       }
       return

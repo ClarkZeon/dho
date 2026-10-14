@@ -456,12 +456,31 @@ export type ConsumablePurchase = {
   npc: string
   region: string
   place: string
+  price?: string | null
 }
 
-/** 생산·퀘스트·아이템 사용 등 획득 상세 행 */
+/** 퀘스트·아이템 사용·트레져박스·이벤트 */
 export type ConsumableInfoRow = {
   name: string
   detail: string | null
+}
+
+export type ConsumableProduction = {
+  recipeBook: string
+  recipe: string
+  skill: string
+  materials: string
+}
+
+export type ConsumableLandResurvey = {
+  region: string
+  fields: string
+}
+
+export type ConsumablePet = {
+  category: string
+  region: string
+  place: string
 }
 
 export type ConsumableDetail = {
@@ -473,13 +492,13 @@ export type ConsumableDetail = {
   useEffect: string | null
   acquireMethods: string[]
   purchases: ConsumablePurchase[]
-  productions: ConsumableInfoRow[]
+  productions: ConsumableProduction[]
   quests: ConsumableInfoRow[]
   itemUses: ConsumableInfoRow[]
   treasureBoxes: ConsumableInfoRow[]
   events: ConsumableInfoRow[]
-  landResurveys: ConsumableInfoRow[]
-  pets: ConsumableInfoRow[]
+  landResurveys: ConsumableLandResurvey[]
+  pets: ConsumablePet[]
 }
 
 export type DiscoveryCategory = {

@@ -3555,7 +3555,7 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
                     setConsumableImportNote('')
                   }}
                 >
-                  {showConsumableImport ? '닫기' : '소비품 추가'}
+                  {showConsumableImport ? '닫기' : '초기 데이터 추가'}
                 </button>
               </div>
             </div>
@@ -3566,13 +3566,13 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
                 onSubmit={handleConsumableImport}
               >
                 <label className="field">
-                  <span>소비품 텍스트</span>
+                  <span>초기 데이터 텍스트</span>
                   <textarea
                     className="quest-import-textarea"
                     rows={16}
                     value={consumableImportText}
                     onChange={(e) => setConsumableImportText(e.target.value)}
-                    placeholder={`소비품의뢰 알선서\n조합의 의뢰를 새롭게 제시받을 수 있다.\n\n분류\t아이템 획득\t사용효과\t의뢰 알선\n획득 방법\n구입생산퀘스트…\n구입\n판매 NPC\t지역\t장소\n모험가조합 마스터\t유럽 북부\t런던 모험가조합, …\n생산\n조리\t…\n퀘스트\n퀘스트명\t…`}
+                    placeholder={`소비품의뢰 알선서\n조합의 의뢰를 새롭게 제시받을 수 있다.\n\n분류\t아이템 획득\t사용효과\t의뢰 알선\n획득 방법\n구입생산퀘스트…`}
                     disabled={importingConsumable}
                   />
                 </label>
