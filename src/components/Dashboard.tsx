@@ -576,10 +576,7 @@ export function Dashboard({ user, token, onLogout, onToast }: DashboardProps) {
                       className="dash-link"
                       onClick={() => go({ name: 'quests' })}
                     >
-                      <strong>
-                        퀘스트
-                        <span className="ver2-chip">ver.2</span>
-                      </strong>
+                      <strong>퀘스트</strong>
                       <span>퀘스트 목록·연계</span>
                     </button>
                     <button
@@ -601,10 +598,7 @@ export function Dashboard({ user, token, onLogout, onToast }: DashboardProps) {
                       className="dash-link"
                       onClick={() => go({ name: 'ports' })}
                     >
-                      <strong>
-                        항구
-                        <span className="ver2-chip">ver.2</span>
-                      </strong>
+                      <strong>항구</strong>
                       <span>항구·도시 정보</span>
                     </button>
                     <button
@@ -612,10 +606,7 @@ export function Dashboard({ user, token, onLogout, onToast }: DashboardProps) {
                       className="dash-link"
                       onClick={() => go({ name: 'regions' })}
                     >
-                      <strong>
-                        지역
-                        <span className="ver2-chip">ver.2</span>
-                      </strong>
+                      <strong>지역</strong>
                       <span>지역·해역 그룹</span>
                     </button>
                     <button
@@ -623,10 +614,7 @@ export function Dashboard({ user, token, onLogout, onToast }: DashboardProps) {
                       className="dash-link"
                       onClick={() => go({ name: 'entry-permits' })}
                     >
-                      <strong>
-                        입항허가
-                        <span className="ver2-chip">ver.2</span>
-                      </strong>
+                      <strong>입항허가</strong>
                       <span>입항허가·택일 퀘스트</span>
                     </button>
                     <button
@@ -634,10 +622,7 @@ export function Dashboard({ user, token, onLogout, onToast }: DashboardProps) {
                       className="dash-link"
                       onClick={() => go({ name: 'fields' })}
                     >
-                      <strong>
-                        필드
-                        <span className="ver2-chip">ver.2</span>
-                      </strong>
+                      <strong>필드</strong>
                       <span>필드·육지 조사</span>
                     </button>
                     <button
@@ -645,10 +630,7 @@ export function Dashboard({ user, token, onLogout, onToast }: DashboardProps) {
                       className="dash-link"
                       onClick={() => go({ name: 'sea-areas' })}
                     >
-                      <strong>
-                        해역
-                        <span className="ver2-chip">ver.2</span>
-                      </strong>
+                      <strong>해역</strong>
                       <span>해역·수집·목적지</span>
                     </button>
                   </div>
@@ -662,10 +644,7 @@ export function Dashboard({ user, token, onLogout, onToast }: DashboardProps) {
                       className="dash-link"
                       onClick={() => go({ name: 'skills' })}
                     >
-                      <strong>
-                        스킬
-                        <span className="ver2-chip">ver.2</span>
-                      </strong>
+                      <strong>스킬</strong>
                       <span>스킬·습득 정보</span>
                     </button>
                   </div>

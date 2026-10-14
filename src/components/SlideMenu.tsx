@@ -282,8 +282,7 @@ export function SlideMenu({
               className={active.name === 'quests' ? 'active' : ''}
               onClick={() => go({ name: 'quests' })}
             >
-              <span>퀘스트</span>
-              <span className="ver2-chip">ver.2</span>
+              퀘스트
             </button>
             <button
               type="button"
@@ -306,40 +305,35 @@ export function SlideMenu({
               className={active.name === 'ports' ? 'active' : ''}
               onClick={() => go({ name: 'ports' })}
             >
-              <span>항구</span>
-              <span className="ver2-chip">ver.2</span>
+              항구
             </button>
             <button
               type="button"
               className={active.name === 'regions' ? 'active' : ''}
               onClick={() => go({ name: 'regions' })}
             >
-              <span>지역</span>
-              <span className="ver2-chip">ver.2</span>
+              지역
             </button>
             <button
               type="button"
               className={active.name === 'entry-permits' ? 'active' : ''}
               onClick={() => go({ name: 'entry-permits' })}
             >
-              <span>입항허가</span>
-              <span className="ver2-chip">ver.2</span>
+              입항허가
             </button>
             <button
               type="button"
               className={active.name === 'fields' ? 'active' : ''}
               onClick={() => go({ name: 'fields' })}
             >
-              <span>필드</span>
-              <span className="ver2-chip">ver.2</span>
+              필드
             </button>
             <button
               type="button"
               className={active.name === 'sea-areas' ? 'active' : ''}
               onClick={() => go({ name: 'sea-areas' })}
             >
-              <span>해역</span>
-              <span className="ver2-chip">ver.2</span>
+              해역
             </button>
           </MenuSection>
 
@@ -355,8 +349,7 @@ export function SlideMenu({
               className={active.name === 'skills' ? 'active' : ''}
               onClick={() => go({ name: 'skills' })}
             >
-              <span>스킬</span>
-              <span className="ver2-chip">ver.2</span>
+              스킬
             </button>
           </MenuSection>
         </nav>
