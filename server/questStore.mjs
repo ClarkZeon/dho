@@ -7,7 +7,11 @@ import {
   syncDiscoveryAcquireFromQuests,
 } from './discoveryStore.mjs'
 import { getSql, hasDatabaseUrl, runSqlFile } from './db.mjs'
-import { splitChainAndLinked, stripWikiMapNoise } from './questTextParse.mjs'
+import {
+  nestPrerequisiteItems,
+  splitChainAndLinked,
+  stripWikiMapNoise,
+} from './questTextParse.mjs'
 
 function normalizeDiscoveryName(name) {
   return String(name || '')
@@ -83,7 +87,7 @@ function decorateQuest(row) {
     discoveryName:
       row.discovery_name == null ? null : String(row.discovery_name),
     skills: asJsonArray(row.skills),
-    prerequisites: asJsonArray(row.prerequisites),
+    prerequisites: nestPrerequisiteItems(asJsonArray(row.prerequisites)),
     rewardDucat: row.reward_ducat == null ? null : Number(row.reward_ducat),
     rewardAdvance:
       row.reward_advance == null ? null : Number(row.reward_advance),
@@ -402,7 +406,7 @@ export async function updateQuestFields(id, patch) {
     if (!Array.isArray(patch.prerequisites)) {
       throw new Error('선행 발견/퀘스트 형식이 올바르지 않습니다.')
     }
-    next.prerequisites = patch.prerequisites
+    next.prerequisites = nestPrerequisiteItems(patch.prerequisites)
   }
   if ('rewardItems' in patch) {
     if (!Array.isArray(patch.rewardItems)) {
@@ -486,7 +490,9 @@ export async function upsertQuestFromParsed(parsed) {
 
   const existing = await findQuestIdByName(sql, name)
   const skillsJson = JSON.stringify(parsed.skills || [])
-  const prerequisitesJson = JSON.stringify(parsed.prerequisites || [])
+  const prerequisitesJson = JSON.stringify(
+    nestPrerequisiteItems(parsed.prerequisites || []),
+  )
   const itemsJson = JSON.stringify(parsed.rewardItems || [])
   const chainJson = JSON.stringify([
     ...(parsed.chainQuests || []),

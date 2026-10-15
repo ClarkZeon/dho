@@ -107,7 +107,10 @@ function makeDraft(quest: QuestDetail): QuestDraft {
     discoveryCategory: quest.discoveryCategory || '',
     discoveryRank: quest.discoveryRank,
     skills: (quest.skills || []).map((s) => ({ ...s })),
-    prerequisites: (quest.prerequisites || []).map((p) => ({ ...p })),
+    prerequisites: (quest.prerequisites || []).map((p) => ({
+      ...p,
+      children: (p.children || []).map((c) => ({ ...c })),
+    })),
     rewardDucat: quest.rewardDucat,
     rewardAdvance: quest.rewardAdvance,
     expDiscovery: quest.expDiscovery,
@@ -272,15 +275,56 @@ function PrerequisiteLabel({ item }: { item: QuestPrerequisite }) {
     )
   }
   if (item.kind === 'quest' && item.name) {
+    const skillPart = (item.skills || [])
+      .map((s) => (s.level != null ? `${s.name} ${s.level}` : s.name))
+      .join(', ')
+    const paren = [
+      item.difficulty != null ? String(item.difficulty) : null,
+      skillPart || null,
+    ]
+      .filter(Boolean)
+      .join(' ')
     const bits = [
-      item.category,
+      item.category ? `${item.category} |` : null,
       item.name,
-      item.difficulty != null ? `(${item.difficulty})` : null,
+      paren ? `(${paren})` : null,
       item.places ? `- ${item.places}` : null,
     ].filter(Boolean)
     return <span>{bits.join(' ') || item.raw}</span>
   }
   return <span>{item.raw}</span>
+}
+
+function PrerequisiteBlock({ item }: { item: QuestPrerequisite }) {
+  const children = item.children || []
+  return (
+    <div className="quest-prereq-item">
+      <div className="quest-prereq-main">
+        <PrerequisiteLabel item={item} />
+      </div>
+      {children.length > 0 ? (
+        <ol className="quest-prereq-children">
+          {children.map((child, idx) => (
+            <li key={`${child.raw}-${idx}`}>
+              <PrerequisiteLabel item={child} />
+            </li>
+          ))}
+        </ol>
+      ) : null}
+    </div>
+  )
+}
+
+/** 편집용: 중첩을 평탄 줄로 (발견 다음 퀘스트는 들여쓰기 표기) */
+function flattenPrereqsForEdit(rows: QuestPrerequisite[]): string[] {
+  const lines: string[] = []
+  for (const row of rows) {
+    lines.push(row.raw)
+    for (const child of row.children || []) {
+      lines.push(child.raw)
+    }
+  }
+  return lines
 }
 
 function EditPrerequisites({
@@ -292,57 +336,48 @@ function EditPrerequisites({
   onChange: (rows: QuestPrerequisite[]) => void
   disabled?: boolean
 }) {
+  const [text, setText] = useState(() =>
+    flattenPrereqsForEdit(rows).join('\n'),
+  )
+
+  useEffect(() => {
+    setText(flattenPrereqsForEdit(rows).join('\n'))
+  }, [rows])
+
   return (
     <>
-      <div className="admin-table-wrap">
-        <table className="admin-table">
-          <thead>
-            <tr>
-              <th>내용</th>
-              <th className="col-action">삭제</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row, idx) => (
-              <tr key={`prereq-${idx}`}>
-                <td>
-                  <input
-                    value={row.raw}
-                    disabled={disabled}
-                    onChange={(e) =>
-                      onChange(
-                        rows.map((r, i) =>
-                          i === idx
-                            ? { kind: 'other', raw: e.target.value }
-                            : r,
-                        ),
-                      )
-                    }
-                  />
-                </td>
-                <td className="col-action">
-                  <button
-                    type="button"
-                    className="admin-danger-btn"
-                    disabled={disabled}
-                    onClick={() => onChange(rows.filter((_, i) => i !== idx))}
-                  >
-                    삭제
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <button
-        type="button"
-        className="admin-btn"
-        disabled={disabled}
-        onClick={() => onChange([...rows, { kind: 'other', raw: '' }])}
-      >
-        추가
-      </button>
+      <label className="field">
+        <span>
+          한 줄에 하나. 발견물 다음 퀘스트 줄은 그 발견물 아래로 묶입니다.
+        </span>
+        <textarea
+          className="quest-import-textarea"
+          rows={8}
+          value={text}
+          disabled={disabled}
+          onChange={(e) => {
+            setText(e.target.value)
+            const next = e.target.value
+              .split('\n')
+              .map((l) => l.trim())
+              .filter(Boolean)
+              .map((raw) => {
+                if (/^\[[^\]]+\]/.test(raw)) {
+                  return {
+                    kind: 'discovery' as const,
+                    raw,
+                    children: [] as QuestPrerequisite[],
+                  }
+                }
+                if (/\|/.test(raw)) {
+                  return { kind: 'quest' as const, raw }
+                }
+                return { kind: 'other' as const, raw }
+              })
+            onChange(next)
+          }}
+        />
+      </label>
     </>
   )
 }
@@ -1015,7 +1050,7 @@ export function QuestDetailView({
             <ul className="quest-prereq-list">
               {(quest.prerequisites || []).map((item, idx) => (
                 <li key={`${item.raw}-${idx}`}>
-                  <PrerequisiteLabel item={item} />
+                  <PrerequisiteBlock item={item} />
                 </li>
               ))}
             </ul>

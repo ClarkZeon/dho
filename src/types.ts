@@ -176,19 +176,22 @@ export type QuestChainItem = {
   raw?: string
 }
 
-/** 필요 → 선행 발견/퀘스트 */
+/** 필요 → 선행 발견/퀘스트 (발견물 아래 퀘스트는 children) */
 export type QuestPrerequisite = {
   kind: 'discovery' | 'quest' | 'other'
   raw: string
   discoveryCategory?: string | null
   discoveryRank?: number | null
   discoveryName?: string | null
+  /** 발견물 줄의 <획득처> 문구 */
   nested?: string | null
   category?: string
   name?: string
   difficulty?: number
   skills?: QuestSkillReq[]
   places?: string
+  /** 해당 발견물에 딸린 선행 퀘스트 목록 */
+  children?: QuestPrerequisite[]
 }
 
 export type QuestDetail = {

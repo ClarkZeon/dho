@@ -3780,11 +3780,11 @@
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.45rem;
+  gap: 0.65rem;
 }
 
-.quest-prereq-list li {
-  padding: 0.45rem 0.65rem;
+.quest-prereq-list > li {
+  padding: 0.55rem 0.7rem;
   border-radius: 8px;
   border: 1px solid rgba(45, 55, 72, 0.12);
   background: rgba(45, 55, 72, 0.03);
@@ -3793,10 +3793,30 @@
   overflow-x: clip;
 }
 
+.quest-prereq-main {
+  overflow-x: clip;
+}
+
 .quest-prereq-list em {
   font-style: normal;
   color: var(--is-blue);
   font-weight: 600;
+}
+
+.quest-prereq-children {
+  margin: 0.4rem 0 0;
+  padding: 0 0 0 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.quest-prereq-children li {
+  padding: 0;
+  border: none;
+  background: transparent;
+  font-size: 0.86rem;
+  color: var(--is-ink, inherit);
 }
 
 .quest-reward-grid {

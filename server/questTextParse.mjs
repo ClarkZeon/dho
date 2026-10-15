@@ -167,6 +167,7 @@ export function parsePrerequisiteLine(line) {
       discoveryRank: Number(disc[2]),
       discoveryName: disc[3].trim(),
       nested: disc[4] ? disc[4].trim() : null,
+      children: [],
     }
   }
 
@@ -180,6 +181,51 @@ export function parsePrerequisiteLine(line) {
   }
 
   return { kind: 'other', raw }
+}
+
+/**
+ * 평탄 목록 → 발견물 아래 퀘스트 중첩.
+ * 이미 children 이 있는 항목은 유지하고, 뒤에 오는 quest/other 만 붙인다.
+ */
+export function nestPrerequisiteItems(items) {
+  if (!Array.isArray(items) || !items.length) return []
+  /** @type {Array<Record<string, unknown>>} */
+  const out = []
+  for (const raw of items) {
+    if (!raw || typeof raw !== 'object') continue
+    const item = { ...raw }
+    if (item.kind === 'discovery') {
+      const kids = Array.isArray(item.children)
+        ? item.children.map((c) => ({ ...c }))
+        : []
+      out.push({ ...item, children: kids })
+      continue
+    }
+    const last = out[out.length - 1]
+    if (last && last.kind === 'discovery') {
+      if (!Array.isArray(last.children)) last.children = []
+      last.children.push(item)
+      continue
+    }
+    out.push(item)
+  }
+  return out
+}
+
+/** @param {Array<Record<string, unknown>>} list */
+function pushPrerequisite(list, item) {
+  if (!item) return
+  if (item.kind === 'discovery') {
+    list.push({ ...item, children: Array.isArray(item.children) ? item.children : [] })
+    return
+  }
+  const last = list[list.length - 1]
+  if (last && last.kind === 'discovery') {
+    if (!Array.isArray(last.children)) last.children = []
+    last.children.push(item)
+    return
+  }
+  list.push(item)
 }
 
 function isMapSourceLine(line) {
@@ -495,8 +541,7 @@ export function parseQuestText(text) {
       // need 모드에서 스킬 행이 아닌 퀘스트형 줄은 선행으로 취급
       if (mode === 'need') {
         collectingPrereq = true
-        const item = parsePrerequisiteLine(line)
-        if (item) prerequisites.push(item)
+        pushPrerequisite(prerequisites, parsePrerequisiteLine(line))
         continue
       }
       mode = 'linked'
@@ -515,8 +560,7 @@ export function parseQuestText(text) {
             ? cols.slice(1).join('\t').trim()
             : line.replace(/^선행\s*발견\s*\/?\s*퀘스트\s*/, '').trim()
         if (rest) {
-          const item = parsePrerequisiteLine(rest)
-          if (item) prerequisites.push(item)
+          pushPrerequisite(prerequisites, parsePrerequisiteLine(rest))
         }
         continue
       }
@@ -528,17 +572,15 @@ export function parseQuestText(text) {
       }
 
       if (collectingPrereq) {
-        // 발견물 [화석] … 또는 퀘스트형 줄
+        // 발견물 [화석] … 또는 그 아래 붙는 퀘스트형 줄
         if (
           /^\[[^\]]+\]/.test(line) ||
           looksLikeChainEntry(line) ||
           QUEST_TAG_RE.test(line)
         ) {
-          const item = parsePrerequisiteLine(line)
-          if (item) prerequisites.push(item)
+          pushPrerequisite(prerequisites, parsePrerequisiteLine(line))
         } else if (line && !/^종류/.test(line) && !/^스킬/.test(line)) {
-          const item = parsePrerequisiteLine(line)
-          if (item) prerequisites.push(item)
+          pushPrerequisite(prerequisites, parsePrerequisiteLine(line))
         }
         continue
       }
@@ -666,7 +708,7 @@ export function parseQuestText(text) {
     discoveryRank,
     discoveryName,
     skills,
-    prerequisites,
+    prerequisites: nestPrerequisiteItems(prerequisites),
     rewardDucat,
     rewardAdvance,
     expDiscovery,
