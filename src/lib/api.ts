@@ -14,6 +14,7 @@ import type {
   RegionDetail,
   EntryPermitDetail,
   MemorialAlbumDetail,
+  TitleDetail,
   QuestDetail,
   Session,
   ShipDetail,
@@ -648,6 +649,39 @@ export function updateMemorialAlbum(
   )
 }
 
+export function fetchTitles(token: string) {
+  return request<{ titles: TitleDetail[] }>('/api/titles', { token })
+}
+
+export function importTitleText(token: string, text: string) {
+  return request<{ title: TitleDetail }>('/api/titles/import-text', {
+    token,
+    body: { text },
+  })
+}
+
+export function deleteTitle(token: string, titleId: number) {
+  return request<{ ok: boolean }>(
+    `/api/titles/${encodeURIComponent(String(titleId))}`,
+    { method: 'DELETE', token },
+  )
+}
+
+export function updateTitle(
+  token: string,
+  titleId: number,
+  patch: Partial<TitleDetail>,
+) {
+  return request<{ title: TitleDetail }>(
+    `/api/titles/${encodeURIComponent(String(titleId))}`,
+    {
+      method: 'PATCH',
+      token,
+      body: patch,
+    },
+  )
+}
+
 export function fetchDiscoveries(token: string) {
   return request<{ discoveries: DiscoveryDetail[] }>('/api/discoveries', {
     token,
@@ -773,6 +807,7 @@ export function fetchAdminStats(token: string) {
       consumables: number
       equipments: number
       memorialAlbums: number
+      titles: number
       featureRequests: number
     }
   }>('/api/admin/stats', { token })

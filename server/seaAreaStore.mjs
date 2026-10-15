@@ -133,13 +133,18 @@ function decorateSeaArea(row) {
             .map((s) => s.trim())
             .filter(Boolean),
     })),
+    updatedAt: row.updated_at
+      ? new Date(/** @type {string|Date} */ (row.updated_at)).toISOString()
+      : null,
   }
 }
 
 export async function listSeaAreas() {
   const sql = getSql()
   const rows = await sql`
-    SELECT * FROM sea_areas WHERE enabled = TRUE ORDER BY id DESC
+    SELECT * FROM sea_areas
+    WHERE enabled = TRUE
+    ORDER BY updated_at DESC NULLS LAST, id DESC
   `
   return rows.map(decorateSeaArea)
 }

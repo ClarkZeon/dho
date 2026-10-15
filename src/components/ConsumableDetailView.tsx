@@ -51,7 +51,16 @@ const ACQUIRE_TABS: Array<{ key: AcquireTabKey; label: string }> = [
   { key: 'pets', label: '애완동물' },
 ]
 
-function Row({ label, value }: { label: string; value: string | null }) {
+function Row({
+  label,
+  value,
+  hideEmpty,
+}: {
+  label: string
+  value: string | null
+  hideEmpty?: boolean
+}) {
+  if (hideEmpty && !value?.trim()) return null
   return (
     <div>
       <span>{label}</span>
@@ -373,16 +382,26 @@ export function ConsumableDetailView({
           </div>
         ) : (
           <div className="quest-kv-grid">
-            <Row label="분류" value={consumable.category} />
-            <Row label="사용효과" value={consumable.useEffect} />
-            <div className="quest-kv-wide">
-              <span>획득 방법</span>
-              <strong>
-                {consumable.acquireMethods.length
-                  ? consumable.acquireMethods.join(' · ')
-                  : '-'}
-              </strong>
-            </div>
+            <Row
+              label="분류"
+              value={consumable.category}
+              hideEmpty={!canEdit}
+            />
+            <Row
+              label="사용효과"
+              value={consumable.useEffect}
+              hideEmpty={!canEdit}
+            />
+            {canEdit || consumable.acquireMethods.length > 0 ? (
+              <div className="quest-kv-wide">
+                <span>획득 방법</span>
+                <strong>
+                  {consumable.acquireMethods.length
+                    ? consumable.acquireMethods.join(' · ')
+                    : '-'}
+                </strong>
+              </div>
+            ) : null}
           </div>
         )}
       </section>

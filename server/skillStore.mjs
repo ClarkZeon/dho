@@ -152,6 +152,9 @@ function decorateSkill(row) {
       kind: String(item?.kind || ''),
       item: String(item?.item || ''),
     })),
+    updatedAt: row.updated_at
+      ? new Date(/** @type {string|Date} */ (row.updated_at)).toISOString()
+      : null,
   }
 }
 
@@ -160,7 +163,7 @@ export async function listSkills() {
   const rows = await sql`
     SELECT * FROM skills
     WHERE enabled = TRUE
-    ORDER BY sort_order, id
+    ORDER BY updated_at DESC NULLS LAST, id DESC
   `
   return rows.map(decorateSkill)
 }

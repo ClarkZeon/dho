@@ -16,6 +16,7 @@ export type MenuTarget =
   | { name: 'discoveries' }
   | { name: 'memorial-albums' }
   | { name: 'skills' }
+  | { name: 'titles' }
   | { name: 'fields' }
   | { name: 'sea-areas' }
   | { name: 'ship-materials' }
@@ -63,7 +64,7 @@ function sectionForActive(active: MenuTarget): MenuSectionId | null {
   ) {
     return 'pioneer'
   }
-  if (active.name === 'skills') return 'captain'
+  if (active.name === 'skills' || active.name === 'titles') return 'captain'
   return null
 }
 
@@ -168,7 +169,8 @@ export function SlideMenu({
     active.name === 'entry-permits' ||
     active.name === 'fields' ||
     active.name === 'sea-areas'
-  const captainActive = active.name === 'skills'
+  const captainActive =
+    active.name === 'skills' || active.name === 'titles'
 
   return (
     <div
@@ -366,6 +368,13 @@ export function SlideMenu({
               onClick={() => go({ name: 'skills' })}
             >
               스킬
+            </button>
+            <button
+              type="button"
+              className={active.name === 'titles' ? 'active' : ''}
+              onClick={() => go({ name: 'titles' })}
+            >
+              호칭
             </button>
           </MenuSection>
         </nav>

@@ -1,6 +1,6 @@
 import { useEffect, useState, type KeyboardEvent } from 'react'
 import { fetchFields } from '../lib/api'
-import { useTableSort } from '../lib/tableSort'
+import { compareIdDesc, useTableSort } from '../lib/tableSort'
 import type { FieldDetail } from '../types'
 import { DetailModal } from './DetailModal'
 import { FieldDetailView } from './FieldDetailView'
@@ -60,6 +60,7 @@ export function FieldCatalog({ token }: FieldCatalogProps) {
     filtered,
     (field, key) => field[key],
     (a, b) => a.id - b.id,
+    compareIdDesc,
   )
 
   return (

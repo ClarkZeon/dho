@@ -38,7 +38,16 @@ const ACQUIRE_TABS: Array<{ key: AcquireTabKey; label: string }> = [
   { key: 'memorialAlbums', label: '메모리얼 앨범' },
 ]
 
-function Row({ label, value }: { label: string; value: string | null }) {
+function Row({
+  label,
+  value,
+  hideEmpty,
+}: {
+  label: string
+  value: string | null
+  hideEmpty?: boolean
+}) {
+  if (hideEmpty && !value?.trim()) return null
   return (
     <div>
       <span>{label}</span>
@@ -449,31 +458,85 @@ export function EquipmentDetailView({
           </div>
         ) : (
           <div className="quest-kv-grid">
-            <Row label="분류" value={equipment.category} />
-            <Row label="추가 이름" value={equipment.altName} />
-            <Row label="내구도" value={equipment.durability} />
-            <Row label="장착 부위" value={equipment.equipSlot} />
-            <Row label="공격력" value={equipment.attack} />
-            <Row label="방어력" value={equipment.defense} />
-            <Row label="복장예절" value={equipment.dressEtiquette} />
-            <Row label="변장도" value={equipment.disguise} />
-            <Row label="사용효과" value={equipment.useEffect} />
-            <Row label="스킬" value={skillText || null} />
-            <Row label="장비효과" value={effectText || null} />
-            <Row label="메모리얼 앨범" value={equipment.memorialAlbum} />
+            <Row
+              label="분류"
+              value={equipment.category}
+              hideEmpty={!canEdit}
+            />
+            <Row
+              label="추가 이름"
+              value={equipment.altName}
+              hideEmpty={!canEdit}
+            />
+            <Row
+              label="내구도"
+              value={equipment.durability}
+              hideEmpty={!canEdit}
+            />
+            <Row
+              label="장착 부위"
+              value={equipment.equipSlot}
+              hideEmpty={!canEdit}
+            />
+            <Row
+              label="공격력"
+              value={equipment.attack}
+              hideEmpty={!canEdit}
+            />
+            <Row
+              label="방어력"
+              value={equipment.defense}
+              hideEmpty={!canEdit}
+            />
+            <Row
+              label="복장예절"
+              value={equipment.dressEtiquette}
+              hideEmpty={!canEdit}
+            />
+            <Row
+              label="변장도"
+              value={equipment.disguise}
+              hideEmpty={!canEdit}
+            />
+            <Row
+              label="사용효과"
+              value={equipment.useEffect}
+              hideEmpty={!canEdit}
+            />
+            <Row
+              label="스킬"
+              value={skillText || null}
+              hideEmpty={!canEdit}
+            />
+            <Row
+              label="장비효과"
+              value={effectText || null}
+              hideEmpty={!canEdit}
+            />
+            <Row
+              label="메모리얼 앨범"
+              value={equipment.memorialAlbum}
+              hideEmpty={!canEdit}
+            />
             <Row
               label="특징"
               value={equipment.nonTradable ? '거래 불가' : null}
+              hideEmpty={!canEdit}
             />
-            <RequirementsViewer value={equipment.requirements} />
-            <div className="quest-kv-wide">
-              <span>획득 방법</span>
-              <strong>
-                {equipment.acquireMethods.length
-                  ? equipment.acquireMethods.join(' · ')
-                  : '-'}
-              </strong>
-            </div>
+            <RequirementsViewer
+              value={equipment.requirements}
+              showEmpty={canEdit}
+            />
+            {canEdit || equipment.acquireMethods.length > 0 ? (
+              <div className="quest-kv-wide">
+                <span>획득 방법</span>
+                <strong>
+                  {equipment.acquireMethods.length
+                    ? equipment.acquireMethods.join(' · ')
+                    : '-'}
+                </strong>
+              </div>
+            ) : null}
           </div>
         )}
       </section>
@@ -573,7 +636,13 @@ export function EquipmentDetailView({
   )
 }
 
-function RequirementsViewer({ value }: { value: EquipmentRequirements }) {
+function RequirementsViewer({
+  value,
+  showEmpty,
+}: {
+  value: EquipmentRequirements
+  showEmpty?: boolean
+}) {
   const req = value || emptyRequirements()
   const hasAny = [
     req.fame,
@@ -583,15 +652,15 @@ function RequirementsViewer({ value }: { value: EquipmentRequirements }) {
     req.title,
     req.alias,
   ].some((v) => v?.trim())
-  if (!hasAny) return null
+  if (!showEmpty && !hasAny) return null
   return (
     <>
-      <Row label="명성" value={req.fame} />
-      <Row label="악명" value={req.infamy} />
-      <Row label="성별" value={req.gender} />
-      <Row label="직업 계열" value={req.jobClass} />
-      <Row label="작위" value={req.title} />
-      <Row label="호칭" value={req.alias} />
+      <Row label="명성" value={req.fame} hideEmpty={!showEmpty} />
+      <Row label="악명" value={req.infamy} hideEmpty={!showEmpty} />
+      <Row label="성별" value={req.gender} hideEmpty={!showEmpty} />
+      <Row label="직업 계열" value={req.jobClass} hideEmpty={!showEmpty} />
+      <Row label="작위" value={req.title} hideEmpty={!showEmpty} />
+      <Row label="호칭" value={req.alias} hideEmpty={!showEmpty} />
     </>
   )
 }

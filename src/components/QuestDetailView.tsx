@@ -779,16 +779,17 @@ export function QuestDetailView({
     .split('\n')
     .filter((line) => line.trim().length > 0)
 
+  // 1. / 1-1. / 2-1. 등 모두 동일 레벨 진행 단계로 분리
   const progressBlocks = dropMapSource(quest.progress || '', quest.destination)
-    .split(/\n(?=\d+\.\s+|결론\s*[-–—])/)
+    .split(/\n(?=\d+(?:-\d+)*\.\s+|결론\s*[-–—])/)
     .map((block) => block.trim())
     .filter(Boolean)
 
   const showSkills = canEdit || quest.skills.length > 0
   const showPrerequisites =
     canEdit || (quest.prerequisites || []).length > 0
-  const showChain = chainQuests.length > 0
-  const showLinked = linkedQuests.length > 0
+  const showChain = canEdit || chainQuests.length > 0
+  const showLinked = canEdit || linkedQuests.length > 0
   const showWalkthrough = canEdit || walkthroughSteps.length > 0
   const showProgress = canEdit || progressBlocks.length > 0
   const showDescription = canEdit || Boolean(description)

@@ -1,7 +1,7 @@
 import { useEffect, useState, type KeyboardEvent } from 'react'
 import { fetchPorts } from '../lib/api'
 import { matchesPortQuery } from '../lib/portSearch'
-import { useTableSort } from '../lib/tableSort'
+import { compareIdDesc, useTableSort } from '../lib/tableSort'
 import type { PortDetail } from '../types'
 import { DetailModal } from './DetailModal'
 import { PortDetailView } from './PortDetailView'
@@ -57,6 +57,7 @@ export function PortCatalog({ token }: PortCatalogProps) {
     ports.filter((port) => matchesPortQuery(port, query)),
     (port, key) => port[key],
     (a, b) => a.id - b.id,
+    compareIdDesc,
   )
 
   return (

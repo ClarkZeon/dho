@@ -156,13 +156,18 @@ function decorateEquipment(row) {
     quests: asQuestRows(row.quests),
     treasureMaps: asInfoRows(row.treasure_maps),
     memorialAlbums: asInfoRows(row.memorial_albums),
+    updatedAt: row.updated_at
+      ? new Date(/** @type {string|Date} */ (row.updated_at)).toISOString()
+      : null,
   }
 }
 
 export async function listEquipments() {
   const sql = getSql()
   const rows = await sql`
-    SELECT * FROM equipments WHERE enabled = TRUE ORDER BY sort_order, id
+    SELECT * FROM equipments
+    WHERE enabled = TRUE
+    ORDER BY updated_at DESC NULLS LAST, id DESC
   `
   return rows.map(decorateEquipment)
 }

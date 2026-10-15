@@ -147,13 +147,18 @@ function decorateConsumable(row) {
     events: asInfoRows(row.events),
     landResurveys: asLandResurveyRows(row.land_resurveys),
     pets: asPetRows(row.pets),
+    updatedAt: row.updated_at
+      ? new Date(/** @type {string|Date} */ (row.updated_at)).toISOString()
+      : null,
   }
 }
 
 export async function listConsumables() {
   const sql = getSql()
   const rows = await sql`
-    SELECT * FROM consumables WHERE enabled = TRUE ORDER BY sort_order, id
+    SELECT * FROM consumables
+    WHERE enabled = TRUE
+    ORDER BY updated_at DESC NULLS LAST, id DESC
   `
   return rows.map(decorateConsumable)
 }

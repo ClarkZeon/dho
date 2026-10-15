@@ -43,7 +43,16 @@ function saveDoneSet(albumId: number, done: Set<string>) {
   }
 }
 
-function Row({ label, value }: { label: string; value: string | null }) {
+function Row({
+  label,
+  value,
+  hideEmpty,
+}: {
+  label: string
+  value: string | null
+  hideEmpty?: boolean
+}) {
+  if (hideEmpty && !value?.trim()) return null
   return (
     <div>
       <span>{label}</span>
@@ -272,10 +281,26 @@ export function MemorialAlbumDetailView({
           </div>
         ) : (
           <div className="quest-kv-grid">
-            <Row label="분류" value={album.category} />
-            <Row label="추가 이름" value={album.altName} />
-            <Row label="보상 NPC" value={album.rewardNpc} />
-            <Row label="보상품" value={album.rewardItem} />
+            <Row
+              label="분류"
+              value={album.category}
+              hideEmpty={!canEdit}
+            />
+            <Row
+              label="추가 이름"
+              value={album.altName}
+              hideEmpty={!canEdit}
+            />
+            <Row
+              label="보상 NPC"
+              value={album.rewardNpc}
+              hideEmpty={!canEdit}
+            />
+            <Row
+              label="보상품"
+              value={album.rewardItem}
+              hideEmpty={!canEdit}
+            />
             <Row
               label="항목"
               value={
@@ -290,81 +315,85 @@ export function MemorialAlbumDetailView({
         )}
       </section>
 
-      <section className="quest-detail-section">
-        <DetailSectionHead
-          title="항목"
-          canEdit={canEdit}
-          editing={editing === 'items'}
-          onEdit={() => startEdit('items')}
-        />
-        {editing === 'items' ? (
-          <>
-            <ItemsEditor
-              rows={draft.items}
-              disabled={saving}
-              onChange={(items) => setDraft((prev) => ({ ...prev, items }))}
-            />
-            <DetailSectionActions
-              busy={saving}
-              onCancel={cancelEdit}
-              onSave={() => void saveSection()}
-            />
-          </>
-        ) : (album.items || []).length > 0 ? (
-          <>
-            <div className="admin-table-wrap">
-              <table className="admin-table">
-                <thead>
-                  <tr>
-                    <th>아이템</th>
-                    {trackCompletion ? <th className="col-desk">완료</th> : null}
-                    <th className="col-desk">부연 설명</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {album.items.map((row, idx) => {
-                    const isDone = done.has(row.name)
-                    return (
-                      <tr
-                        key={`${row.name}-${idx}`}
-                        className={idx % 2 === 0 ? 'is-even' : 'is-odd'}
-                      >
-                        <td>{row.name}</td>
-                        {trackCompletion ? (
-                          <td className="col-desk">
-                            <input
-                              type="checkbox"
-                              checked={selected.has(row.name) || isDone}
-                              disabled={isDone}
-                              aria-label={`${row.name} 선택`}
-                              onChange={() => toggleSelect(row.name)}
-                            />
-                          </td>
-                        ) : null}
-                        <td className="col-desk">{row.note || '-'}</td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
-            {trackCompletion ? (
-              <div className="form-actions" style={{ marginTop: '0.75rem' }}>
-                <button
-                  type="button"
-                  className="admin-btn admin-btn-primary"
-                  disabled={!selected.size}
-                  onClick={markSelectedDone}
-                >
-                  선택된 항목 완료
-                </button>
+      {(canEdit || (album.items || []).length > 0) && (
+        <section className="quest-detail-section">
+          <DetailSectionHead
+            title="항목"
+            canEdit={canEdit}
+            editing={editing === 'items'}
+            onEdit={() => startEdit('items')}
+          />
+          {editing === 'items' ? (
+            <>
+              <ItemsEditor
+                rows={draft.items}
+                disabled={saving}
+                onChange={(items) => setDraft((prev) => ({ ...prev, items }))}
+              />
+              <DetailSectionActions
+                busy={saving}
+                onCancel={cancelEdit}
+                onSave={() => void saveSection()}
+              />
+            </>
+          ) : (album.items || []).length > 0 ? (
+            <>
+              <div className="admin-table-wrap">
+                <table className="admin-table">
+                  <thead>
+                    <tr>
+                      <th>아이템</th>
+                      {trackCompletion ? (
+                        <th className="col-desk">완료</th>
+                      ) : null}
+                      <th className="col-desk">부연 설명</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {album.items.map((row, idx) => {
+                      const isDone = done.has(row.name)
+                      return (
+                        <tr
+                          key={`${row.name}-${idx}`}
+                          className={idx % 2 === 0 ? 'is-even' : 'is-odd'}
+                        >
+                          <td>{row.name}</td>
+                          {trackCompletion ? (
+                            <td className="col-desk">
+                              <input
+                                type="checkbox"
+                                checked={selected.has(row.name) || isDone}
+                                disabled={isDone}
+                                aria-label={`${row.name} 선택`}
+                                onChange={() => toggleSelect(row.name)}
+                              />
+                            </td>
+                          ) : null}
+                          <td className="col-desk">{row.note || '-'}</td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
               </div>
-            ) : null}
-          </>
-        ) : (
-          <p className="form-note">등록된 항목이 없습니다.</p>
-        )}
-      </section>
+              {trackCompletion ? (
+                <div className="form-actions" style={{ marginTop: '0.75rem' }}>
+                  <button
+                    type="button"
+                    className="admin-btn admin-btn-primary"
+                    disabled={!selected.size}
+                    onClick={markSelectedDone}
+                  >
+                    선택된 항목 완료
+                  </button>
+                </div>
+              ) : null}
+            </>
+          ) : (
+            <p className="form-note">등록된 항목이 없습니다.</p>
+          )}
+        </section>
+      )}
     </div>
   )
 }

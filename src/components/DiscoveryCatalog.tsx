@@ -1,7 +1,7 @@
 import { useEffect, useState, type KeyboardEvent } from 'react'
 import { fetchDiscoveries } from '../lib/api'
 import { formatDiscoveryAcquire } from '../lib/discoveryAcquire'
-import { useTableSort } from '../lib/tableSort'
+import { compareIdDesc, useTableSort } from '../lib/tableSort'
 import type { DiscoveryDetail } from '../types'
 import { DetailModal } from './DetailModal'
 import { DiscoveryDetailView } from './DiscoveryDetailView'
@@ -77,6 +77,7 @@ export function DiscoveryCatalog({ token }: DiscoveryCatalogProps) {
       return item[key]
     },
     (a, b) => a.id - b.id,
+    compareIdDesc,
   )
 
   return (

@@ -112,6 +112,9 @@ function decorateQuest(row) {
             String(row.progress),
             row.destination == null ? null : String(row.destination),
           ) || null,
+    updatedAt: row.updated_at
+      ? new Date(/** @type {string|Date} */ (row.updated_at)).toISOString()
+      : null,
   }
 }
 
@@ -127,7 +130,7 @@ const QUEST_SORT_COLS = {
 function questOrderClause(sort, dir) {
   const col = QUEST_SORT_COLS[sort]
   const d = dir === 'desc' ? 'DESC' : 'ASC'
-  if (!col) return 'ORDER BY id DESC'
+  if (!col) return 'ORDER BY updated_at DESC NULLS LAST, id DESC'
   return `ORDER BY ${col} ${d} NULLS LAST, id ${d}`
 }
 

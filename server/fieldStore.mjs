@@ -84,13 +84,18 @@ function decorateField(row) {
       trait: item?.trait == null || item?.trait === '' ? null : String(item.trait),
       names: asJsonArray(item?.names).map(String),
     })),
+    updatedAt: row.updated_at
+      ? new Date(/** @type {string|Date} */ (row.updated_at)).toISOString()
+      : null,
   }
 }
 
 export async function listFields() {
   const sql = getSql()
   const rows = await sql`
-    SELECT * FROM fields WHERE enabled = TRUE ORDER BY sort_order, id
+    SELECT * FROM fields
+    WHERE enabled = TRUE
+    ORDER BY updated_at DESC NULLS LAST, id DESC
   `
   return rows.map(decorateField)
 }

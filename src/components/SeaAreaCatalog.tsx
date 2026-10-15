@@ -1,6 +1,6 @@
 import { useEffect, useState, type KeyboardEvent } from 'react'
 import { fetchSeaAreas } from '../lib/api'
-import { useTableSort } from '../lib/tableSort'
+import { compareIdDesc, useTableSort } from '../lib/tableSort'
 import type { SeaAreaDetail } from '../types'
 import { DetailModal } from './DetailModal'
 import { SeaAreaDetailView } from './SeaAreaDetailView'
@@ -60,6 +60,7 @@ export function SeaAreaCatalog({ token }: SeaAreaCatalogProps) {
     filtered,
     (item, key) => item[key],
     (a, b) => b.id - a.id,
+    compareIdDesc,
   )
 
   return (

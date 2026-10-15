@@ -1,7 +1,7 @@
 import { useEffect, useState, type KeyboardEvent } from 'react'
 import { fetchRegions } from '../lib/api'
 import { matchesRegionQuery } from '../lib/regionSearch'
-import { useTableSort } from '../lib/tableSort'
+import { compareIdDesc, useTableSort } from '../lib/tableSort'
 import type { RegionDetail } from '../types'
 import { DetailModal } from './DetailModal'
 import { RegionDetailView } from './RegionDetailView'
@@ -51,6 +51,7 @@ export function RegionCatalog({ token }: RegionCatalogProps) {
     regions.filter((region) => matchesRegionQuery(region, query)),
     (region, key) => region[key],
     (a, b) => a.id - b.id,
+    compareIdDesc,
   )
 
   return (

@@ -92,6 +92,9 @@ function decorateDiscovery(row) {
     }),
     debateCombo: decorateDebateCombo(row.debate_combo),
     acquireQuest: null,
+    updatedAt: row.updated_at
+      ? new Date(/** @type {string|Date} */ (row.updated_at)).toISOString()
+      : null,
   }
 }
 
@@ -307,7 +310,7 @@ export async function listDiscoveries() {
     LEFT JOIN discovery_category_groups g
       ON g.id = c.group_id AND g.enabled = TRUE
     WHERE d.enabled = TRUE
-    ORDER BY d.sort_order, d.id
+    ORDER BY d.updated_at DESC NULLS LAST, d.id DESC
   `
   return withQuestLinksMany(rows.map(decorateDiscovery))
 }

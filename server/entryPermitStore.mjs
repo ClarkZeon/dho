@@ -72,13 +72,18 @@ function decorateEntryPermit(row) {
     requirement: row.requirement == null ? null : String(row.requirement),
     fame: normalizeFame(asJsonArray(row.fame)),
     cityQuests: normalizeCityQuests(asJsonArray(row.city_quests)),
+    updatedAt: row.updated_at
+      ? new Date(/** @type {string|Date} */ (row.updated_at)).toISOString()
+      : null,
   }
 }
 
 export async function listEntryPermits() {
   const sql = getSql()
   const rows = await sql`
-    SELECT * FROM entry_permits WHERE enabled = TRUE ORDER BY sort_order, id
+    SELECT * FROM entry_permits
+    WHERE enabled = TRUE
+    ORDER BY updated_at DESC NULLS LAST, id DESC
   `
   return rows.map(decorateEntryPermit)
 }

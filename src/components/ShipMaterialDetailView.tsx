@@ -6,14 +6,18 @@ import type { ShipMaterialDetail } from '../types'
 
 type ShipMaterialDetailViewProps = {
   material: ShipMaterialDetail
+  /** 관리자: 빈 섹션도 표시 */
+  showEmpty?: boolean
 }
 
 export function ShipMaterialDetailView({
   material,
+  showEmpty = false,
 }: ShipMaterialDetailViewProps) {
   const stats = effectsByColumn(material.effects)
   const acquires = material.acquireMethods || []
   const hasStats = MATERIAL_STAT_COLUMNS.some((col) => Boolean(stats[col]))
+  const showAcquire = showEmpty || acquires.length > 0
 
   return (
     <div className="quest-detail">
@@ -60,19 +64,23 @@ export function ShipMaterialDetailView({
         </div>
       </section>
 
-      {acquires.length > 0 && (
+      {showAcquire && (
         <section className="quest-detail-section">
           <h3>획득 방법</h3>
-          {acquires.map((group, index) => (
-            <div key={`${group.source}-${index}`} className="quest-kv-grid">
-              <div className="quest-kv-wide">
-                <span>{group.source}</span>
-                <strong>
-                  {group.items.length > 0 ? group.items.join(' · ') : '-'}
-                </strong>
+          {acquires.length > 0 ? (
+            acquires.map((group, index) => (
+              <div key={`${group.source}-${index}`} className="quest-kv-grid">
+                <div className="quest-kv-wide">
+                  <span>{group.source}</span>
+                  <strong>
+                    {group.items.length > 0 ? group.items.join(' · ') : '-'}
+                  </strong>
+                </div>
               </div>
-            </div>
-          ))}
+            ))
+          ) : (
+            <p className="quest-muted">없음</p>
+          )}
         </section>
       )}
     </div>

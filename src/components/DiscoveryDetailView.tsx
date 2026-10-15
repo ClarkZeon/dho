@@ -21,7 +21,16 @@ type DiscoveryDetailViewProps = {
   }
 }
 
-function Row({ label, value }: { label: string; value: string | null }) {
+function Row({
+  label,
+  value,
+  hideEmpty,
+}: {
+  label: string
+  value: string | null
+  hideEmpty?: boolean
+}) {
+  if (hideEmpty && !value?.trim()) return null
   return (
     <div>
       <span>{label}</span>
@@ -181,91 +190,129 @@ export function DiscoveryDetailView({
           </div>
         ) : (
           <div className="quest-kv-grid">
-            <Row label="분류" value={discovery.category} />
-            <Row label="난이도" value={stars(discovery.rank)} />
-            <Row label="카드 포인트" value={formatNum(discovery.cardPoints)} />
-            <Row label="발견 경험치" value={formatNum(discovery.discoveryExp)} />
+            <Row
+              label="분류"
+              value={discovery.category}
+              hideEmpty={!canEdit}
+            />
+            <Row
+              label="난이도"
+              value={stars(discovery.rank)}
+              hideEmpty={!canEdit}
+            />
+            <Row
+              label="카드 포인트"
+              value={formatNum(discovery.cardPoints)}
+              hideEmpty={!canEdit}
+            />
+            <Row
+              label="발견 경험치"
+              value={formatNum(discovery.discoveryExp)}
+              hideEmpty={!canEdit}
+            />
             <Row
               label="카드 획득 경험치"
               value={formatNum(discovery.cardExp)}
+              hideEmpty={!canEdit}
             />
-            <Row label="보고시 명성" value={formatNum(discovery.reportFame)} />
-            <div className="quest-kv-wide">
-              <span>발견 방법</span>
-              <strong>
-                {acquireQuest ? (
-                  <QuestRefButton quest={acquireQuest} onOpenQuest={onOpenQuest}>
-                    {acquireLabel}
-                  </QuestRefButton>
-                ) : acquireLabel?.trim() ? (
-                  acquireLabel
-                ) : (
-                  '-'
-                )}
-              </strong>
-            </div>
-            {discovery.place?.trim() ? (
+            <Row
+              label="보고시 명성"
+              value={formatNum(discovery.reportFame)}
+              hideEmpty={!canEdit}
+            />
+            {canEdit ||
+            acquireQuest ||
+            Boolean(acquireLabel?.trim()) ? (
+              <div className="quest-kv-wide">
+                <span>발견 방법</span>
+                <strong>
+                  {acquireQuest ? (
+                    <QuestRefButton
+                      quest={acquireQuest}
+                      onOpenQuest={onOpenQuest}
+                    >
+                      {acquireLabel}
+                    </QuestRefButton>
+                  ) : acquireLabel?.trim() ? (
+                    acquireLabel
+                  ) : (
+                    '-'
+                  )}
+                </strong>
+              </div>
+            ) : null}
+            {canEdit || discovery.place?.trim() ? (
               <div className="quest-kv-wide">
                 <span>장소</span>
-                <strong>{discovery.place}</strong>
+                <strong>
+                  {discovery.place?.trim() ? discovery.place : '-'}
+                </strong>
               </div>
             ) : null}
           </div>
         )}
       </section>
 
-      {linked.length > 0 && (
+      {(canEdit || linked.length > 0) && (
         <section className="quest-detail-section">
           <h3>연결 지도/퀘스트</h3>
-          <ol className="quest-chain is-linked">
-            {linked.map((item, index) => {
-              const label = item.tag
-                ? `[${item.tag}] ${item.quest?.name || item.title}`
-                : item.quest?.name || item.raw
-              return (
-                <li key={`${item.raw}-${index}`}>
-                  <div>
-                    <strong>
-                      {item.quest ? (
-                        <QuestRefButton
-                          quest={item.quest}
-                          onOpenQuest={onOpenQuest}
-                        >
-                          {label}
-                        </QuestRefButton>
-                      ) : (
-                        label
-                      )}
-                    </strong>
-                  </div>
-                </li>
-              )
-            })}
-          </ol>
+          {linked.length > 0 ? (
+            <ol className="quest-chain is-linked">
+              {linked.map((item, index) => {
+                const label = item.tag
+                  ? `[${item.tag}] ${item.quest?.name || item.title}`
+                  : item.quest?.name || item.raw
+                return (
+                  <li key={`${item.raw}-${index}`}>
+                    <div>
+                      <strong>
+                        {item.quest ? (
+                          <QuestRefButton
+                            quest={item.quest}
+                            onOpenQuest={onOpenQuest}
+                          >
+                            {label}
+                          </QuestRefButton>
+                        ) : (
+                          label
+                        )}
+                      </strong>
+                    </div>
+                  </li>
+                )
+              })}
+            </ol>
+          ) : (
+            <p className="quest-muted">없음</p>
+          )}
         </section>
       )}
 
-      {debate && (
+      {(canEdit || debate) && (
         <section className="quest-detail-section">
           <h3>논전 콤보</h3>
-          <div className="quest-kv-grid">
-            <div className="quest-kv-wide">
-              <span>효과</span>
-              <strong>{debate.effect?.trim() ? debate.effect : '-'}</strong>
+          {debate ? (
+            <div className="quest-kv-grid">
+              <div className="quest-kv-wide">
+                <span>효과</span>
+                <strong>{debate.effect?.trim() ? debate.effect : '-'}</strong>
+              </div>
+              <div className="quest-kv-wide">
+                <span>논전 콤보</span>
+                <strong>
+                  {debate.comboName?.trim() ? debate.comboName : '-'}
+                </strong>
+              </div>
+              <div className="quest-kv-wide">
+                <span>발견물 카드</span>
+                <strong>
+                  {debate.cards.length > 0 ? debate.cards.join(' · ') : '-'}
+                </strong>
+              </div>
             </div>
-            <div className="quest-kv-wide">
-              <span>논전 콤보</span>
-              <strong>
-                {debate.comboName?.trim() ? debate.comboName : '-'}
-              </strong>
-            </div>
-            <div className="quest-kv-wide">
-              <span>발견물 카드</span>
-              <strong>
-                {debate.cards.length > 0 ? debate.cards.join(' · ') : '-'}
-              </strong>
-            </div>
-          </div>
+          ) : (
+            <p className="quest-muted">없음</p>
+          )}
         </section>
       )}
     </div>

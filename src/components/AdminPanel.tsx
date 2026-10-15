@@ -5,6 +5,7 @@ import {
   deleteEquipment,
   deleteDiscovery,
   deleteMemorialAlbum,
+  deleteTitle,
   deleteField,
   deleteSeaArea,
   deleteSkill,
@@ -20,6 +21,7 @@ import {
   fetchEquipments,
   fetchDiscoveries,
   fetchMemorialAlbums,
+  fetchTitles,
   fetchFields,
   fetchSeaAreas,
   fetchSkills,
@@ -34,6 +36,7 @@ import {
   importEquipmentText,
   importDiscoveryText,
   importMemorialAlbumText,
+  importTitleText,
   importFieldText,
   importSeaAreaText,
   importSkillText,
@@ -55,6 +58,7 @@ import type {
   DiscoveryDetail,
   DiscoveryQuestRef,
   MemorialAlbumDetail,
+  TitleDetail,
   FieldDetail,
   SeaAreaDetail,
   SkillDetail,
@@ -74,6 +78,7 @@ import { EquipmentDetailView } from './EquipmentDetailView'
 import { DetailModal } from './DetailModal'
 import { DiscoveryDetailView } from './DiscoveryDetailView'
 import { MemorialAlbumDetailView } from './MemorialAlbumDetailView'
+import { TitleDetailView } from './TitleDetailView'
 import { FieldDetailView } from './FieldDetailView'
 import { SeaAreaDetailView } from './SeaAreaDetailView'
 import { SkillDetailView } from './SkillDetailView'
@@ -144,6 +149,7 @@ type AdminNav =
   | 'discoveries'
   | 'memorial-albums'
   | 'skills'
+  | 'titles'
   | 'fields'
   | 'sea-areas'
   | 'materials'
@@ -221,7 +227,7 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
     if (next === 'consumables' || next === 'equipments') {
       setItemsMenuOpen(true)
     }
-    if (next === 'skills') {
+    if (next === 'skills' || next === 'titles') {
       setCaptainMenuOpen(true)
     }
   }
@@ -320,6 +326,16 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
   const [detailSkill, setDetailSkill] =
     useState<SkillDetail | null>(null)
   const [skillPage, setSkillPage] = useState(0)
+
+  const [titles, setTitles] = useState<TitleDetail[]>([])
+  const [loadingTitles, setLoadingTitles] = useState(false)
+  const [titlesError, setTitlesError] = useState('')
+  const [showTitleImport, setShowTitleImport] = useState(false)
+  const [titleImportText, setTitleImportText] = useState('')
+  const [importingTitle, setImportingTitle] = useState(false)
+  const [titleImportNote, setTitleImportNote] = useState('')
+  const [detailTitle, setDetailTitle] = useState<TitleDetail | null>(null)
+  const [titleQuery, setTitleQuery] = useState('')
 
   const [fields, setFields] = useState<FieldDetail[]>([])
   const [loadingFields, setLoadingFields] = useState(false)
@@ -534,6 +550,23 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
     }
   }, [token])
 
+  const loadTitles = useCallback(async () => {
+    setLoadingTitles(true)
+    setTitlesError('')
+    try {
+      const res = await fetchTitles(token)
+      setTitles(res.titles)
+    } catch (err) {
+      setTitlesError(
+        err instanceof Error
+          ? err.message
+          : '호칭 목록을 불러오지 못했습니다.',
+      )
+    } finally {
+      setLoadingTitles(false)
+    }
+  }, [token])
+
   const loadFields = useCallback(async () => {
     setLoadingFields(true)
     setFieldsError('')
@@ -742,6 +775,7 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
     }
     if (nav === 'memorial-albums') void loadMemorialAlbums()
     if (nav === 'skills') void loadSkills()
+    if (nav === 'titles') void loadTitles()
     if (nav === 'fields') void loadFields()
     if (nav === 'sea-areas') void loadSeaAreas()
     if (nav === 'consumables') void loadConsumables()
@@ -757,6 +791,7 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
     loadDiscoveries,
     loadMemorialAlbums,
     loadSkills,
+    loadTitles,
     loadFields,
     loadSeaAreas,
     loadConsumables,
@@ -1020,6 +1055,22 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
       setSkills((prev) => prev.filter((l) => l.id !== skill.id))
       if (detailSkill?.id === skill.id) setDetailSkill(null)
       onToast(`스킬 「${skill.name}」을(를) 삭제했습니다.`)
+    } catch (err) {
+      onToast(err instanceof Error ? err.message : '삭제에 실패했습니다.')
+    } finally {
+      setDeletingKey(null)
+    }
+  }
+
+  async function handleDeleteTitle(title: TitleDetail) {
+    if (!window.confirm(`「${title.name}」 호칭을 삭제할까요?`)) return
+    const key = `title:${title.id}`
+    setDeletingKey(key)
+    try {
+      await deleteTitle(token, title.id)
+      setTitles((prev) => prev.filter((t) => t.id !== title.id))
+      if (detailTitle?.id === title.id) setDetailTitle(null)
+      onToast(`호칭 「${title.name}」을(를) 삭제했습니다.`)
     } catch (err) {
       onToast(err instanceof Error ? err.message : '삭제에 실패했습니다.')
     } finally {
@@ -1299,6 +1350,32 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
       )
     } finally {
       setImportingSkill(false)
+    }
+  }
+
+  async function handleTitleImport(e: FormEvent) {
+    e.preventDefault()
+    if (!titleImportText.trim()) {
+      setTitleImportNote('텍스트를 붙여넣어 주세요.')
+      return
+    }
+    setImportingTitle(true)
+    setTitleImportNote('')
+    try {
+      const res = await importTitleText(token, titleImportText)
+      setTitleImportText('')
+      setShowTitleImport(false)
+      setTitleImportNote(
+        `「${res.title.name}」을(를) 저장했습니다. (동일 이름이면 내용이 갱신됩니다)`,
+      )
+      onToast(`호칭 「${res.title.name}」 저장 완료`)
+      await loadTitles()
+    } catch (err) {
+      setTitleImportNote(
+        err instanceof Error ? err.message : '저장에 실패했습니다.',
+      )
+    } finally {
+      setImportingTitle(false)
     }
   }
 
@@ -1735,7 +1812,7 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
           </div>
           <div
             className={`admin-nav-group${
-              nav === 'skills' ? ' is-active' : ''
+              nav === 'skills' || nav === 'titles' ? ' is-active' : ''
             }${captainMenuOpen ? ' is-open' : ''}`}
           >
             <button
@@ -1763,6 +1840,13 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
                   <span className="admin-nav-text">스킬 리스트</span>
                   <span className="ver2-chip">ver.2</span>
                 </span>
+              </button>
+              <button
+                type="button"
+                className={nav === 'titles' ? 'active' : ''}
+                onClick={() => goNav('titles')}
+              >
+                <span className="admin-nav-text">호칭 리스트</span>
               </button>
             </div>
           </div>
@@ -3546,6 +3630,172 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
           </section>
         )}
 
+        {nav === 'titles' && (
+          <section className="admin-section">
+            <div className="admin-page-head">
+              <div>
+                <h1>호칭 리스트</h1>
+                <p>
+                  위키 텍스트로 추가·갱신합니다. 같은 이름이면 내용을 덮어씁니다.
+                </p>
+              </div>
+              <div className="admin-page-actions">
+                <button
+                  type="button"
+                  className="admin-btn"
+                  onClick={() => void loadTitles()}
+                  disabled={loadingTitles}
+                >
+                  새로고침
+                </button>
+                <button
+                  type="button"
+                  className="admin-btn admin-btn-primary"
+                  onClick={() => {
+                    setShowTitleImport((v) => !v)
+                    setTitleImportNote('')
+                  }}
+                >
+                  {showTitleImport ? '닫기' : '초기 데이터 추가'}
+                </button>
+              </div>
+            </div>
+
+            {showTitleImport && (
+              <form className="admin-import-form" onSubmit={handleTitleImport}>
+                <label className="field">
+                  <span>초기 데이터 텍스트</span>
+                  <textarea
+                    className="quest-import-textarea"
+                    rows={14}
+                    value={titleImportText}
+                    onChange={(e) => setTitleImportText(e.target.value)}
+                    placeholder={`호칭그란데\n그란데 가나돌에게 계속해서 승리한 자에게 주어지는 칭호.\n…\n\n효과\t가나돌 전투에서 승리 시 얻는 경험치, 명성, 보상 증가\n필요\t피사로(그란데 가나돌) 처치.`}
+                    disabled={importingTitle}
+                  />
+                </label>
+                <div className="form-actions">
+                  <button
+                    type="submit"
+                    className="admin-btn admin-btn-primary"
+                    disabled={importingTitle}
+                  >
+                    {importingTitle ? '저장 중…' : '저장'}
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {titleImportNote && (
+              <p
+                className={`form-note${
+                  /실패|못|오류|에러|중복/.test(titleImportNote)
+                    ? ' error'
+                    : ''
+                }`}
+              >
+                {titleImportNote}
+              </p>
+            )}
+
+            {titlesError && (
+              <p className="form-note error" role="alert">
+                {titlesError}
+              </p>
+            )}
+
+            <label className="field catalog-search">
+              <input
+                type="search"
+                value={titleQuery}
+                onChange={(e) => setTitleQuery(e.target.value)}
+                placeholder="이름·효과·필요로 검색"
+                aria-label="호칭 검색"
+                autoComplete="off"
+                disabled={loadingTitles}
+              />
+            </label>
+
+            {loadingTitles && titles.length === 0 ? (
+              <p className="form-note">불러오는 중…</p>
+            ) : (
+              <div className="admin-table-wrap">
+                <table className="admin-table">
+                  <thead>
+                    <tr>
+                      <th>이름</th>
+                      <th className="col-desk">효과</th>
+                      <th className="col-desk">필요</th>
+                      <th className="col-desk col-action">삭제</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {titles
+                      .filter((item) => {
+                        const q = titleQuery.trim().toLowerCase()
+                        if (!q) return true
+                        const hay = [
+                          item.name,
+                          item.altName,
+                          item.effect,
+                          item.requirement,
+                          item.description,
+                        ]
+                          .filter((v) => v != null && v !== '')
+                          .join(' ')
+                          .toLowerCase()
+                        return hay.includes(q)
+                      })
+                      .slice()
+                      .sort(compareIdDesc)
+                      .map((item, index) => (
+                        <tr
+                          key={item.id}
+                          className={`admin-row-clickable${index % 2 === 0 ? ' is-even' : ' is-odd'}`}
+                          tabIndex={0}
+                          onClick={() => setDetailTitle(item)}
+                          onKeyDown={(
+                            event: KeyboardEvent<HTMLTableRowElement>,
+                          ) => {
+                            if (event.key === 'Enter' || event.key === ' ') {
+                              event.preventDefault()
+                              setDetailTitle(item)
+                            }
+                          }}
+                        >
+                          <td>{item.name}</td>
+                          <td className="col-desk">{item.effect || '-'}</td>
+                          <td className="col-desk">
+                            {item.requirement || '-'}
+                          </td>
+                          <td
+                            className="admin-cell-control col-desk col-action"
+                            onClick={(e) => e.stopPropagation()}
+                            onKeyDown={(e) => e.stopPropagation()}
+                          >
+                            <button
+                              type="button"
+                              className="admin-danger-btn"
+                              disabled={deletingKey === `title:${item.id}`}
+                              onClick={() => void handleDeleteTitle(item)}
+                            >
+                              삭제
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    {titles.length === 0 && (
+                      <tr>
+                        <td colSpan={4}>등록된 호칭이 없습니다.</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+        )}
+
         {nav === 'sea-areas' && (
           <section className="admin-section">
             <div className="admin-page-head">
@@ -4585,13 +4835,35 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
         </DetailModal>
       )}
 
+      {detailTitle && (
+        <DetailModal
+          title="호칭 상세"
+          label={`${detailTitle.name} 상세`}
+          onClose={() => setDetailTitle(null)}
+        >
+          <TitleDetailView
+            title={detailTitle}
+            edit={{
+              token,
+              onToast,
+              onSaved: (next) => {
+                setTitles((prev) =>
+                  prev.map((t) => (t.id === next.id ? next : t)),
+                )
+                setDetailTitle(next)
+              },
+            }}
+          />
+        </DetailModal>
+      )}
+
       {detailMaterial && (
         <DetailModal
           title="선박 재료 상세"
           label={`${detailMaterial.name} 상세`}
           onClose={() => setDetailMaterial(null)}
         >
-          <ShipMaterialDetailView material={detailMaterial} />
+          <ShipMaterialDetailView material={detailMaterial} showEmpty />
         </DetailModal>
       )}
 

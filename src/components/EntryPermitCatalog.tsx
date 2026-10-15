@@ -1,7 +1,7 @@
 import { useEffect, useState, type KeyboardEvent } from 'react'
 import { fetchEntryPermits } from '../lib/api'
 import { matchesEntryPermitQuery } from '../lib/entryPermitSearch'
-import { useTableSort } from '../lib/tableSort'
+import { compareIdDesc, useTableSort } from '../lib/tableSort'
 import type { EntryPermitDetail } from '../types'
 import { DetailModal } from './DetailModal'
 import { EntryPermitDetailView } from './EntryPermitDetailView'
@@ -50,6 +50,7 @@ export function EntryPermitCatalog({ token }: EntryPermitCatalogProps) {
     items.filter((item) => matchesEntryPermitQuery(item, query)),
     (item, key) => item[key],
     (a, b) => a.id - b.id,
+    compareIdDesc,
   )
 
   return (

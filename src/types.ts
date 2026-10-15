@@ -366,6 +366,16 @@ export type MemorialAlbumDetail = {
   items: MemorialAlbumItem[]
 }
 
+export type TitleDetail = {
+  id: number
+  slug: string
+  name: string
+  altName: string | null
+  description: string | null
+  effect: string | null
+  requirement: string | null
+}
+
 export type FieldSurveyTask = {
   required: boolean
   kind: string | null

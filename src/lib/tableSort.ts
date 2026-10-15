@@ -15,8 +15,13 @@ export function compareSortValues(
   return String(a).localeCompare(String(b), 'ko', { numeric: true })
 }
 
-/** id 기준 최신(큰 id) 우선 */
-export function compareIdDesc<T extends { id: number }>(a: T, b: T) {
+/** 최근 수정(updatedAt) 우선, 없으면 id 큰 값 우선 */
+export function compareIdDesc<
+  T extends { id: number; updatedAt?: string | null },
+>(a: T, b: T) {
+  const aU = a.updatedAt || ''
+  const bU = b.updatedAt || ''
+  if (aU !== bU) return bU.localeCompare(aU)
   return b.id - a.id
 }
 

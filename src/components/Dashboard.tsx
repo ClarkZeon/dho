@@ -13,6 +13,7 @@ import { MemorialAlbumCatalog } from './MemorialAlbumCatalog'
 import { FieldCatalog } from './FieldCatalog'
 import { SeaAreaCatalog } from './SeaAreaCatalog'
 import { SkillCatalog } from './SkillCatalog'
+import { TitleCatalog } from './TitleCatalog'
 import { PortCatalog } from './PortCatalog'
 import { RegionCatalog } from './RegionCatalog'
 import { EntryPermitCatalog } from './EntryPermitCatalog'
@@ -39,6 +40,7 @@ type View =
   | { name: 'discoveries' }
   | { name: 'memorial-albums' }
   | { name: 'skills' }
+  | { name: 'titles' }
   | { name: 'fields' }
   | { name: 'sea-areas' }
 
@@ -76,6 +78,8 @@ function viewToHash(view: View): string {
       return '#/memorial-albums'
     case 'skills':
       return '#/skills'
+    case 'titles':
+      return '#/titles'
     case 'fields':
       return '#/fields'
     case 'sea-areas':
@@ -122,6 +126,7 @@ function hashToView(hash: string): View {
   if (parts[0] === 'skills' || parts[0] === 'languages') {
     return { name: 'skills' }
   }
+  if (parts[0] === 'titles') return { name: 'titles' }
   if (parts[0] === 'fields') return { name: 'fields' }
   if (parts[0] === 'sea-areas') return { name: 'sea-areas' }
   if (parts[0] === 'board' && parts[1]) {
@@ -212,6 +217,7 @@ function toMenuTarget(view: View): MenuTarget {
   if (view.name === 'discoveries') return { name: 'discoveries' }
   if (view.name === 'memorial-albums') return { name: 'memorial-albums' }
   if (view.name === 'skills') return { name: 'skills' }
+  if (view.name === 'titles') return { name: 'titles' }
   if (view.name === 'fields') return { name: 'fields' }
   if (view.name === 'sea-areas') return { name: 'sea-areas' }
   return { name: 'home' }
@@ -384,6 +390,10 @@ export function Dashboard({ user, token, onLogout, onToast }: DashboardProps) {
     }
     if (target.name === 'skills') {
       go({ name: 'skills' })
+      return
+    }
+    if (target.name === 'titles') {
+      go({ name: 'titles' })
       return
     }
     if (target.name === 'fields') {
@@ -665,6 +675,14 @@ export function Dashboard({ user, token, onLogout, onToast }: DashboardProps) {
                       <strong>스킬</strong>
                       <span>스킬·습득 정보</span>
                     </button>
+                    <button
+                      type="button"
+                      className="dash-link"
+                      onClick={() => go({ name: 'titles' })}
+                    >
+                      <strong>호칭</strong>
+                      <span>호칭·효과·필요</span>
+                    </button>
                   </div>
                 </div>
               </div>
@@ -751,6 +769,8 @@ export function Dashboard({ user, token, onLogout, onToast }: DashboardProps) {
         )}
 
         {view.name === 'skills' && <SkillCatalog token={token} />}
+
+        {view.name === 'titles' && <TitleCatalog token={token} />}
 
         {view.name === 'fields' && <FieldCatalog token={token} />}
 

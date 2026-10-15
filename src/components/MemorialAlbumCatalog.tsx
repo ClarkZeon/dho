@@ -1,6 +1,6 @@
 import { useEffect, useState, type KeyboardEvent } from 'react'
 import { fetchMemorialAlbums } from '../lib/api'
-import { useTableSort } from '../lib/tableSort'
+import { compareIdDesc, useTableSort } from '../lib/tableSort'
 import type { MemorialAlbumDetail } from '../types'
 import { DetailModal } from './DetailModal'
 import { MemorialAlbumDetailView } from './MemorialAlbumDetailView'
@@ -70,6 +70,7 @@ export function MemorialAlbumCatalog({ token }: MemorialAlbumCatalogProps) {
       return item[key]
     },
     (a, b) => a.id - b.id,
+    compareIdDesc,
   )
 
   return (

@@ -64,13 +64,18 @@ function decorateRegion(row) {
     altName: row.alt_name == null ? null : String(row.alt_name),
     description: row.description == null ? null : String(row.description),
     seaGroups: normalizeSeaGroups(asJsonArray(row.sea_groups)),
+    updatedAt: row.updated_at
+      ? new Date(/** @type {string|Date} */ (row.updated_at)).toISOString()
+      : null,
   }
 }
 
 export async function listRegions() {
   const sql = getSql()
   const rows = await sql`
-    SELECT * FROM regions WHERE enabled = TRUE ORDER BY sort_order, id
+    SELECT * FROM regions
+    WHERE enabled = TRUE
+    ORDER BY updated_at DESC NULLS LAST, id DESC
   `
   return rows.map(decorateRegion)
 }

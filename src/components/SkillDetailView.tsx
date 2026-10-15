@@ -27,7 +27,16 @@ type EditSection =
 const SKILL_CATEGORIES = ['언어', '모험', '교역', '전투', '기타']
 const RANGE_SCOPES = ['함대', '자신', '적', '아군', '기타']
 
-function Row({ label, value }: { label: string; value: string | null }) {
+function Row({
+  label,
+  value,
+  hideEmpty,
+}: {
+  label: string
+  value: string | null
+  hideEmpty?: boolean
+}) {
+  if (hideEmpty && !value?.trim()) return null
   return (
     <div>
       <span>{label}</span>
@@ -416,16 +425,41 @@ export function SkillDetailView({ skill, edit }: SkillDetailViewProps) {
         ) : (
           <div className="quest-kv-grid">
             <Row label="분류" value={skill.category || '언어'} />
-            <Row label="행동력" value={skill.actionPower} />
-            <Row label="자동효과" value={formatAutoEffect(skill.autoEffect)} />
-            <Row label="범위" value={skill.rangeScope} />
-            <Row label="습득 비용" value={formatCost(skill.learnCost)} />
+            <Row
+              label="행동력"
+              value={skill.actionPower}
+              hideEmpty={!canEdit}
+            />
+            <Row
+              label="자동효과"
+              value={formatAutoEffect(skill.autoEffect)}
+              hideEmpty={!canEdit}
+            />
+            <Row
+              label="범위"
+              value={skill.rangeScope}
+              hideEmpty={!canEdit}
+            />
+            <Row
+              label="습득 비용"
+              value={formatCost(skill.learnCost)}
+              hideEmpty={!canEdit}
+            />
             <Row
               label="장착 비용"
               value={formatCost(skill.equipCost, '학점')}
+              hideEmpty={!canEdit}
             />
-            <Row label="부관담당" value={skill.officerDuty} />
-            <Row label="연성 효과" value={skill.refineEffect} />
+            <Row
+              label="부관담당"
+              value={skill.officerDuty}
+              hideEmpty={!canEdit}
+            />
+            <Row
+              label="연성 효과"
+              value={skill.refineEffect}
+              hideEmpty={!canEdit}
+            />
             {skill.prerequisite && acquireConditions.length === 0 ? (
               <Row label="선행 스킬" value={skill.prerequisite} />
             ) : null}

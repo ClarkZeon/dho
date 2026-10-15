@@ -18,6 +18,7 @@ import {
   ensureCatalogStats,
   loadAdminCatalogCounts,
 } from './adminStats.mjs'
+import { ensureCatalogUpdatedAt } from './catalogUpdatedAt.mjs'
 import { hasDatabaseUrl } from './db.mjs'
 import {
   countUnread,
@@ -149,6 +150,15 @@ import {
 } from './skillStore.mjs'
 import { parseSkillText } from './skillTextParse.mjs'
 import {
+  deleteTitle,
+  ensureTitleStore,
+  getTitleById,
+  listTitles,
+  updateTitleFields,
+  upsertTitleFromParsed,
+} from './titleStore.mjs'
+import { parseTitleText } from './titleTextParse.mjs'
+import {
   createUser,
   deleteSessionByToken,
   getAuthUserByToken,
@@ -212,12 +222,14 @@ async function ensureStore() {
   await ensureEntryPermitStore()
   await ensureDiscoveryStore()
   await ensureSkillStore()
+  await ensureTitleStore()
   await ensureFieldStore()
   await ensureSeaAreaStore()
   await ensureConsumableStore()
   await ensureEquipmentStore()
   await ensureMemorialAlbumStore()
   await ensureCatalogStats()
+  await ensureCatalogUpdatedAt()
 }
 
 function requireAuthDb(res) {
@@ -2117,6 +2129,99 @@ export async function handleRequest(req, res) {
       } catch (err) {
         const message =
           err instanceof Error ? err.message : '스킬 삭제에 실패했습니다.'
+        sendJson(
+          res,
+          message.includes('찾을 수 없') ? 404 : 400,
+          { error: message },
+        )
+      }
+      return
+    }
+
+    if (req.method === 'GET' && pathname === '/api/titles') {
+      const authUser = await getAuthUser(req)
+      if (!authUser) {
+        sendJson(res, 401, { error: '로그인이 필요합니다.' })
+        return
+      }
+      const titles = await listTitles()
+      sendJson(res, 200, { titles })
+      return
+    }
+
+    if (req.method === 'POST' && pathname === '/api/titles/import-text') {
+      const authUser = await getAuthUser(req)
+      if (!authUser) {
+        sendJson(res, 401, { error: '로그인이 필요합니다.' })
+        return
+      }
+      if (!requireAdmin(authUser, res)) return
+      const body = await readBody(req)
+      const text = typeof body.text === 'string' ? body.text : ''
+      try {
+        const parsed = parseTitleText(text)
+        const title = await upsertTitleFromParsed(parsed)
+        sendJson(res, 201, { title })
+      } catch (err) {
+        sendJson(res, 400, {
+          error:
+            err instanceof Error
+              ? err.message
+              : '호칭 텍스트 파싱에 실패했습니다.',
+        })
+      }
+      return
+    }
+
+    const titleMatch = pathname.match(/^\/api\/titles\/([^/]+)$/)
+    if (titleMatch && req.method === 'PATCH') {
+      const authUser = await getAuthUser(req)
+      if (!authUser) {
+        sendJson(res, 401, { error: '로그인이 필요합니다.' })
+        return
+      }
+      if (!requireAdmin(authUser, res)) return
+      const titleId = Number(decodeURIComponent(titleMatch[1]))
+      if (!Number.isFinite(titleId)) {
+        sendJson(res, 400, { error: '잘못된 호칭 ID입니다.' })
+        return
+      }
+      const existing = await getTitleById(titleId)
+      if (!existing) {
+        sendJson(res, 404, { error: '호칭을 찾을 수 없습니다.' })
+        return
+      }
+      const body = await readBody(req)
+      try {
+        const title = await updateTitleFields(titleId, body)
+        sendJson(res, 200, { title })
+      } catch (err) {
+        sendJson(res, 400, {
+          error:
+            err instanceof Error ? err.message : '호칭 수정에 실패했습니다.',
+        })
+      }
+      return
+    }
+
+    if (titleMatch && req.method === 'DELETE') {
+      const authUser = await getAuthUser(req)
+      if (!authUser) {
+        sendJson(res, 401, { error: '로그인이 필요합니다.' })
+        return
+      }
+      if (!requireAdmin(authUser, res)) return
+      const titleId = Number(decodeURIComponent(titleMatch[1]))
+      if (!Number.isFinite(titleId)) {
+        sendJson(res, 400, { error: '잘못된 호칭 ID입니다.' })
+        return
+      }
+      try {
+        await deleteTitle(titleId)
+        sendJson(res, 200, { ok: true })
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : '호칭 삭제에 실패했습니다.'
         sendJson(
           res,
           message.includes('찾을 수 없') ? 404 : 400,

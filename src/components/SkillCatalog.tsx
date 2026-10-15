@@ -1,6 +1,6 @@
 ﻿import { useEffect, useState, type KeyboardEvent } from 'react'
 import { fetchSkills } from '../lib/api'
-import { useTableSort } from '../lib/tableSort'
+import { compareIdDesc, useTableSort } from '../lib/tableSort'
 import type { SkillDetail } from '../types'
 import { DetailModal } from './DetailModal'
 import { SkillDetailView } from './SkillDetailView'
@@ -131,6 +131,7 @@ export function SkillCatalog({ token }: SkillCatalogProps) {
       }
     },
     (a, b) => a.id - b.id,
+    compareIdDesc,
   )
 
   function toggleCategory(category: string) {

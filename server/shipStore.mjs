@@ -117,6 +117,9 @@ function decorateShipRow(ship, sizes, forms, materials, skillRows) {
     skills,
     sailTotal: sailVertical + sailHorizontal,
     loadTotal: cabin + guns + warehouse,
+    updatedAt: ship.updated_at
+      ? new Date(/** @type {string|Date} */ (ship.updated_at)).toISOString()
+      : null,
   }
 }
 
@@ -372,6 +375,9 @@ function decorateShipMaterial(row) {
       items: asJsonArray(item?.items).map(String),
     })),
     sortOrder: Number(row.sort_order) || 0,
+    updatedAt: row.updated_at
+      ? new Date(/** @type {string|Date} */ (row.updated_at)).toISOString()
+      : null,
   }
 }
 
@@ -381,7 +387,7 @@ export async function listShipMaterials() {
     SELECT *
     FROM ship_materials
     WHERE enabled = TRUE
-    ORDER BY sort_order, id
+    ORDER BY updated_at DESC NULLS LAST, id DESC
   `
   return rows.map(decorateShipMaterial)
 }
@@ -504,7 +510,7 @@ async function loadSkillLinks() {
 export async function listShips() {
   const sql = getSql()
   const [ships, lookups, skillRows] = await Promise.all([
-    sql`SELECT * FROM ships WHERE enabled = TRUE ORDER BY sort_order, id`,
+    sql`SELECT * FROM ships WHERE enabled = TRUE ORDER BY updated_at DESC NULLS LAST, id DESC`,
     loadLookups(),
     loadSkillLinks(),
   ])

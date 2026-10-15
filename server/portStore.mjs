@@ -127,13 +127,18 @@ function decoratePort(row) {
       era: asNullableText(item?.era),
       price: asNullableText(item?.price),
     })),
+    updatedAt: row.updated_at
+      ? new Date(/** @type {string|Date} */ (row.updated_at)).toISOString()
+      : null,
   }
 }
 
 export async function listPorts() {
   const sql = getSql()
   const rows = await sql`
-    SELECT * FROM ports WHERE enabled = TRUE ORDER BY sort_order, id
+    SELECT * FROM ports
+    WHERE enabled = TRUE
+    ORDER BY updated_at DESC NULLS LAST, id DESC
   `
   return rows.map(decoratePort)
 }

@@ -387,6 +387,7 @@ export function SeaAreaDetailView({ seaArea, edit }: SeaAreaDetailViewProps) {
   const showFishing = canEdit || fishing.length > 0
   const showGathering = canEdit || gathering.length > 0
   const showPets = canEdit || pets.length > 0
+  const showOtherCollect = canEdit || otherCollect.length > 0
   const showDestinations = canEdit || seaArea.destinations.length > 0
   const showNpcs = canEdit || seaArea.seaNpcs.length > 0
   const showDescription = canEdit || Boolean(seaArea.description)
@@ -755,10 +756,14 @@ export function SeaAreaDetailView({ seaArea, edit }: SeaAreaDetailViewProps) {
         </section>
       )}
 
-      {otherCollect.length > 0 && (
+      {showOtherCollect && (
         <section className="quest-detail-section">
           <h3>기타 수집</h3>
-          <ReadCollectTable items={otherCollect} variant="gather" />
+          {otherCollect.length > 0 ? (
+            <ReadCollectTable items={otherCollect} variant="gather" />
+          ) : (
+            <p className="quest-muted">없음</p>
+          )}
         </section>
       )}
 
