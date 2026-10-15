@@ -176,6 +176,21 @@ export type QuestChainItem = {
   raw?: string
 }
 
+/** 필요 → 선행 발견/퀘스트 */
+export type QuestPrerequisite = {
+  kind: 'discovery' | 'quest' | 'other'
+  raw: string
+  discoveryCategory?: string | null
+  discoveryRank?: number | null
+  discoveryName?: string | null
+  nested?: string | null
+  category?: string
+  name?: string
+  difficulty?: number
+  skills?: QuestSkillReq[]
+  places?: string
+}
+
 export type QuestDetail = {
   id: number
   slug: string
@@ -192,6 +207,7 @@ export type QuestDetail = {
   /** 발견물 DB 이름 매칭 시 참조 (없으면 null, 표시는 discoveryName 유지) */
   discoveryRef?: DiscoveryQuestRef | null
   skills: QuestSkillReq[]
+  prerequisites: QuestPrerequisite[]
   rewardDucat: number | null
   rewardAdvance: number | null
   expDiscovery: number | null
@@ -327,6 +343,24 @@ export type EntryPermitDetail = {
   requirement: string | null
   fame: EntryPermitFame[]
   cityQuests: EntryPermitCityQuests[]
+}
+
+export type MemorialAlbumItem = {
+  name: string
+  note: string | null
+}
+
+export type MemorialAlbumDetail = {
+  id: number
+  slug: string
+  name: string
+  altName: string | null
+  description: string | null
+  category: string | null
+  rewardNpc: string | null
+  rewardItem: string | null
+  itemCount: number | null
+  items: MemorialAlbumItem[]
 }
 
 export type FieldSurveyTask = {
@@ -499,6 +533,64 @@ export type ConsumableDetail = {
   events: ConsumableInfoRow[]
   landResurveys: ConsumableLandResurvey[]
   pets: ConsumablePet[]
+}
+
+export type EquipmentSkillBonus = {
+  name: string
+  rank: string | null
+}
+
+export type EquipmentRequirements = {
+  fame: string | null
+  infamy: string | null
+  gender: string | null
+  jobClass: string | null
+  title: string | null
+  alias: string | null
+}
+
+export type EquipmentTransmutation = {
+  policy: string
+  skills: string
+  materials: string
+  product: string
+}
+
+export type EquipmentQuestAcquire = {
+  quest: string
+  destination: string
+}
+
+export type EquipmentInfoRow = {
+  name: string
+  detail: string | null
+}
+
+export type EquipmentDetail = {
+  id: number
+  slug: string
+  name: string
+  altName: string | null
+  description: string | null
+  category: string | null
+  useEffect: string | null
+  equipSlot: string | null
+  durability: string | null
+  attack: string | null
+  defense: string | null
+  dressEtiquette: string | null
+  disguise: string | null
+  skills: EquipmentSkillBonus[]
+  equipmentEffects: EquipmentSkillBonus[]
+  memorialAlbum: string | null
+  requirements: EquipmentRequirements
+  nonTradable: boolean
+  acquireMethods: string[]
+  purchases: ConsumablePurchase[]
+  transmutations: EquipmentTransmutation[]
+  quests: EquipmentQuestAcquire[]
+  treasureMaps: EquipmentInfoRow[]
+  memorialAlbums: EquipmentInfoRow[]
 }
 
 export type DiscoveryCategory = {

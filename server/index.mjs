@@ -112,6 +112,24 @@ import {
 import { parseConsumableReadBody } from './consumableReadBodyParse.mjs'
 import { parseConsumableText } from './consumableTextParse.mjs'
 import {
+  deleteMemorialAlbum,
+  ensureMemorialAlbumStore,
+  getMemorialAlbumById,
+  listMemorialAlbums,
+  updateMemorialAlbumFields,
+  upsertMemorialAlbumFromParsed,
+} from './memorialAlbumStore.mjs'
+import { parseMemorialAlbumText } from './memorialAlbumTextParse.mjs'
+import {
+  deleteEquipment,
+  ensureEquipmentStore,
+  getEquipmentById,
+  listEquipments,
+  updateEquipmentFields,
+  upsertEquipmentFromParsed,
+} from './equipmentStore.mjs'
+import { parseEquipmentText } from './equipmentTextParse.mjs'
+import {
   deleteDiscovery,
   ensureDiscoveryStore,
   getDiscoveryById,
@@ -197,6 +215,8 @@ async function ensureStore() {
   await ensureFieldStore()
   await ensureSeaAreaStore()
   await ensureConsumableStore()
+  await ensureEquipmentStore()
+  await ensureMemorialAlbumStore()
   await ensureCatalogStats()
 }
 
@@ -1567,6 +1587,229 @@ export async function handleRequest(req, res) {
       } catch (err) {
         const message =
           err instanceof Error ? err.message : '소비품 삭제에 실패했습니다.'
+        sendJson(
+          res,
+          message.includes('찾을 수 없') ? 404 : 400,
+          { error: message },
+        )
+      }
+      return
+    }
+
+    if (req.method === 'GET' && pathname === '/api/equipments') {
+      const authUser = await getAuthUser(req)
+      if (!authUser) {
+        sendJson(res, 401, { error: '로그인이 필요합니다.' })
+        return
+      }
+      const equipments = await listEquipments()
+      sendJson(res, 200, { equipments })
+      return
+    }
+
+    if (req.method === 'POST' && pathname === '/api/equipments/import-text') {
+      const authUser = await getAuthUser(req)
+      if (!authUser) {
+        sendJson(res, 401, { error: '로그인이 필요합니다.' })
+        return
+      }
+      if (!requireAdmin(authUser, res)) return
+      const body = await readBody(req)
+      const text = typeof body.text === 'string' ? body.text : ''
+      try {
+        const parsed = parseEquipmentText(text)
+        const equipment = await upsertEquipmentFromParsed(parsed)
+        sendJson(res, 201, { equipment })
+      } catch (err) {
+        sendJson(res, 400, {
+          error:
+            err instanceof Error
+              ? err.message
+              : '장비품 텍스트 파싱에 실패했습니다.',
+        })
+      }
+      return
+    }
+
+    const equipmentMatch = pathname.match(/^\/api\/equipments\/([^/]+)$/)
+    if (equipmentMatch && req.method === 'PATCH') {
+      const authUser = await getAuthUser(req)
+      if (!authUser) {
+        sendJson(res, 401, { error: '로그인이 필요합니다.' })
+        return
+      }
+      if (!requireAdmin(authUser, res)) return
+      const equipmentId = Number(decodeURIComponent(equipmentMatch[1]))
+      if (!Number.isFinite(equipmentId)) {
+        sendJson(res, 400, { error: '잘못된 장비품 ID입니다.' })
+        return
+      }
+      const existing = await getEquipmentById(equipmentId)
+      if (!existing) {
+        sendJson(res, 404, { error: '장비품을 찾을 수 없습니다.' })
+        return
+      }
+      const body = await readBody(req)
+      const patch = {}
+      if ('description' in body) patch.description = body.description
+      if ('altName' in body) patch.altName = body.altName
+      if ('category' in body) patch.category = body.category
+      if ('useEffect' in body) patch.useEffect = body.useEffect
+      if ('equipSlot' in body) patch.equipSlot = body.equipSlot
+      if ('durability' in body) patch.durability = body.durability
+      if ('attack' in body) patch.attack = body.attack
+      if ('defense' in body) patch.defense = body.defense
+      if ('dressEtiquette' in body) patch.dressEtiquette = body.dressEtiquette
+      if ('disguise' in body) patch.disguise = body.disguise
+      if ('skills' in body) patch.skills = body.skills
+      if ('equipmentEffects' in body) patch.equipmentEffects = body.equipmentEffects
+      if ('memorialAlbum' in body) patch.memorialAlbum = body.memorialAlbum
+      if ('requirements' in body) patch.requirements = body.requirements
+      if ('nonTradable' in body) patch.nonTradable = body.nonTradable
+      if ('acquireMethods' in body) patch.acquireMethods = body.acquireMethods
+      if ('purchases' in body) patch.purchases = body.purchases
+      if ('transmutations' in body) patch.transmutations = body.transmutations
+      if ('quests' in body) patch.quests = body.quests
+      if ('treasureMaps' in body) patch.treasureMaps = body.treasureMaps
+      if ('memorialAlbums' in body) patch.memorialAlbums = body.memorialAlbums
+      if (!Object.keys(patch).length) {
+        sendJson(res, 400, { error: '변경할 필드가 없습니다.' })
+        return
+      }
+      try {
+        const equipment = await updateEquipmentFields(equipmentId, patch)
+        sendJson(res, 200, { equipment })
+      } catch (err) {
+        sendJson(res, 400, {
+          error:
+            err instanceof Error
+              ? err.message
+              : '장비품 수정에 실패했습니다.',
+        })
+      }
+      return
+    }
+
+    if (equipmentMatch && req.method === 'DELETE') {
+      const authUser = await getAuthUser(req)
+      if (!authUser) {
+        sendJson(res, 401, { error: '로그인이 필요합니다.' })
+        return
+      }
+      if (!requireAdmin(authUser, res)) return
+      const equipmentId = Number(decodeURIComponent(equipmentMatch[1]))
+      if (!Number.isFinite(equipmentId)) {
+        sendJson(res, 400, { error: '잘못된 장비품 ID입니다.' })
+        return
+      }
+      try {
+        await deleteEquipment(equipmentId)
+        sendJson(res, 200, { ok: true })
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : '장비품 삭제에 실패했습니다.'
+        sendJson(
+          res,
+          message.includes('찾을 수 없') ? 404 : 400,
+          { error: message },
+        )
+      }
+      return
+    }
+
+    if (req.method === 'GET' && pathname === '/api/memorial-albums') {
+      const authUser = await getAuthUser(req)
+      if (!authUser) {
+        sendJson(res, 401, { error: '로그인이 필요합니다.' })
+        return
+      }
+      const memorialAlbums = await listMemorialAlbums()
+      sendJson(res, 200, { memorialAlbums })
+      return
+    }
+
+    if (
+      req.method === 'POST' &&
+      pathname === '/api/memorial-albums/import-text'
+    ) {
+      const authUser = await getAuthUser(req)
+      if (!authUser) {
+        sendJson(res, 401, { error: '로그인이 필요합니다.' })
+        return
+      }
+      if (!requireAdmin(authUser, res)) return
+      const body = await readBody(req)
+      const text = typeof body.text === 'string' ? body.text : ''
+      try {
+        const parsed = parseMemorialAlbumText(text)
+        const memorialAlbum = await upsertMemorialAlbumFromParsed(parsed)
+        sendJson(res, 201, { memorialAlbum })
+      } catch (err) {
+        sendJson(res, 400, {
+          error:
+            err instanceof Error
+              ? err.message
+              : '메모리얼 앨범 텍스트 파싱에 실패했습니다.',
+        })
+      }
+      return
+    }
+
+    const memorialAlbumMatch = pathname.match(
+      /^\/api\/memorial-albums\/([^/]+)$/,
+    )
+    if (memorialAlbumMatch && req.method === 'PATCH') {
+      const authUser = await getAuthUser(req)
+      if (!authUser) {
+        sendJson(res, 401, { error: '로그인이 필요합니다.' })
+        return
+      }
+      if (!requireAdmin(authUser, res)) return
+      const albumId = Number(decodeURIComponent(memorialAlbumMatch[1]))
+      if (!Number.isFinite(albumId)) {
+        sendJson(res, 400, { error: '잘못된 메모리얼 앨범 ID입니다.' })
+        return
+      }
+      const existing = await getMemorialAlbumById(albumId)
+      if (!existing) {
+        sendJson(res, 404, { error: '메모리얼 앨범을 찾을 수 없습니다.' })
+        return
+      }
+      const body = await readBody(req)
+      try {
+        const memorialAlbum = await updateMemorialAlbumFields(albumId, body)
+        sendJson(res, 200, { memorialAlbum })
+      } catch (err) {
+        sendJson(res, 400, {
+          error:
+            err instanceof Error
+              ? err.message
+              : '메모리얼 앨범 수정에 실패했습니다.',
+        })
+      }
+      return
+    }
+
+    if (memorialAlbumMatch && req.method === 'DELETE') {
+      const authUser = await getAuthUser(req)
+      if (!authUser) {
+        sendJson(res, 401, { error: '로그인이 필요합니다.' })
+        return
+      }
+      if (!requireAdmin(authUser, res)) return
+      const albumId = Number(decodeURIComponent(memorialAlbumMatch[1]))
+      if (!Number.isFinite(albumId)) {
+        sendJson(res, 400, { error: '잘못된 메모리얼 앨범 ID입니다.' })
+        return
+      }
+      try {
+        await deleteMemorialAlbum(albumId)
+        sendJson(res, 200, { ok: true })
+      } catch (err) {
+        const message =
+          err instanceof Error
+            ? err.message
+            : '메모리얼 앨범 삭제에 실패했습니다.'
         sendJson(
           res,
           message.includes('찾을 수 없') ? 404 : 400,

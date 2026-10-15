@@ -2,7 +2,9 @@
 import {
   deleteAdminUser,
   deleteConsumable,
+  deleteEquipment,
   deleteDiscovery,
+  deleteMemorialAlbum,
   deleteField,
   deleteSeaArea,
   deleteSkill,
@@ -15,7 +17,9 @@ import {
   fetchAdminUsers,
   fetchBoards,
   fetchConsumables,
+  fetchEquipments,
   fetchDiscoveries,
+  fetchMemorialAlbums,
   fetchFields,
   fetchSeaAreas,
   fetchSkills,
@@ -27,7 +31,9 @@ import {
   fetchShipMaterials,
   fetchShips,
   importConsumableText,
+  importEquipmentText,
   importDiscoveryText,
+  importMemorialAlbumText,
   importFieldText,
   importSeaAreaText,
   importSkillText,
@@ -45,8 +51,10 @@ import type {
   AdminUser,
   BoardSummary,
   ConsumableDetail,
+  EquipmentDetail,
   DiscoveryDetail,
   DiscoveryQuestRef,
+  MemorialAlbumDetail,
   FieldDetail,
   SeaAreaDetail,
   SkillDetail,
@@ -62,8 +70,10 @@ import { AdminDashboard } from './AdminDashboard'
 import { BoardView } from './BoardView'
 import { BrandMark } from './BrandMark'
 import { ConsumableDetailView } from './ConsumableDetailView'
+import { EquipmentDetailView } from './EquipmentDetailView'
 import { DetailModal } from './DetailModal'
 import { DiscoveryDetailView } from './DiscoveryDetailView'
+import { MemorialAlbumDetailView } from './MemorialAlbumDetailView'
 import { FieldDetailView } from './FieldDetailView'
 import { SeaAreaDetailView } from './SeaAreaDetailView'
 import { SkillDetailView } from './SkillDetailView'
@@ -132,11 +142,13 @@ type AdminNav =
   | 'regions'
   | 'entry-permits'
   | 'discoveries'
+  | 'memorial-albums'
   | 'skills'
   | 'fields'
   | 'sea-areas'
   | 'materials'
   | 'consumables'
+  | 'equipments'
 
 type AdminPanelProps = {
   user: User
@@ -190,7 +202,11 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
     if (next === 'ships' || next === 'materials') {
       setShipsMenuOpen(true)
     }
-    if (next === 'quests' || next === 'discoveries') {
+    if (
+      next === 'quests' ||
+      next === 'discoveries' ||
+      next === 'memorial-albums'
+    ) {
       setAtlasMenuOpen(true)
     }
     if (
@@ -202,7 +218,7 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
     ) {
       setRegionsMenuOpen(true)
     }
-    if (next === 'consumables') {
+    if (next === 'consumables' || next === 'equipments') {
       setItemsMenuOpen(true)
     }
     if (next === 'skills') {
@@ -281,6 +297,19 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
   const [detailDiscovery, setDetailDiscovery] =
     useState<DiscoveryDetail | null>(null)
 
+  const [memorialAlbums, setMemorialAlbums] = useState<MemorialAlbumDetail[]>(
+    [],
+  )
+  const [loadingMemorialAlbums, setLoadingMemorialAlbums] = useState(false)
+  const [memorialAlbumsError, setMemorialAlbumsError] = useState('')
+  const [showMemorialAlbumImport, setShowMemorialAlbumImport] = useState(false)
+  const [memorialAlbumImportText, setMemorialAlbumImportText] = useState('')
+  const [importingMemorialAlbum, setImportingMemorialAlbum] = useState(false)
+  const [memorialAlbumImportNote, setMemorialAlbumImportNote] = useState('')
+  const [detailMemorialAlbum, setDetailMemorialAlbum] =
+    useState<MemorialAlbumDetail | null>(null)
+  const [memorialAlbumQuery, setMemorialAlbumQuery] = useState('')
+
   const [skills, setSkills] = useState<SkillDetail[]>([])
   const [loadingSkills, setLoadingSkills] = useState(false)
   const [skillsError, setSkillsError] = useState('')
@@ -322,6 +351,17 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
   const [detailConsumable, setDetailConsumable] =
     useState<ConsumableDetail | null>(null)
   const [consumableQuery, setConsumableQuery] = useState('')
+
+  const [equipments, setEquipments] = useState<EquipmentDetail[]>([])
+  const [loadingEquipments, setLoadingEquipments] = useState(false)
+  const [equipmentsError, setEquipmentsError] = useState('')
+  const [showEquipmentImport, setShowEquipmentImport] = useState(false)
+  const [equipmentImportText, setEquipmentImportText] = useState('')
+  const [importingEquipment, setImportingEquipment] = useState(false)
+  const [equipmentImportNote, setEquipmentImportNote] = useState('')
+  const [detailEquipment, setDetailEquipment] =
+    useState<EquipmentDetail | null>(null)
+  const [equipmentQuery, setEquipmentQuery] = useState('')
 
   const [materials, setMaterials] = useState<ShipMaterialDetail[]>([])
   const [loadingMaterials, setLoadingMaterials] = useState(false)
@@ -459,6 +499,23 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
     }
   }, [token])
 
+  const loadMemorialAlbums = useCallback(async () => {
+    setLoadingMemorialAlbums(true)
+    setMemorialAlbumsError('')
+    try {
+      const res = await fetchMemorialAlbums(token)
+      setMemorialAlbums(res.memorialAlbums)
+    } catch (err) {
+      setMemorialAlbumsError(
+        err instanceof Error
+          ? err.message
+          : '메모리얼 앨범 목록을 불러오지 못했습니다.',
+      )
+    } finally {
+      setLoadingMemorialAlbums(false)
+    }
+  }, [token])
+
   const loadSkills = useCallback(async () => {
     setLoadingSkills(true)
     setSkillsError('')
@@ -521,6 +578,23 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
       )
     } finally {
       setLoadingConsumables(false)
+    }
+  }, [token])
+
+  const loadEquipments = useCallback(async () => {
+    setLoadingEquipments(true)
+    setEquipmentsError('')
+    try {
+      const res = await fetchEquipments(token)
+      setEquipments(res.equipments)
+    } catch (err) {
+      setEquipmentsError(
+        err instanceof Error
+          ? err.message
+          : '장비품 목록을 불러오지 못했습니다.',
+      )
+    } finally {
+      setLoadingEquipments(false)
     }
   }, [token])
 
@@ -666,10 +740,12 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
     if (nav === 'discoveries') {
       void loadDiscoveries()
     }
+    if (nav === 'memorial-albums') void loadMemorialAlbums()
     if (nav === 'skills') void loadSkills()
     if (nav === 'fields') void loadFields()
     if (nav === 'sea-areas') void loadSeaAreas()
     if (nav === 'consumables') void loadConsumables()
+    if (nav === 'equipments') void loadEquipments()
     if (nav === 'materials') void loadMaterials()
   }, [
     nav,
@@ -679,10 +755,12 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
     loadRegions,
     loadEntryPermits,
     loadDiscoveries,
+    loadMemorialAlbums,
     loadSkills,
     loadFields,
     loadSeaAreas,
     loadConsumables,
+    loadEquipments,
     loadMaterials,
   ])
 
@@ -885,6 +963,22 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
     }
   }
 
+  async function handleDeleteEquipment(equipment: EquipmentDetail) {
+    if (!window.confirm(`「${equipment.name}」 장비품을 삭제할까요?`)) return
+    const key = `equipment:${equipment.id}`
+    setDeletingKey(key)
+    try {
+      await deleteEquipment(token, equipment.id)
+      setEquipments((prev) => prev.filter((e) => e.id !== equipment.id))
+      if (detailEquipment?.id === equipment.id) setDetailEquipment(null)
+      onToast(`장비품 「${equipment.name}」을(를) 삭제했습니다.`)
+    } catch (err) {
+      onToast(err instanceof Error ? err.message : '삭제에 실패했습니다.')
+    } finally {
+      setDeletingKey(null)
+    }
+  }
+
   async function handleDeleteDiscovery(discovery: DiscoveryDetail) {
     if (!window.confirm(`「${discovery.name}」 발견물을 삭제할까요?`)) return
     const key = `discovery:${discovery.id}`
@@ -894,6 +988,22 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
       setDiscoveries((prev) => prev.filter((d) => d.id !== discovery.id))
       if (detailDiscovery?.id === discovery.id) setDetailDiscovery(null)
       onToast(`발견물 「${discovery.name}」을(를) 삭제했습니다.`)
+    } catch (err) {
+      onToast(err instanceof Error ? err.message : '삭제에 실패했습니다.')
+    } finally {
+      setDeletingKey(null)
+    }
+  }
+
+  async function handleDeleteMemorialAlbum(album: MemorialAlbumDetail) {
+    if (!window.confirm(`「${album.name}」 메모리얼 앨범을 삭제할까요?`)) return
+    const key = `memorial:${album.id}`
+    setDeletingKey(key)
+    try {
+      await deleteMemorialAlbum(token, album.id)
+      setMemorialAlbums((prev) => prev.filter((a) => a.id !== album.id))
+      if (detailMemorialAlbum?.id === album.id) setDetailMemorialAlbum(null)
+      onToast(`메모리얼 앨범 「${album.name}」을(를) 삭제했습니다.`)
     } catch (err) {
       onToast(err instanceof Error ? err.message : '삭제에 실패했습니다.')
     } finally {
@@ -1137,6 +1247,35 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
     }
   }
 
+  async function handleMemorialAlbumImport(e: FormEvent) {
+    e.preventDefault()
+    if (!memorialAlbumImportText.trim()) {
+      setMemorialAlbumImportNote('텍스트를 붙여넣어 주세요.')
+      return
+    }
+    setImportingMemorialAlbum(true)
+    setMemorialAlbumImportNote('')
+    try {
+      const res = await importMemorialAlbumText(
+        token,
+        memorialAlbumImportText,
+      )
+      setMemorialAlbumImportText('')
+      setShowMemorialAlbumImport(false)
+      setMemorialAlbumImportNote(
+        `「${res.memorialAlbum.name}」을(를) 저장했습니다. (동일 이름이면 내용이 갱신됩니다)`,
+      )
+      onToast(`메모리얼 앨범 「${res.memorialAlbum.name}」 저장 완료`)
+      await loadMemorialAlbums()
+    } catch (err) {
+      setMemorialAlbumImportNote(
+        err instanceof Error ? err.message : '저장에 실패했습니다.',
+      )
+    } finally {
+      setImportingMemorialAlbum(false)
+    }
+  }
+
   async function handleSkillImport(e: FormEvent) {
     e.preventDefault()
     if (!skillImportText.trim()) {
@@ -1212,6 +1351,32 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
       )
     } finally {
       setImportingConsumable(false)
+    }
+  }
+
+  async function handleEquipmentImport(e: FormEvent) {
+    e.preventDefault()
+    if (!equipmentImportText.trim()) {
+      setEquipmentImportNote('텍스트를 붙여넣어 주세요.')
+      return
+    }
+    setImportingEquipment(true)
+    setEquipmentImportNote('')
+    try {
+      const res = await importEquipmentText(token, equipmentImportText)
+      setEquipmentImportText('')
+      setShowEquipmentImport(false)
+      setEquipmentImportNote(
+        `「${res.equipment.name}」을(를) 저장했습니다. (동일 이름이면 내용이 갱신됩니다)`,
+      )
+      onToast(`장비품 「${res.equipment.name}」 저장 완료`)
+      await loadEquipments()
+    } catch (err) {
+      setEquipmentImportNote(
+        err instanceof Error ? err.message : '저장에 실패했습니다.',
+      )
+    } finally {
+      setImportingEquipment(false)
     }
   }
 
@@ -1403,7 +1568,11 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
           </div>
           <div
             className={`admin-nav-group${
-              nav === 'quests' || nav === 'discoveries' ? ' is-active' : ''
+              nav === 'quests' ||
+              nav === 'discoveries' ||
+              nav === 'memorial-albums'
+                ? ' is-active'
+                : ''
             }${atlasMenuOpen ? ' is-open' : ''}`}
           >
             <button
@@ -1438,6 +1607,13 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
                 onClick={() => goNav('discoveries')}
               >
                 <span className="admin-nav-text">발견물 리스트</span>
+              </button>
+              <button
+                type="button"
+                className={nav === 'memorial-albums' ? 'active' : ''}
+                onClick={() => goNav('memorial-albums')}
+              >
+                <span className="admin-nav-text">메모리얼 앨범</span>
               </button>
             </div>
           </div>
@@ -1522,7 +1698,7 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
           </div>
           <div
             className={`admin-nav-group${
-              nav === 'consumables' ? ' is-active' : ''
+              nav === 'consumables' || nav === 'equipments' ? ' is-active' : ''
             }${itemsMenuOpen ? ' is-open' : ''}`}
           >
             <button
@@ -1547,6 +1723,13 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
                 onClick={() => goNav('consumables')}
               >
                 <span className="admin-nav-text">소비품 리스트</span>
+              </button>
+              <button
+                type="button"
+                className={nav === 'equipments' ? 'active' : ''}
+                onClick={() => goNav('equipments')}
+              >
+                <span className="admin-nav-text">장비품 리스트</span>
               </button>
             </div>
           </div>
@@ -2949,6 +3132,184 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
           </section>
         )}
 
+        {nav === 'memorial-albums' && (
+          <section className="admin-section">
+            <div className="admin-page-head">
+              <div>
+                <h1>메모리얼 앨범</h1>
+                <p>
+                  위키 텍스트로 추가·갱신합니다. 같은 이름이면 내용을 덮어씁니다.
+                </p>
+              </div>
+              <div className="admin-page-actions">
+                <button
+                  type="button"
+                  className="admin-btn"
+                  onClick={() => void loadMemorialAlbums()}
+                  disabled={loadingMemorialAlbums}
+                >
+                  새로고침
+                </button>
+                <button
+                  type="button"
+                  className="admin-btn admin-btn-primary"
+                  onClick={() => {
+                    setShowMemorialAlbumImport((v) => !v)
+                    setMemorialAlbumImportNote('')
+                  }}
+                >
+                  {showMemorialAlbumImport ? '닫기' : '초기 데이터 추가'}
+                </button>
+              </div>
+            </div>
+
+            {showMemorialAlbumImport && (
+              <form
+                className="admin-import-form"
+                onSubmit={handleMemorialAlbumImport}
+              >
+                <label className="field">
+                  <span>초기 데이터 텍스트</span>
+                  <textarea
+                    className="quest-import-textarea"
+                    rows={16}
+                    value={memorialAlbumImportText}
+                    onChange={(e) =>
+                      setMemorialAlbumImportText(e.target.value)
+                    }
+                    placeholder={`메모리얼 앨범모험가 입문서\n모험가에게 유용한\n다양한 입문서에 관한 기록.\n\n분류\t장비품\t보상 NPC\t파르네제 공작 (세비야)\n보상품\t모험 기능 상급교도서(1시간)\n항목\n아이템\t완료\t부연 설명\n그림감정술\t\t\n동식물도감\t\t\n…`}
+                    disabled={importingMemorialAlbum}
+                  />
+                </label>
+                <div className="form-actions">
+                  <button
+                    type="submit"
+                    className="admin-btn admin-btn-primary"
+                    disabled={importingMemorialAlbum}
+                  >
+                    {importingMemorialAlbum ? '저장 중…' : '저장'}
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {memorialAlbumImportNote && (
+              <p
+                className={`form-note${
+                  /실패|못|오류|에러|중복/.test(memorialAlbumImportNote)
+                    ? ' error'
+                    : ''
+                }`}
+              >
+                {memorialAlbumImportNote}
+              </p>
+            )}
+
+            {memorialAlbumsError && (
+              <p className="form-note error" role="alert">
+                {memorialAlbumsError}
+              </p>
+            )}
+
+            <label className="field catalog-search">
+              <input
+                type="search"
+                value={memorialAlbumQuery}
+                onChange={(e) => setMemorialAlbumQuery(e.target.value)}
+                placeholder="이름·분류·항목으로 검색"
+                aria-label="메모리얼 앨범 검색"
+                autoComplete="off"
+                disabled={loadingMemorialAlbums}
+              />
+            </label>
+
+            {loadingMemorialAlbums && memorialAlbums.length === 0 ? (
+              <p className="form-note">불러오는 중…</p>
+            ) : (
+              <div className="admin-table-wrap">
+                <table className="admin-table">
+                  <thead>
+                    <tr>
+                      <th>이름</th>
+                      <th className="col-desk">분류</th>
+                      <th className="col-desk">보상 NPC</th>
+                      <th className="col-desk">항목</th>
+                      <th className="col-desk col-action">삭제</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {memorialAlbums
+                      .filter((item) => {
+                        const q = memorialAlbumQuery.trim().toLowerCase()
+                        if (!q) return true
+                        const hay = [
+                          item.name,
+                          item.category,
+                          item.rewardNpc,
+                          item.rewardItem,
+                          item.description,
+                          ...(item.items || []).map((r) => r.name),
+                        ]
+                          .filter((v) => v != null && v !== '')
+                          .join(' ')
+                          .toLowerCase()
+                        return hay.includes(q)
+                      })
+                      .slice()
+                      .sort(compareIdDesc)
+                      .map((item, index) => (
+                        <tr
+                          key={item.id}
+                          className={`admin-row-clickable${index % 2 === 0 ? ' is-even' : ' is-odd'}`}
+                          tabIndex={0}
+                          onClick={() => setDetailMemorialAlbum(item)}
+                          onKeyDown={(
+                            event: KeyboardEvent<HTMLTableRowElement>,
+                          ) => {
+                            if (event.key === 'Enter' || event.key === ' ') {
+                              event.preventDefault()
+                              setDetailMemorialAlbum(item)
+                            }
+                          }}
+                        >
+                          <td>{item.name}</td>
+                          <td className="col-desk">{item.category || '-'}</td>
+                          <td className="col-desk">
+                            {item.rewardNpc || '-'}
+                          </td>
+                          <td className="col-desk">
+                            {item.itemCount ?? item.items.length}
+                          </td>
+                          <td
+                            className="admin-cell-control col-desk col-action"
+                            onClick={(e) => e.stopPropagation()}
+                            onKeyDown={(e) => e.stopPropagation()}
+                          >
+                            <button
+                              type="button"
+                              className="admin-danger-btn"
+                              disabled={deletingKey === `memorial:${item.id}`}
+                              onClick={() =>
+                                void handleDeleteMemorialAlbum(item)
+                              }
+                            >
+                              삭제
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    {memorialAlbums.length === 0 && (
+                      <tr>
+                        <td colSpan={5}>등록된 메모리얼 앨범이 없습니다.</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+        )}
+
         {nav === 'skills' && (
           <section className="admin-section">
             <div className="admin-page-head">
@@ -3697,6 +4058,188 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
           </section>
         )}
 
+        {nav === 'equipments' && (
+          <section className="admin-section">
+            <div className="admin-page-head">
+              <div>
+                <h1>장비품 리스트</h1>
+                <p>
+                  위키 텍스트로 추가·갱신합니다. 같은 이름이면 내용을 덮어씁니다.
+                </p>
+              </div>
+              <div className="admin-page-actions">
+                <button
+                  type="button"
+                  className="admin-btn"
+                  onClick={() => void loadEquipments()}
+                  disabled={loadingEquipments}
+                >
+                  새로고침
+                </button>
+                <button
+                  type="button"
+                  className="admin-btn admin-btn-primary"
+                  onClick={() => {
+                    setShowEquipmentImport((v) => !v)
+                    setEquipmentImportNote('')
+                  }}
+                >
+                  {showEquipmentImport ? '닫기' : '초기 데이터 추가'}
+                </button>
+              </div>
+            </div>
+
+            {showEquipmentImport && (
+              <form
+                className="admin-import-form"
+                onSubmit={handleEquipmentImport}
+              >
+                <label className="field">
+                  <span>초기 데이터 텍스트</span>
+                  <textarea
+                    className="quest-import-textarea"
+                    rows={16}
+                    value={equipmentImportText}
+                    onChange={(e) => setEquipmentImportText(e.target.value)}
+                    placeholder={`장비품동식물도감\n여러 동식물의 생태가 적혀있는 책.\n\n분류\t장신구\t내구도\t20\n스킬\t생물학 +1\t메모리얼 앨범\t모험가 입문서\n변성연금\n정책\t스킬\t재료\t생산품\n…\n획득 방법\n퀘스트보물지도메모리얼 앨범\n퀘스트\t목적지\n…`}
+                    disabled={importingEquipment}
+                  />
+                </label>
+                <div className="form-actions">
+                  <button
+                    type="submit"
+                    className="admin-btn admin-btn-primary"
+                    disabled={importingEquipment}
+                  >
+                    {importingEquipment ? '저장 중…' : '저장'}
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {equipmentImportNote && (
+              <p
+                className={`form-note${
+                  /실패|못|오류|에러|중복/.test(equipmentImportNote)
+                    ? ' error'
+                    : ''
+                }`}
+              >
+                {equipmentImportNote}
+              </p>
+            )}
+
+            {equipmentsError && (
+              <p className="form-note error" role="alert">
+                {equipmentsError}
+              </p>
+            )}
+
+            <label className="field catalog-search">
+              <input
+                type="search"
+                value={equipmentQuery}
+                onChange={(e) => setEquipmentQuery(e.target.value)}
+                placeholder="이름·분류·스킬로 검색"
+                aria-label="장비품 검색"
+                autoComplete="off"
+                disabled={loadingEquipments}
+              />
+            </label>
+
+            {loadingEquipments && equipments.length === 0 ? (
+              <p className="form-note">불러오는 중…</p>
+            ) : (
+              <div className="admin-table-wrap">
+                <table className="admin-table">
+                  <thead>
+                    <tr>
+                      <th>이름</th>
+                      <th className="col-desk">분류</th>
+                      <th className="col-desk">스킬</th>
+                      <th className="col-desk col-action">삭제</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {equipments
+                      .filter((item) => {
+                        const q = equipmentQuery.trim().toLowerCase()
+                        if (!q) return true
+                        const hay = [
+                          item.name,
+                          item.category,
+                          item.useEffect,
+                          item.equipSlot,
+                          item.durability,
+                          item.memorialAlbum,
+                          item.description,
+                          ...(item.skills || []).map((s) => s.name),
+                        ]
+                          .filter((v) => v != null && v !== '')
+                          .join(' ')
+                          .toLowerCase()
+                        return hay.includes(q)
+                      })
+                      .slice()
+                      .sort(compareIdDesc)
+                      .map((item, index) => (
+                        <tr
+                          key={item.id}
+                          className={`admin-row-clickable${index % 2 === 0 ? ' is-even' : ' is-odd'}`}
+                          tabIndex={0}
+                          onClick={() => setDetailEquipment(item)}
+                          onKeyDown={(
+                            event: KeyboardEvent<HTMLTableRowElement>,
+                          ) => {
+                            if (event.key === 'Enter' || event.key === ' ') {
+                              event.preventDefault()
+                              setDetailEquipment(item)
+                            }
+                          }}
+                        >
+                          <td>{item.name}</td>
+                          <td className="col-desk">{item.category || '-'}</td>
+                          <td className="col-desk">
+                            {item.skills?.length
+                              ? item.skills
+                                  .map((s) =>
+                                    s.rank
+                                      ? `${s.name} +${s.rank}`
+                                      : s.name,
+                                  )
+                                  .join(', ')
+                              : item.equipSlot || '-'}
+                          </td>
+                          <td
+                            className="admin-cell-control col-desk col-action"
+                            onClick={(e) => e.stopPropagation()}
+                            onKeyDown={(e) => e.stopPropagation()}
+                          >
+                            <button
+                              type="button"
+                              className="admin-danger-btn"
+                              disabled={
+                                deletingKey === `equipment:${item.id}`
+                              }
+                              onClick={() => void handleDeleteEquipment(item)}
+                            >
+                              삭제
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    {equipments.length === 0 && (
+                      <tr>
+                        <td colSpan={4}>등록된 장비품이 없습니다.</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+        )}
+
         {nav === 'materials' && (
           <section className="admin-section">
             <div className="admin-page-head">
@@ -3935,6 +4478,28 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
         </DetailModal>
       )}
 
+      {detailEquipment && (
+        <DetailModal
+          title="장비품 상세"
+          label={`${detailEquipment.name} 상세`}
+          onClose={() => setDetailEquipment(null)}
+        >
+          <EquipmentDetailView
+            equipment={detailEquipment}
+            edit={{
+              token,
+              onToast,
+              onSaved: (next) => {
+                setEquipments((prev) =>
+                  prev.map((e) => (e.id === next.id ? next : e)),
+                )
+                setDetailEquipment(next)
+              },
+            }}
+          />
+        </DetailModal>
+      )}
+
       {detailDiscovery && (
         <DetailModal
           title="발견물 상세"
@@ -3952,6 +4517,28 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
                   prev.map((d) => (d.id === next.id ? next : d)),
                 )
                 setDetailDiscovery(next)
+              },
+            }}
+          />
+        </DetailModal>
+      )}
+
+      {detailMemorialAlbum && (
+        <DetailModal
+          title="메모리얼 앨범 상세"
+          label={`${detailMemorialAlbum.name} 상세`}
+          onClose={() => setDetailMemorialAlbum(null)}
+        >
+          <MemorialAlbumDetailView
+            album={detailMemorialAlbum}
+            edit={{
+              token,
+              onToast,
+              onSaved: (next) => {
+                setMemorialAlbums((prev) =>
+                  prev.map((a) => (a.id === next.id ? next : a)),
+                )
+                setDetailMemorialAlbum(next)
               },
             }}
           />

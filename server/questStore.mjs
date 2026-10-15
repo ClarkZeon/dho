@@ -39,6 +39,7 @@ export async function ensureQuestStore() {
   if (!hasDatabaseUrl()) throw new Error('DATABASE_URL 이 없습니다.')
   await runSqlFile('sql/008_quests.sql')
   await runSqlFile('sql/015_user_quest_completions.sql')
+  await runSqlFile('sql/035_quest_prerequisites.sql')
 }
 
 function normalizeQuestName(name) {
@@ -82,6 +83,7 @@ function decorateQuest(row) {
     discoveryName:
       row.discovery_name == null ? null : String(row.discovery_name),
     skills: asJsonArray(row.skills),
+    prerequisites: asJsonArray(row.prerequisites),
     rewardDucat: row.reward_ducat == null ? null : Number(row.reward_ducat),
     rewardAdvance:
       row.reward_advance == null ? null : Number(row.reward_advance),
@@ -396,6 +398,12 @@ export async function updateQuestFields(id, patch) {
           : Number(item.level),
     }))
   }
+  if ('prerequisites' in patch) {
+    if (!Array.isArray(patch.prerequisites)) {
+      throw new Error('선행 발견/퀘스트 형식이 올바르지 않습니다.')
+    }
+    next.prerequisites = patch.prerequisites
+  }
   if ('rewardItems' in patch) {
     if (!Array.isArray(patch.rewardItems)) {
       throw new Error('보상 아이템 형식이 올바르지 않습니다.')
@@ -415,6 +423,7 @@ export async function updateQuestFields(id, patch) {
   }
 
   const skillsJson = JSON.stringify(next.skills || [])
+  const prerequisitesJson = JSON.stringify(next.prerequisites || [])
   const itemsJson = JSON.stringify(next.rewardItems || [])
   const chainJson = JSON.stringify([
     ...(next.chainQuests || []),
@@ -437,6 +446,7 @@ export async function updateQuestFields(id, patch) {
       discovery_rank = ${next.discoveryRank},
       discovery_name = ${next.discoveryName},
       skills = ${skillsJson},
+      prerequisites = ${prerequisitesJson},
       reward_ducat = ${next.rewardDucat},
       reward_advance = ${next.rewardAdvance},
       exp_discovery = ${next.expDiscovery},
@@ -476,6 +486,7 @@ export async function upsertQuestFromParsed(parsed) {
 
   const existing = await findQuestIdByName(sql, name)
   const skillsJson = JSON.stringify(parsed.skills || [])
+  const prerequisitesJson = JSON.stringify(parsed.prerequisites || [])
   const itemsJson = JSON.stringify(parsed.rewardItems || [])
   const chainJson = JSON.stringify([
     ...(parsed.chainQuests || []),
@@ -499,6 +510,7 @@ export async function upsertQuestFromParsed(parsed) {
         discovery_rank = ${parsed.discoveryRank},
         discovery_name = ${parsed.discoveryName},
         skills = ${skillsJson},
+        prerequisites = ${prerequisitesJson},
         reward_ducat = ${parsed.rewardDucat},
         reward_advance = ${parsed.rewardAdvance},
         exp_discovery = ${parsed.expDiscovery},
@@ -539,7 +551,7 @@ export async function upsertQuestFromParsed(parsed) {
       id, slug, name, description, category, quest_type, difficulty,
       request_places, destination,
       discovery_category, discovery_rank, discovery_name,
-      skills, reward_ducat, reward_advance,
+      skills, prerequisites, reward_ducat, reward_advance,
       exp_discovery, exp_card, exp_report, fame_report,
       reward_items, chain_quests, walkthrough, progress,
       enabled, sort_order
@@ -548,7 +560,7 @@ export async function upsertQuestFromParsed(parsed) {
       ${parsed.category}, ${parsed.questType}, ${parsed.difficulty},
       ${parsed.requestPlaces}, ${parsed.destination},
       ${parsed.discoveryCategory}, ${parsed.discoveryRank}, ${parsed.discoveryName},
-      ${skillsJson},
+      ${skillsJson}, ${prerequisitesJson},
       ${parsed.rewardDucat}, ${parsed.rewardAdvance},
       ${parsed.expDiscovery}, ${parsed.expCard}, ${parsed.expReport}, ${parsed.fameReport},
       ${itemsJson},

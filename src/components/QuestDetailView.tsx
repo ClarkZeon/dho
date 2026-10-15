@@ -6,6 +6,7 @@ import type {
   DiscoveryQuestRef,
   QuestChainItem,
   QuestDetail,
+  QuestPrerequisite,
   QuestRewardItem,
   QuestSkillReq,
 } from '../types'
@@ -20,6 +21,7 @@ import { QuestDiscoveryLabel } from './DiscoveryRankMark'
 type QuestEditSection =
   | 'basic'
   | 'skills'
+  | 'prerequisites'
   | 'rewards'
   | 'chain'
   | 'linked'
@@ -38,6 +40,7 @@ type QuestDraft = {
   discoveryCategory: string
   discoveryRank: number | null
   skills: QuestSkillReq[]
+  prerequisites: QuestPrerequisite[]
   rewardDucat: number | null
   rewardAdvance: number | null
   expDiscovery: number | null
@@ -104,6 +107,7 @@ function makeDraft(quest: QuestDetail): QuestDraft {
     discoveryCategory: quest.discoveryCategory || '',
     discoveryRank: quest.discoveryRank,
     skills: (quest.skills || []).map((s) => ({ ...s })),
+    prerequisites: (quest.prerequisites || []).map((p) => ({ ...p })),
     rewardDucat: quest.rewardDucat,
     rewardAdvance: quest.rewardAdvance,
     expDiscovery: quest.expDiscovery,
@@ -243,6 +247,103 @@ function QuestRelatedList({
         )
       })}
     </Tag>
+  )
+}
+
+function PrerequisiteLabel({ item }: { item: QuestPrerequisite }) {
+  if (item.kind === 'discovery') {
+    const head = [
+      item.discoveryCategory ? `[${item.discoveryCategory}]` : null,
+      item.discoveryRank != null ? String(item.discoveryRank) : null,
+      item.discoveryName,
+    ]
+      .filter(Boolean)
+      .join(' ')
+    return (
+      <span>
+        {head || item.raw}
+        {item.nested ? (
+          <>
+            {' '}
+            <em>&lt;{item.nested}&gt;</em>
+          </>
+        ) : null}
+      </span>
+    )
+  }
+  if (item.kind === 'quest' && item.name) {
+    const bits = [
+      item.category,
+      item.name,
+      item.difficulty != null ? `(${item.difficulty})` : null,
+      item.places ? `- ${item.places}` : null,
+    ].filter(Boolean)
+    return <span>{bits.join(' ') || item.raw}</span>
+  }
+  return <span>{item.raw}</span>
+}
+
+function EditPrerequisites({
+  rows,
+  onChange,
+  disabled,
+}: {
+  rows: QuestPrerequisite[]
+  onChange: (rows: QuestPrerequisite[]) => void
+  disabled?: boolean
+}) {
+  return (
+    <>
+      <div className="admin-table-wrap">
+        <table className="admin-table">
+          <thead>
+            <tr>
+              <th>내용</th>
+              <th className="col-action">삭제</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, idx) => (
+              <tr key={`prereq-${idx}`}>
+                <td>
+                  <input
+                    value={row.raw}
+                    disabled={disabled}
+                    onChange={(e) =>
+                      onChange(
+                        rows.map((r, i) =>
+                          i === idx
+                            ? { kind: 'other', raw: e.target.value }
+                            : r,
+                        ),
+                      )
+                    }
+                  />
+                </td>
+                <td className="col-action">
+                  <button
+                    type="button"
+                    className="admin-danger-btn"
+                    disabled={disabled}
+                    onClick={() => onChange(rows.filter((_, i) => i !== idx))}
+                  >
+                    삭제
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <button
+        type="button"
+        className="admin-btn"
+        disabled={disabled}
+        onClick={() => onChange([...rows, { kind: 'other', raw: '' }])}
+      >
+        추가
+      </button>
+    </>
   )
 }
 
@@ -576,6 +677,15 @@ export function QuestDetailView({
             .filter((s) => s.name.trim())
             .map((s) => ({ name: s.name.trim(), level: s.level })),
         }
+      } else if (editing === 'prerequisites') {
+        patch = {
+          prerequisites: draft.prerequisites
+            .map((p) => ({
+              ...p,
+              raw: (p.raw || '').trim(),
+            }))
+            .filter((p) => p.raw),
+        }
       } else if (editing === 'rewards') {
         patch = {
           rewardDucat: draft.rewardDucat,
@@ -640,6 +750,8 @@ export function QuestDetailView({
     .filter(Boolean)
 
   const showSkills = canEdit || quest.skills.length > 0
+  const showPrerequisites =
+    canEdit || (quest.prerequisites || []).length > 0
   const showChain = chainQuests.length > 0
   const showLinked = linkedQuests.length > 0
   const showWalkthrough = canEdit || walkthroughSteps.length > 0
@@ -873,6 +985,37 @@ export function QuestDetailView({
                 <li key={`${skill.name}-${skill.level}-${idx}`}>
                   <span>{skill.name}</span>
                   {skill.level != null && <em>Lv.{skill.level}</em>}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="quest-muted">없음</p>
+          )}
+        </section>
+      )}
+
+      {showPrerequisites && (
+        <section className="quest-detail-section">
+          <DetailSectionHead
+            title="선행 발견/퀘스트"
+            canEdit={canEdit}
+            editing={editing === 'prerequisites'}
+            onEdit={() => startEdit('prerequisites')}
+          />
+          {editing === 'prerequisites' ? (
+            <>
+              <EditPrerequisites
+                rows={draft.prerequisites}
+                onChange={(prerequisites) => patchDraft({ prerequisites })}
+                disabled={saving}
+              />
+              {sectionActions}
+            </>
+          ) : (quest.prerequisites || []).length ? (
+            <ul className="quest-prereq-list">
+              {(quest.prerequisites || []).map((item, idx) => (
+                <li key={`${item.raw}-${idx}`}>
+                  <PrerequisiteLabel item={item} />
                 </li>
               ))}
             </ul>

@@ -13,6 +13,8 @@ export const CATALOG_STAT_KEYS = [
   'sea_areas',
   'materials',
   'consumables',
+  'equipments',
+  'memorial_albums',
   'feature_requests',
 ]
 
@@ -35,6 +37,8 @@ function toResponseCounts(map) {
     seaAreas: map.sea_areas || 0,
     materials: map.materials || 0,
     consumables: map.consumables || 0,
+    equipments: map.equipments || 0,
+    memorialAlbums: map.memorial_albums || 0,
     featureRequests: map.feature_requests || 0,
   }
 }
@@ -55,6 +59,8 @@ export async function reconcileCatalogStats() {
     seaAreas,
     materials,
     consumables,
+    equipments,
+    memorialAlbums,
     featureRequests,
   ] = await Promise.all([
     sql`SELECT COUNT(*)::int AS n FROM users`,
@@ -69,6 +75,8 @@ export async function reconcileCatalogStats() {
     sql`SELECT COUNT(*)::int AS n FROM sea_areas WHERE enabled = TRUE`,
     sql`SELECT COUNT(*)::int AS n FROM ship_materials WHERE enabled = TRUE`,
     sql`SELECT COUNT(*)::int AS n FROM consumables WHERE enabled = TRUE`,
+    sql`SELECT COUNT(*)::int AS n FROM equipments WHERE enabled = TRUE`,
+    sql`SELECT COUNT(*)::int AS n FROM memorial_albums WHERE enabled = TRUE`,
     sql`
       SELECT COUNT(*)::int AS n FROM posts
       WHERE board_id = 'feature' AND is_deleted = FALSE
@@ -88,6 +96,8 @@ export async function reconcileCatalogStats() {
     sea_areas: asCount(seaAreas),
     materials: asCount(materials),
     consumables: asCount(consumables),
+    equipments: asCount(equipments),
+    memorial_albums: asCount(memorialAlbums),
     feature_requests: asCount(featureRequests),
   }
 

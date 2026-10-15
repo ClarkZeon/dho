@@ -147,6 +147,41 @@ function looksLikeChainEntry(line) {
   return /\|/.test(line) && /\([⭐★*]?\s*\d+/.test(line)
 }
 
+/**
+ * 선행 발견/퀘스트 한 줄
+ * [화석] 1 목이 긴 도마뱀의 뼈 <도마뱀뼈의 지도 …>
+ * 모험 | 이상한 드래곤 (6 …) - 런던, …
+ */
+export function parsePrerequisiteLine(line) {
+  const raw = String(line || '').trim()
+  if (!raw) return null
+
+  const disc = raw.match(
+    /^\[([^\]]+)\]\s*(\d+)\s*(?:성\s+)?(.+?)(?:\s*<\s*(.+?)\s*>\s*)?$/,
+  )
+  if (disc) {
+    return {
+      kind: 'discovery',
+      raw,
+      discoveryCategory: disc[1].trim(),
+      discoveryRank: Number(disc[2]),
+      discoveryName: disc[3].trim(),
+      nested: disc[4] ? disc[4].trim() : null,
+    }
+  }
+
+  if (looksLikeChainEntry(raw) || QUEST_TAG_RE.test(raw)) {
+    const parsed = parseChainLine(raw)
+    return {
+      kind: 'quest',
+      raw,
+      ...parsed,
+    }
+  }
+
+  return { kind: 'other', raw }
+}
+
 function isMapSourceLine(line) {
   return /지도\s*출처/.test(String(line || '').trim())
 }
@@ -328,6 +363,10 @@ export function parseQuestText(text) {
   let discoveryName = null
   /** @type {Array<{ name: string, level: number|null }>} */
   let skills = []
+  /** @type {Array<Record<string, unknown>>} */
+  let prerequisites = []
+  /** 필요 섹션에서 「선행 발견/퀘스트」 이후 줄 수집 */
+  let collectingPrereq = false
   let rewardDucat = null
   let rewardAdvance = null
   let expDiscovery = null
@@ -409,10 +448,12 @@ export function parseQuestText(text) {
 
     if (/^필요$/.test(line)) {
       mode = 'need'
+      collectingPrereq = false
       continue
     }
     if (/^보상$/.test(line)) {
       mode = 'reward'
+      collectingPrereq = false
       continue
     }
     if (/^연속\s*퀘스트/.test(line)) {
@@ -446,11 +487,18 @@ export function parseQuestText(text) {
       continue
     }
 
-    // 헤더 없이 [퀘스트] 연결 줄만 보상/필요 구간에 붙은 경우
+    // 헤더 없이 [퀘스트] 연결 줄 — 필요(선행) 수집 중에는 연결로 보내지 않음
     if (
-      (mode === 'reward' || mode === 'need' || mode === 'meta') &&
+      (mode === 'reward' || mode === 'meta' || (mode === 'need' && !collectingPrereq)) &&
       (QUEST_TAG_RE.test(line) || looksLikeChainEntry(line))
     ) {
+      // need 모드에서 스킬 행이 아닌 퀘스트형 줄은 선행으로 취급
+      if (mode === 'need') {
+        collectingPrereq = true
+        const item = parsePrerequisiteLine(line)
+        if (item) prerequisites.push(item)
+        continue
+      }
       mode = 'linked'
       linkedQuests.push(parseChainLine(line))
       continue
@@ -459,9 +507,42 @@ export function parseQuestText(text) {
     if (mode === 'need') {
       if (/^종류\t|^종류$/.test(line)) continue
       const cols = splitTabs(line)
-      if (cols[0] === '스킬' && cols[1]) {
-        skills = parseSkillList(cols[1])
+
+      if (/^선행/.test(cols[0] || '') || /^선행\s*발견/.test(line)) {
+        collectingPrereq = true
+        const rest =
+          cols.length >= 2
+            ? cols.slice(1).join('\t').trim()
+            : line.replace(/^선행\s*발견\s*\/?\s*퀘스트\s*/, '').trim()
+        if (rest) {
+          const item = parsePrerequisiteLine(rest)
+          if (item) prerequisites.push(item)
+        }
+        continue
       }
+
+      if (cols[0] === '스킬' && cols[1]) {
+        collectingPrereq = false
+        skills = parseSkillList(cols[1])
+        continue
+      }
+
+      if (collectingPrereq) {
+        // 발견물 [화석] … 또는 퀘스트형 줄
+        if (
+          /^\[[^\]]+\]/.test(line) ||
+          looksLikeChainEntry(line) ||
+          QUEST_TAG_RE.test(line)
+        ) {
+          const item = parsePrerequisiteLine(line)
+          if (item) prerequisites.push(item)
+        } else if (line && !/^종류/.test(line) && !/^스킬/.test(line)) {
+          const item = parsePrerequisiteLine(line)
+          if (item) prerequisites.push(item)
+        }
+        continue
+      }
+
       continue
     }
 
@@ -585,6 +666,7 @@ export function parseQuestText(text) {
     discoveryRank,
     discoveryName,
     skills,
+    prerequisites,
     rewardDucat,
     rewardAdvance,
     expDiscovery,

@@ -9,6 +9,7 @@ import type { BoardSummary, User } from '../types'
 import { BoardView } from './BoardView'
 import { Messages } from './Messages'
 import { DiscoveryCatalog } from './DiscoveryCatalog'
+import { MemorialAlbumCatalog } from './MemorialAlbumCatalog'
 import { FieldCatalog } from './FieldCatalog'
 import { SeaAreaCatalog } from './SeaAreaCatalog'
 import { SkillCatalog } from './SkillCatalog'
@@ -36,6 +37,7 @@ type View =
   | { name: 'regions' }
   | { name: 'entry-permits' }
   | { name: 'discoveries' }
+  | { name: 'memorial-albums' }
   | { name: 'skills' }
   | { name: 'fields' }
   | { name: 'sea-areas' }
@@ -70,6 +72,8 @@ function viewToHash(view: View): string {
       return '#/entry-permits'
     case 'discoveries':
       return '#/discoveries'
+    case 'memorial-albums':
+      return '#/memorial-albums'
     case 'skills':
       return '#/skills'
     case 'fields':
@@ -114,6 +118,7 @@ function hashToView(hash: string): View {
   if (parts[0] === 'regions') return { name: 'regions' }
   if (parts[0] === 'entry-permits') return { name: 'entry-permits' }
   if (parts[0] === 'discoveries') return { name: 'discoveries' }
+  if (parts[0] === 'memorial-albums') return { name: 'memorial-albums' }
   if (parts[0] === 'skills' || parts[0] === 'languages') {
     return { name: 'skills' }
   }
@@ -205,6 +210,7 @@ function toMenuTarget(view: View): MenuTarget {
   if (view.name === 'regions') return { name: 'regions' }
   if (view.name === 'entry-permits') return { name: 'entry-permits' }
   if (view.name === 'discoveries') return { name: 'discoveries' }
+  if (view.name === 'memorial-albums') return { name: 'memorial-albums' }
   if (view.name === 'skills') return { name: 'skills' }
   if (view.name === 'fields') return { name: 'fields' }
   if (view.name === 'sea-areas') return { name: 'sea-areas' }
@@ -370,6 +376,10 @@ export function Dashboard({ user, token, onLogout, onToast }: DashboardProps) {
     }
     if (target.name === 'discoveries') {
       go({ name: 'discoveries' })
+      return
+    }
+    if (target.name === 'memorial-albums') {
+      go({ name: 'memorial-albums' })
       return
     }
     if (target.name === 'skills') {
@@ -587,6 +597,14 @@ export function Dashboard({ user, token, onLogout, onToast }: DashboardProps) {
                       <strong>발견물</strong>
                       <span>발견물 목록·상세</span>
                     </button>
+                    <button
+                      type="button"
+                      className="dash-link"
+                      onClick={() => go({ name: 'memorial-albums' })}
+                    >
+                      <strong>메모리얼 앨범</strong>
+                      <span>앨범 목록·항목</span>
+                    </button>
                   </div>
                 </div>
 
@@ -727,6 +745,10 @@ export function Dashboard({ user, token, onLogout, onToast }: DashboardProps) {
         )}
 
         {view.name === 'discoveries' && <DiscoveryCatalog token={token} />}
+
+        {view.name === 'memorial-albums' && (
+          <MemorialAlbumCatalog token={token} />
+        )}
 
         {view.name === 'skills' && <SkillCatalog token={token} />}
 

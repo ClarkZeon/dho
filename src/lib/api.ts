@@ -9,9 +9,11 @@ import type {
   FieldDetail,
   SeaAreaDetail,
   ConsumableDetail,
+  EquipmentDetail,
   PortDetail,
   RegionDetail,
   EntryPermitDetail,
+  MemorialAlbumDetail,
   QuestDetail,
   Session,
   ShipDetail,
@@ -569,6 +571,83 @@ export function updateConsumable(
   )
 }
 
+export function fetchEquipments(token: string) {
+  return request<{ equipments: EquipmentDetail[] }>('/api/equipments', {
+    token,
+  })
+}
+
+export function importEquipmentText(token: string, text: string) {
+  return request<{ equipment: EquipmentDetail }>(
+    '/api/equipments/import-text',
+    {
+      token,
+      body: { text },
+    },
+  )
+}
+
+export function deleteEquipment(token: string, equipmentId: number) {
+  return request<{ ok: boolean }>(
+    `/api/equipments/${encodeURIComponent(String(equipmentId))}`,
+    { method: 'DELETE', token },
+  )
+}
+
+export function updateEquipment(
+  token: string,
+  equipmentId: number,
+  patch: Partial<EquipmentDetail>,
+) {
+  return request<{ equipment: EquipmentDetail }>(
+    `/api/equipments/${encodeURIComponent(String(equipmentId))}`,
+    {
+      method: 'PATCH',
+      token,
+      body: patch,
+    },
+  )
+}
+
+export function fetchMemorialAlbums(token: string) {
+  return request<{ memorialAlbums: MemorialAlbumDetail[] }>(
+    '/api/memorial-albums',
+    { token },
+  )
+}
+
+export function importMemorialAlbumText(token: string, text: string) {
+  return request<{ memorialAlbum: MemorialAlbumDetail }>(
+    '/api/memorial-albums/import-text',
+    {
+      token,
+      body: { text },
+    },
+  )
+}
+
+export function deleteMemorialAlbum(token: string, albumId: number) {
+  return request<{ ok: boolean }>(
+    `/api/memorial-albums/${encodeURIComponent(String(albumId))}`,
+    { method: 'DELETE', token },
+  )
+}
+
+export function updateMemorialAlbum(
+  token: string,
+  albumId: number,
+  patch: Partial<MemorialAlbumDetail>,
+) {
+  return request<{ memorialAlbum: MemorialAlbumDetail }>(
+    `/api/memorial-albums/${encodeURIComponent(String(albumId))}`,
+    {
+      method: 'PATCH',
+      token,
+      body: patch,
+    },
+  )
+}
+
 export function fetchDiscoveries(token: string) {
   return request<{ discoveries: DiscoveryDetail[] }>('/api/discoveries', {
     token,
@@ -691,6 +770,9 @@ export function fetchAdminStats(token: string) {
       fields: number
       seaAreas: number
       materials: number
+      consumables: number
+      equipments: number
+      memorialAlbums: number
       featureRequests: number
     }
   }>('/api/admin/stats', { token })

@@ -14,6 +14,7 @@ export type MenuTarget =
   | { name: 'regions' }
   | { name: 'entry-permits' }
   | { name: 'discoveries' }
+  | { name: 'memorial-albums' }
   | { name: 'skills' }
   | { name: 'fields' }
   | { name: 'sea-areas' }
@@ -46,7 +47,13 @@ function sectionForActive(active: MenuTarget): MenuSectionId | null {
   ) {
     return 'ships'
   }
-  if (active.name === 'quests' || active.name === 'discoveries') return 'atlas'
+  if (
+    active.name === 'quests' ||
+    active.name === 'discoveries' ||
+    active.name === 'memorial-albums'
+  ) {
+    return 'atlas'
+  }
   if (
     active.name === 'ports' ||
     active.name === 'regions' ||
@@ -152,7 +159,9 @@ export function SlideMenu({
     active.name === 'ship-compare' ||
     active.name === 'ship-materials'
   const atlasActive =
-    active.name === 'quests' || active.name === 'discoveries'
+    active.name === 'quests' ||
+    active.name === 'discoveries' ||
+    active.name === 'memorial-albums'
   const pioneerActive =
     active.name === 'ports' ||
     active.name === 'regions' ||
@@ -290,6 +299,13 @@ export function SlideMenu({
               onClick={() => go({ name: 'discoveries' })}
             >
               발견물
+            </button>
+            <button
+              type="button"
+              className={active.name === 'memorial-albums' ? 'active' : ''}
+              onClick={() => go({ name: 'memorial-albums' })}
+            >
+              메모리얼 앨범
             </button>
           </MenuSection>
 

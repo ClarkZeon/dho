@@ -3774,6 +3774,31 @@
   color: var(--is-gold);
 }
 
+.quest-prereq-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.quest-prereq-list li {
+  padding: 0.45rem 0.65rem;
+  border-radius: 8px;
+  border: 1px solid rgba(45, 55, 72, 0.12);
+  background: rgba(45, 55, 72, 0.03);
+  font-size: 0.88rem;
+  line-height: 1.45;
+  overflow-x: clip;
+}
+
+.quest-prereq-list em {
+  font-style: normal;
+  color: var(--is-blue);
+  font-weight: 600;
+}
+
 .quest-reward-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
