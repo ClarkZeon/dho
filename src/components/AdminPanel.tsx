@@ -6,6 +6,7 @@ import {
   deleteDiscovery,
   deleteMemorialAlbum,
   deleteTitle,
+  deleteTreasureMap,
   deleteField,
   deleteSeaArea,
   deleteSkill,
@@ -22,6 +23,7 @@ import {
   fetchDiscoveries,
   fetchMemorialAlbums,
   fetchTitles,
+  fetchTreasureMaps,
   fetchFields,
   fetchSeaAreas,
   fetchSkills,
@@ -37,6 +39,7 @@ import {
   importDiscoveryText,
   importMemorialAlbumText,
   importTitleText,
+  importTreasureMapText,
   importFieldText,
   importSeaAreaText,
   importSkillText,
@@ -59,6 +62,7 @@ import type {
   DiscoveryQuestRef,
   MemorialAlbumDetail,
   TitleDetail,
+  TreasureMapDetail,
   FieldDetail,
   SeaAreaDetail,
   SkillDetail,
@@ -79,6 +83,7 @@ import { DetailModal } from './DetailModal'
 import { DiscoveryDetailView } from './DiscoveryDetailView'
 import { MemorialAlbumDetailView } from './MemorialAlbumDetailView'
 import { TitleDetailView } from './TitleDetailView'
+import { TreasureMapDetailView } from './TreasureMapDetailView'
 import { FieldDetailView } from './FieldDetailView'
 import { SeaAreaDetailView } from './SeaAreaDetailView'
 import { SkillDetailView } from './SkillDetailView'
@@ -148,6 +153,7 @@ type AdminNav =
   | 'entry-permits'
   | 'discoveries'
   | 'memorial-albums'
+  | 'treasure-maps'
   | 'skills'
   | 'titles'
   | 'fields'
@@ -211,7 +217,8 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
     if (
       next === 'quests' ||
       next === 'discoveries' ||
-      next === 'memorial-albums'
+      next === 'memorial-albums' ||
+      next === 'treasure-maps'
     ) {
       setAtlasMenuOpen(true)
     }
@@ -336,6 +343,17 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
   const [titleImportNote, setTitleImportNote] = useState('')
   const [detailTitle, setDetailTitle] = useState<TitleDetail | null>(null)
   const [titleQuery, setTitleQuery] = useState('')
+
+  const [treasureMaps, setTreasureMaps] = useState<TreasureMapDetail[]>([])
+  const [loadingTreasureMaps, setLoadingTreasureMaps] = useState(false)
+  const [treasureMapsError, setTreasureMapsError] = useState('')
+  const [showTreasureMapImport, setShowTreasureMapImport] = useState(false)
+  const [treasureMapImportText, setTreasureMapImportText] = useState('')
+  const [importingTreasureMap, setImportingTreasureMap] = useState(false)
+  const [treasureMapImportNote, setTreasureMapImportNote] = useState('')
+  const [detailTreasureMap, setDetailTreasureMap] =
+    useState<TreasureMapDetail | null>(null)
+  const [treasureMapQuery, setTreasureMapQuery] = useState('')
 
   const [fields, setFields] = useState<FieldDetail[]>([])
   const [loadingFields, setLoadingFields] = useState(false)
@@ -567,6 +585,23 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
     }
   }, [token])
 
+  const loadTreasureMaps = useCallback(async () => {
+    setLoadingTreasureMaps(true)
+    setTreasureMapsError('')
+    try {
+      const res = await fetchTreasureMaps(token)
+      setTreasureMaps(res.treasureMaps)
+    } catch (err) {
+      setTreasureMapsError(
+        err instanceof Error
+          ? err.message
+          : '지도 목록을 불러오지 못했습니다.',
+      )
+    } finally {
+      setLoadingTreasureMaps(false)
+    }
+  }, [token])
+
   const loadFields = useCallback(async () => {
     setLoadingFields(true)
     setFieldsError('')
@@ -776,6 +811,7 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
     if (nav === 'memorial-albums') void loadMemorialAlbums()
     if (nav === 'skills') void loadSkills()
     if (nav === 'titles') void loadTitles()
+    if (nav === 'treasure-maps') void loadTreasureMaps()
     if (nav === 'fields') void loadFields()
     if (nav === 'sea-areas') void loadSeaAreas()
     if (nav === 'consumables') void loadConsumables()
@@ -792,6 +828,7 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
     loadMemorialAlbums,
     loadSkills,
     loadTitles,
+    loadTreasureMaps,
     loadFields,
     loadSeaAreas,
     loadConsumables,
@@ -1055,6 +1092,22 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
       setSkills((prev) => prev.filter((l) => l.id !== skill.id))
       if (detailSkill?.id === skill.id) setDetailSkill(null)
       onToast(`스킬 「${skill.name}」을(를) 삭제했습니다.`)
+    } catch (err) {
+      onToast(err instanceof Error ? err.message : '삭제에 실패했습니다.')
+    } finally {
+      setDeletingKey(null)
+    }
+  }
+
+  async function handleDeleteTreasureMap(map: TreasureMapDetail) {
+    if (!window.confirm(`「${map.name}」 지도를 삭제할까요?`)) return
+    const key = `map:${map.id}`
+    setDeletingKey(key)
+    try {
+      await deleteTreasureMap(token, map.id)
+      setTreasureMaps((prev) => prev.filter((row) => row.id !== map.id))
+      if (detailTreasureMap?.id === map.id) setDetailTreasureMap(null)
+      onToast(`지도 「${map.name}」을(를) 삭제했습니다.`)
     } catch (err) {
       onToast(err instanceof Error ? err.message : '삭제에 실패했습니다.')
     } finally {
@@ -1379,6 +1432,32 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
     }
   }
 
+  async function handleTreasureMapImport(e: FormEvent) {
+    e.preventDefault()
+    if (!treasureMapImportText.trim()) {
+      setTreasureMapImportNote('텍스트를 붙여넣어 주세요.')
+      return
+    }
+    setImportingTreasureMap(true)
+    setTreasureMapImportNote('')
+    try {
+      const res = await importTreasureMapText(token, treasureMapImportText)
+      setTreasureMapImportText('')
+      setShowTreasureMapImport(false)
+      setTreasureMapImportNote(
+        `「${res.treasureMap.name}」을(를) 저장했습니다. (동일 이름이면 내용이 갱신됩니다)`,
+      )
+      onToast(`지도 「${res.treasureMap.name}」 저장 완료`)
+      await loadTreasureMaps()
+    } catch (err) {
+      setTreasureMapImportNote(
+        err instanceof Error ? err.message : '저장에 실패했습니다.',
+      )
+    } finally {
+      setImportingTreasureMap(false)
+    }
+  }
+
   async function handleMaterialImport(e: FormEvent) {
     e.preventDefault()
     if (!materialImportText.trim()) {
@@ -1647,7 +1726,8 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
             className={`admin-nav-group${
               nav === 'quests' ||
               nav === 'discoveries' ||
-              nav === 'memorial-albums'
+              nav === 'memorial-albums' ||
+              nav === 'treasure-maps'
                 ? ' is-active'
                 : ''
             }${atlasMenuOpen ? ' is-open' : ''}`}
@@ -1691,6 +1771,13 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
                 onClick={() => goNav('memorial-albums')}
               >
                 <span className="admin-nav-text">메모리얼 앨범</span>
+              </button>
+              <button
+                type="button"
+                className={nav === 'treasure-maps' ? 'active' : ''}
+                onClick={() => goNav('treasure-maps')}
+              >
+                <span className="admin-nav-text">지도 리스트</span>
               </button>
             </div>
           </div>
@@ -3394,6 +3481,173 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
           </section>
         )}
 
+        {nav === 'treasure-maps' && (
+          <section className="admin-section">
+            <div className="admin-page-head">
+              <div>
+                <h1>지도 리스트</h1>
+                <p>
+                  위키 텍스트로 추가·갱신합니다. 지도 출처는 저장하지 않습니다.
+                </p>
+              </div>
+              <div className="admin-page-actions">
+                <button
+                  type="button"
+                  className="admin-btn"
+                  onClick={() => void loadTreasureMaps()}
+                  disabled={loadingTreasureMaps}
+                >
+                  새로고침
+                </button>
+                <button
+                  type="button"
+                  className="admin-btn admin-btn-primary"
+                  onClick={() => {
+                    setShowTreasureMapImport((v) => !v)
+                    setTreasureMapImportNote('')
+                  }}
+                >
+                  {showTreasureMapImport ? '닫기' : '초기 데이터 추가'}
+                </button>
+              </div>
+            </div>
+
+            {showTreasureMapImport && (
+              <form
+                className="admin-import-form"
+                onSubmit={handleTreasureMapImport}
+              >
+                <label className="field">
+                  <span>초기 데이터 텍스트</span>
+                  <textarea
+                    className="quest-import-textarea"
+                    rows={14}
+                    value={treasureMapImportText}
+                    onChange={(e) => setTreasureMapImportText(e.target.value)}
+                    placeholder={`보물지도\t꼬리가 없는 쥐의 지도\n베이루트문의 바깥쪽\n\n분류\t서고\t서고\t이스탄불, 튀니스\n학문 분야\t생물학\t목적지\t베이루트  베이루트 북쪽\n발견물\t[소형생물] 1 골든햄스터`}
+                    disabled={importingTreasureMap}
+                  />
+                </label>
+                <div className="form-actions">
+                  <button
+                    type="submit"
+                    className="admin-btn admin-btn-primary"
+                    disabled={importingTreasureMap}
+                  >
+                    {importingTreasureMap ? '저장 중…' : '저장'}
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {treasureMapImportNote && (
+              <p
+                className={`form-note${
+                  /실패|못|오류|에러/.test(treasureMapImportNote) ? ' error' : ''
+                }`}
+              >
+                {treasureMapImportNote}
+              </p>
+            )}
+
+            {treasureMapsError && (
+              <p className="form-note error" role="alert">
+                {treasureMapsError}
+              </p>
+            )}
+
+            <label className="field catalog-search">
+              <input
+                type="search"
+                value={treasureMapQuery}
+                onChange={(e) => setTreasureMapQuery(e.target.value)}
+                placeholder="이름·분류·목적지·발견물로 검색"
+                aria-label="지도 검색"
+                autoComplete="off"
+                disabled={loadingTreasureMaps}
+              />
+            </label>
+
+            {loadingTreasureMaps && treasureMaps.length === 0 ? (
+              <p className="form-note">불러오는 중…</p>
+            ) : (
+              <div className="admin-table-wrap">
+                <table className="admin-table">
+                  <thead>
+                    <tr>
+                      <th>이름</th>
+                      <th className="col-desk">분류</th>
+                      <th className="col-desk">학문</th>
+                      <th className="col-desk">목적지</th>
+                      <th className="col-desk col-action">삭제</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {treasureMaps
+                      .filter((item) => {
+                        const q = treasureMapQuery.trim().toLowerCase()
+                        if (!q) return true
+                        return [
+                          item.name,
+                          item.category,
+                          item.academicField,
+                          item.destination,
+                          item.destinationCity,
+                          ...(item.discoveries || []).map((d) => d.name),
+                        ]
+                          .filter(Boolean)
+                          .join(' ')
+                          .toLowerCase()
+                          .includes(q)
+                      })
+                      .slice()
+                      .sort(compareIdDesc)
+                      .map((item, index) => (
+                        <tr
+                          key={item.id}
+                          className={`admin-row-clickable${index % 2 === 0 ? ' is-even' : ' is-odd'}`}
+                          tabIndex={0}
+                          onClick={() => setDetailTreasureMap(item)}
+                          onKeyDown={(
+                            event: KeyboardEvent<HTMLTableRowElement>,
+                          ) => {
+                            if (event.key === 'Enter' || event.key === ' ') {
+                              event.preventDefault()
+                              setDetailTreasureMap(item)
+                            }
+                          }}
+                        >
+                          <td>{item.name}</td>
+                          <td className="col-desk">{item.category || '-'}</td>
+                          <td className="col-desk">
+                            {item.academicField || '-'}
+                          </td>
+                          <td className="col-desk">
+                            {item.destination || item.destinationCity || '-'}
+                          </td>
+                          <td
+                            className="admin-cell-control col-desk"
+                            onClick={(e) => e.stopPropagation()}
+                            onKeyDown={(e) => e.stopPropagation()}
+                          >
+                            <button
+                              type="button"
+                              className="admin-danger-btn"
+                              disabled={deletingKey === `map:${item.id}`}
+                              onClick={() => void handleDeleteTreasureMap(item)}
+                            >
+                              삭제
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+        )}
+
         {nav === 'skills' && (
           <section className="admin-section">
             <div className="admin-page-head">
@@ -4829,6 +5083,28 @@ export function AdminPanel({ user, token, onLogout, onToast }: AdminPanelProps) 
                   prev.map((s) => (s.id === next.id ? next : s)),
                 )
                 setDetailSkill(next)
+              },
+            }}
+          />
+        </DetailModal>
+      )}
+
+      {detailTreasureMap && (
+        <DetailModal
+          title="지도 상세"
+          label={`${detailTreasureMap.name} 상세`}
+          onClose={() => setDetailTreasureMap(null)}
+        >
+          <TreasureMapDetailView
+            map={detailTreasureMap}
+            edit={{
+              token,
+              onToast,
+              onSaved: (next) => {
+                setTreasureMaps((prev) =>
+                  prev.map((row) => (row.id === next.id ? next : row)),
+                )
+                setDetailTreasureMap(next)
               },
             }}
           />

@@ -18,6 +18,7 @@ export type AdminDashboardNav =
   | 'consumables'
   | 'equipments'
   | 'memorial-albums'
+  | 'treasure-maps'
 
 type AdminDashboardProps = {
   token: string
@@ -40,6 +41,7 @@ type CatalogCounts = {
   consumables: number
   equipments: number
   memorialAlbums: number
+  treasureMaps: number
   featureRequests: number
 }
 
@@ -201,6 +203,7 @@ export function AdminDashboard({ token, onNavigate }: AdminDashboardProps) {
                   ['consumables', '소비품', counts?.consumables],
                   ['equipments', '장비품', counts?.equipments],
                   ['memorial-albums', '메모리얼', counts?.memorialAlbums],
+                  ['treasure-maps', '지도', counts?.treasureMaps],
                 ] as const
               ).map(([nav, label, value]) => (
                 <button

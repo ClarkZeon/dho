@@ -16,6 +16,7 @@ export const CATALOG_STAT_KEYS = [
   'equipments',
   'memorial_albums',
   'titles',
+  'treasure_maps',
   'feature_requests',
 ]
 
@@ -41,6 +42,7 @@ function toResponseCounts(map) {
     equipments: map.equipments || 0,
     memorialAlbums: map.memorial_albums || 0,
     titles: map.titles || 0,
+    treasureMaps: map.treasure_maps || 0,
     featureRequests: map.feature_requests || 0,
   }
 }
@@ -64,6 +66,7 @@ export async function reconcileCatalogStats() {
     equipments,
     memorialAlbums,
     titles,
+    treasureMaps,
     featureRequests,
   ] = await Promise.all([
     sql`SELECT COUNT(*)::int AS n FROM users`,
@@ -81,6 +84,7 @@ export async function reconcileCatalogStats() {
     sql`SELECT COUNT(*)::int AS n FROM equipments WHERE enabled = TRUE`,
     sql`SELECT COUNT(*)::int AS n FROM memorial_albums WHERE enabled = TRUE`,
     sql`SELECT COUNT(*)::int AS n FROM titles WHERE enabled = TRUE`,
+    sql`SELECT COUNT(*)::int AS n FROM treasure_maps WHERE enabled = TRUE`,
     sql`
       SELECT COUNT(*)::int AS n FROM posts
       WHERE board_id = 'feature' AND is_deleted = FALSE
@@ -103,6 +107,7 @@ export async function reconcileCatalogStats() {
     equipments: asCount(equipments),
     memorial_albums: asCount(memorialAlbums),
     titles: asCount(titles),
+    treasure_maps: asCount(treasureMaps),
     feature_requests: asCount(featureRequests),
   }
 

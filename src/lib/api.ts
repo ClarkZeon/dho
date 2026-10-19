@@ -15,6 +15,7 @@ import type {
   EntryPermitDetail,
   MemorialAlbumDetail,
   TitleDetail,
+  TreasureMapDetail,
   QuestDetail,
   Session,
   ShipDetail,
@@ -649,6 +650,44 @@ export function updateMemorialAlbum(
   )
 }
 
+export function fetchTreasureMaps(token: string) {
+  return request<{ treasureMaps: TreasureMapDetail[] }>('/api/treasure-maps', {
+    token,
+  })
+}
+
+export function importTreasureMapText(token: string, text: string) {
+  return request<{ treasureMap: TreasureMapDetail }>(
+    '/api/treasure-maps/import-text',
+    {
+      token,
+      body: { text },
+    },
+  )
+}
+
+export function deleteTreasureMap(token: string, mapId: number) {
+  return request<{ ok: boolean }>(
+    `/api/treasure-maps/${encodeURIComponent(String(mapId))}`,
+    { method: 'DELETE', token },
+  )
+}
+
+export function updateTreasureMap(
+  token: string,
+  mapId: number,
+  patch: Partial<TreasureMapDetail>,
+) {
+  return request<{ treasureMap: TreasureMapDetail }>(
+    `/api/treasure-maps/${encodeURIComponent(String(mapId))}`,
+    {
+      method: 'PATCH',
+      token,
+      body: patch,
+    },
+  )
+}
+
 export function fetchTitles(token: string) {
   return request<{ titles: TitleDetail[] }>('/api/titles', { token })
 }
@@ -808,6 +847,7 @@ export function fetchAdminStats(token: string) {
       equipments: number
       memorialAlbums: number
       titles: number
+      treasureMaps: number
       featureRequests: number
     }
   }>('/api/admin/stats', { token })

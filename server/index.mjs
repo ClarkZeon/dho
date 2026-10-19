@@ -159,6 +159,14 @@ import {
 } from './titleStore.mjs'
 import { parseTitleText } from './titleTextParse.mjs'
 import {
+  deleteTreasureMap,
+  ensureTreasureMapStore,
+  listTreasureMaps,
+  updateTreasureMapFields,
+  upsertTreasureMapFromParsed,
+} from './treasureMapStore.mjs'
+import { parseTreasureMapText } from './treasureMapTextParse.mjs'
+import {
   createUser,
   deleteSessionByToken,
   getAuthUserByToken,
@@ -228,6 +236,7 @@ async function ensureStore() {
   await ensureConsumableStore()
   await ensureEquipmentStore()
   await ensureMemorialAlbumStore()
+  await ensureTreasureMapStore()
   await ensureCatalogStats()
   await ensureCatalogUpdatedAt()
 }
@@ -2227,6 +2236,91 @@ export async function handleRequest(req, res) {
           message.includes('찾을 수 없') ? 404 : 400,
           { error: message },
         )
+      }
+      return
+    }
+
+    if (req.method === 'GET' && pathname === '/api/treasure-maps') {
+      const authUser = await getAuthUser(req)
+      if (!authUser) {
+        sendJson(res, 401, { error: '로그인이 필요합니다.' })
+        return
+      }
+      const treasureMaps = await listTreasureMaps()
+      sendJson(res, 200, { treasureMaps })
+      return
+    }
+
+    if (req.method === 'POST' && pathname === '/api/treasure-maps/import-text') {
+      const authUser = await getAuthUser(req)
+      if (!authUser) {
+        sendJson(res, 401, { error: '로그인이 필요합니다.' })
+        return
+      }
+      if (!requireAdmin(authUser, res)) return
+      const body = await readBody(req)
+      const text = typeof body.text === 'string' ? body.text : ''
+      try {
+        const parsed = parseTreasureMapText(text)
+        const treasureMap = await upsertTreasureMapFromParsed(parsed)
+        sendJson(res, 201, { treasureMap })
+      } catch (err) {
+        sendJson(res, 400, {
+          error:
+            err instanceof Error
+              ? err.message
+              : '지도 텍스트 파싱에 실패했습니다.',
+        })
+      }
+      return
+    }
+
+    const treasureMapMatch = pathname.match(/^\/api\/treasure-maps\/([^/]+)$/)
+    if (treasureMapMatch && req.method === 'PATCH') {
+      const authUser = await getAuthUser(req)
+      if (!authUser) {
+        sendJson(res, 401, { error: '로그인이 필요합니다.' })
+        return
+      }
+      if (!requireAdmin(authUser, res)) return
+      const mapId = Number(decodeURIComponent(treasureMapMatch[1]))
+      if (!Number.isFinite(mapId)) {
+        sendJson(res, 400, { error: '잘못된 지도 ID입니다.' })
+        return
+      }
+      const body = await readBody(req)
+      try {
+        const treasureMap = await updateTreasureMapFields(mapId, body)
+        sendJson(res, 200, { treasureMap })
+      } catch (err) {
+        sendJson(res, 400, {
+          error: err instanceof Error ? err.message : '지도 수정에 실패했습니다.',
+        })
+      }
+      return
+    }
+
+    if (treasureMapMatch && req.method === 'DELETE') {
+      const authUser = await getAuthUser(req)
+      if (!authUser) {
+        sendJson(res, 401, { error: '로그인이 필요합니다.' })
+        return
+      }
+      if (!requireAdmin(authUser, res)) return
+      const mapId = Number(decodeURIComponent(treasureMapMatch[1]))
+      if (!Number.isFinite(mapId)) {
+        sendJson(res, 400, { error: '잘못된 지도 ID입니다.' })
+        return
+      }
+      try {
+        await deleteTreasureMap(mapId)
+        sendJson(res, 200, { ok: true })
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : '지도 삭제에 실패했습니다.'
+        sendJson(res, message.includes('찾을 수 없') ? 404 : 400, {
+          error: message,
+        })
       }
       return
     }

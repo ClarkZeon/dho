@@ -13,6 +13,7 @@ const CATALOG_TABLES = [
   'consumables',
   'equipments',
   'memorial_albums',
+  'treasure_maps',
   'ships',
   'ship_materials',
 ]

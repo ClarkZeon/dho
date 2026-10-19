@@ -366,6 +366,51 @@ export type MemorialAlbumDetail = {
   items: MemorialAlbumItem[]
 }
 
+export type TreasureMapDiscovery = {
+  category: string | null
+  rank: number | null
+  name: string
+}
+
+export type TreasureMapSkillReq = {
+  name: string
+  rank: number | null
+}
+
+export type TreasureMapRewardItem = {
+  name: string
+  count: number | null
+}
+
+export type TreasureMapLink = {
+  tag: string | null
+  title: string
+  raw: string
+}
+
+export type TreasureMapDetail = {
+  id: number
+  slug: string
+  name: string
+  altName: string | null
+  mapKind: string | null
+  description: string | null
+  category: string | null
+  libraries: string[]
+  academicField: string | null
+  destinationCity: string | null
+  destination: string | null
+  discoveries: TreasureMapDiscovery[]
+  skillReqs: TreasureMapSkillReq[]
+  discoveryExp: number | null
+  cardExp: number | null
+  ducat: number | null
+  rewardItems: TreasureMapRewardItem[]
+  linkedQuests: TreasureMapLink[]
+  walkthrough: string | null
+  updatedAt?: string | null
+}
+
 export type TitleDetail = {
   id: number
   slug: string
