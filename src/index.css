@@ -9,6 +9,10 @@
   --is-blue-lighter: #1c6dc9;
   --is-blue: #244f80;
   --is-blue-hover: #3a7bc4;
+  --admin-accent: #c43c3c;
+  --admin-accent-hover: #a83232;
+  --admin-accent-soft: rgba(196, 60, 60, 0.08);
+  --admin-accent-border: #d98a8a;
   --is-yellow: #fffd72;
   --is-gold: #f5a623;
   --sea-deep: #0e2a4a;

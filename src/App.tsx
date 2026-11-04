@@ -5,7 +5,6 @@ import {
   type FormEvent,
   type ReactNode,
 } from 'react'
-import { AdminForbidden, AdminPanel } from './components/AdminPanel'
 import { BrandMark } from './components/BrandMark'
 import { Dashboard } from './components/Dashboard'
 import { Toast } from './components/Toast'
@@ -23,11 +22,6 @@ import type { Session, User } from './types'
 import './App.css'
 
 type Mode = 'login' | 'signup'
-
-function isAdminPath() {
-  const path = window.location.pathname.replace(/\/+$/, '') || '/'
-  return path === '/admin'
-}
 
 function normalizeUser(
   user: Partial<User> & Pick<User, 'id' | 'username' | 'nickname' | 'createdAt'>,
@@ -73,6 +67,17 @@ function App() {
     setError('')
     setMessage('')
     if (toastText) setToast(toastText)
+  }, [])
+
+  useEffect(() => {
+    const path = window.location.pathname.replace(/\/+$/, '') || '/'
+    if (path === '/admin') {
+      window.history.replaceState(
+        null,
+        '',
+        `/${window.location.search}${window.location.hash}`,
+      )
+    }
   }, [])
 
   useEffect(() => {
@@ -186,22 +191,8 @@ function App() {
     return null
   }
 
-  const adminRoute = isAdminPath()
-
   let body: ReactNode
-  if (session && adminRoute) {
-    body =
-      session.user.role === 'admin' ? (
-        <AdminPanel
-          user={session.user}
-          token={session.token}
-          onLogout={logout}
-          onToast={showToast}
-        />
-      ) : (
-        <AdminForbidden />
-      )
-  } else if (session) {
+  if (session) {
     body = (
       <Dashboard
         user={session.user}
@@ -224,9 +215,7 @@ function App() {
             <span className="topbar-mark">
               <BrandMark />
             </span>
-            <span className="topbar-meta">
-              {adminRoute ? '관리자 로그인' : '빛 · 희망'}
-            </span>
+            <span className="topbar-meta">빛 · 희망</span>
           </header>
 
           <main className="login-stage">
@@ -237,14 +226,8 @@ function App() {
                 <span>온라인</span>
               </h1>
               <p className="brand-lead">
-                {adminRoute ? (
-                  <span>관리자 계정으로 로그인해 주세요</span>
-                ) : (
-                  <>
-                    <span>선박 수치와 가속도 계산을</span>
-                    <span>어디서나 바로 다루는 보조 앱</span>
-                  </>
-                )}
+                <span>선박 수치와 가속도 계산을</span>
+                <span>어디서나 바로 다루는 보조 앱</span>
               </p>
             </section>
 

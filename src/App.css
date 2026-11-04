@@ -377,6 +377,13 @@
   border-left: 2px solid rgba(36, 79, 128, 0.12);
 }
 
+.slide-menu-empty {
+  margin: 0;
+  padding: 0.55rem 0.7rem;
+  color: var(--is-grey);
+  font-size: 0.82rem;
+}
+
 .slide-menu-sub > button {
   font-size: 0.9rem;
   font-weight: 500;
@@ -1275,6 +1282,12 @@
 .dash-link-groups {
   display: grid;
   gap: 1rem;
+}
+
+.dash-link-empty {
+  margin: 0;
+  color: var(--is-grey);
+  font-size: 0.86rem;
 }
 
 .dash-link-group h3 {
@@ -3650,16 +3663,17 @@
   width: 2rem;
   height: 2rem;
   padding: 0;
-  border: 1px solid var(--is-grey-lighter);
+  border: 1px solid var(--admin-accent-border);
   border-radius: 8px;
   background: var(--is-white);
-  color: var(--is-grey);
+  color: var(--admin-accent);
   cursor: pointer;
 }
 
 .quest-edit-icon-btn:hover {
-  color: var(--is-dark);
-  border-color: var(--is-grey);
+  color: var(--admin-accent-hover);
+  border-color: var(--admin-accent);
+  background: var(--admin-accent-soft);
 }
 
 .quest-walkthrough-edit {
@@ -4165,6 +4179,66 @@
   max-width: 100%;
   padding: 0.25rem 0.2rem 0.25rem 0.35rem;
   text-align: left;
+}
+
+.btn-admin {
+  border: 1px solid var(--admin-accent-border);
+  border-radius: 7px;
+  background: var(--is-white);
+  color: var(--admin-accent);
+  font-size: 0.84rem;
+  font-weight: 700;
+  padding: 0.45rem 0.75rem;
+  cursor: pointer;
+}
+
+.btn-admin:hover:not(:disabled) {
+  background: var(--admin-accent-soft);
+}
+
+.btn-admin:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-admin-primary {
+  border-color: var(--admin-accent);
+  background: var(--admin-accent);
+  color: var(--is-white);
+}
+
+.btn-admin-primary:hover:not(:disabled) {
+  background: var(--admin-accent-hover);
+  border-color: var(--admin-accent-hover);
+}
+
+.admin-control {
+  border: 1px solid var(--admin-accent-border);
+  border-radius: 6px;
+  background: var(--is-white);
+  color: var(--admin-accent);
+  font-size: 0.82rem;
+  font-weight: 650;
+  padding: 0.25rem 0.4rem;
+}
+
+.slide-menu-group.is-admin .slide-menu-parent {
+  color: var(--admin-accent);
+}
+
+.slide-menu-group.is-admin .slide-menu-parent.active,
+.slide-menu-group.is-admin .slide-menu-sub > button.active {
+  background: var(--admin-accent-soft);
+  color: var(--admin-accent);
+}
+
+.dash-link.dash-link-admin {
+  border-color: color-mix(in srgb, var(--admin-accent) 35%, var(--is-grey-lighter));
+  background: color-mix(in srgb, var(--admin-accent) 4%, var(--is-white));
+}
+
+.dash-link.dash-link-admin strong {
+  color: var(--admin-accent);
 }
 
 .admin-danger-btn {

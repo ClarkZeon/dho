@@ -61,7 +61,7 @@ export function DetailSectionActions({
     <div className="quest-walkthrough-actions">
       <button
         type="button"
-        className="admin-btn"
+        className="btn-admin"
         disabled={busy}
         onClick={onCancel}
       >
@@ -69,7 +69,7 @@ export function DetailSectionActions({
       </button>
       <button
         type="button"
-        className="admin-btn admin-btn-primary"
+        className="btn-admin btn-admin-primary"
         disabled={busy}
         onClick={onSave}
       >

@@ -8,21 +8,13 @@ import {
 import type { BoardSummary, User } from '../types'
 import { BoardView } from './BoardView'
 import { Messages } from './Messages'
-import { DiscoveryCatalog } from './DiscoveryCatalog'
-import { MemorialAlbumCatalog } from './MemorialAlbumCatalog'
-import { TreasureMapCatalog } from './TreasureMapCatalog'
-import { FieldCatalog } from './FieldCatalog'
-import { SeaAreaCatalog } from './SeaAreaCatalog'
-import { SkillCatalog } from './SkillCatalog'
-import { TitleCatalog } from './TitleCatalog'
-import { PortCatalog } from './PortCatalog'
-import { RegionCatalog } from './RegionCatalog'
-import { EntryPermitCatalog } from './EntryPermitCatalog'
-import { QuestCatalog } from './QuestCatalog'
 import { ShipAccel } from './ShipAccel'
 import { ShipCompare } from './ShipCompare'
 import { ShipInfo } from './ShipInfo'
 import { ShipMaterialCatalog } from './ShipMaterialCatalog'
+import { DiscoveryCatalog } from './DiscoveryCatalog'
+import { QuestCatalog } from './QuestCatalog'
+import { UserManage } from './UserManage'
 import { BrandMark } from './BrandMark'
 import { SlideMenu, type MenuTarget } from './SlideMenu'
 
@@ -34,17 +26,9 @@ type View =
   | { name: 'ship-accel' }
   | { name: 'ship-compare' }
   | { name: 'ship-materials' }
-  | { name: 'quests' }
-  | { name: 'ports' }
-  | { name: 'regions' }
-  | { name: 'entry-permits' }
   | { name: 'discoveries' }
-  | { name: 'memorial-albums' }
-  | { name: 'treasure-maps' }
-  | { name: 'skills' }
-  | { name: 'titles' }
-  | { name: 'fields' }
-  | { name: 'sea-areas' }
+  | { name: 'quests' }
+  | { name: 'users' }
 
 type DashboardProps = {
   user: User
@@ -66,28 +50,12 @@ function viewToHash(view: View): string {
       return '#/ship-compare'
     case 'ship-materials':
       return '#/ship-materials'
-    case 'quests':
-      return '#/quests'
-    case 'ports':
-      return '#/ports'
-    case 'regions':
-      return '#/regions'
-    case 'entry-permits':
-      return '#/entry-permits'
     case 'discoveries':
       return '#/discoveries'
-    case 'memorial-albums':
-      return '#/memorial-albums'
-    case 'treasure-maps':
-      return '#/treasure-maps'
-    case 'skills':
-      return '#/skills'
-    case 'titles':
-      return '#/titles'
-    case 'fields':
-      return '#/fields'
-    case 'sea-areas':
-      return '#/sea-areas'
+    case 'quests':
+      return '#/quests'
+    case 'users':
+      return '#/users'
     case 'board':
       return view.postId
         ? `#/board/${encodeURIComponent(view.boardId)}/${encodeURIComponent(view.postId)}`
@@ -110,7 +78,7 @@ function applyViewUrl(view: View) {
   window.history.pushState(null, '', nextUrl)
 }
 
-function hashToView(hash: string): View {
+function hashToView(hash: string, isAdmin: boolean): View {
   const raw = hash.replace(/^#/, '').trim()
   const path = raw.startsWith('/') ? raw : `/${raw}`
   const parts = path.split('/').filter(Boolean)
@@ -121,19 +89,11 @@ function hashToView(hash: string): View {
   if (parts[0] === 'ship-accel') return { name: 'ship-accel' }
   if (parts[0] === 'ship-compare') return { name: 'ship-compare' }
   if (parts[0] === 'ship-materials') return { name: 'ship-materials' }
-  if (parts[0] === 'quests') return { name: 'quests' }
-  if (parts[0] === 'ports') return { name: 'ports' }
-  if (parts[0] === 'regions') return { name: 'regions' }
-  if (parts[0] === 'entry-permits') return { name: 'entry-permits' }
   if (parts[0] === 'discoveries') return { name: 'discoveries' }
-  if (parts[0] === 'memorial-albums') return { name: 'memorial-albums' }
-  if (parts[0] === 'treasure-maps') return { name: 'treasure-maps' }
-  if (parts[0] === 'skills' || parts[0] === 'languages') {
-    return { name: 'skills' }
+  if (parts[0] === 'quests') return { name: 'quests' }
+  if (parts[0] === 'users') {
+    return isAdmin ? { name: 'users' } : { name: 'home' }
   }
-  if (parts[0] === 'titles') return { name: 'titles' }
-  if (parts[0] === 'fields') return { name: 'fields' }
-  if (parts[0] === 'sea-areas') return { name: 'sea-areas' }
   if (parts[0] === 'board' && parts[1]) {
     return {
       name: 'board',
@@ -215,22 +175,17 @@ function toMenuTarget(view: View): MenuTarget {
   if (view.name === 'ship-accel') return { name: 'ship-accel' }
   if (view.name === 'ship-compare') return { name: 'ship-compare' }
   if (view.name === 'ship-materials') return { name: 'ship-materials' }
-  if (view.name === 'quests') return { name: 'quests' }
-  if (view.name === 'ports') return { name: 'ports' }
-  if (view.name === 'regions') return { name: 'regions' }
-  if (view.name === 'entry-permits') return { name: 'entry-permits' }
   if (view.name === 'discoveries') return { name: 'discoveries' }
-  if (view.name === 'memorial-albums') return { name: 'memorial-albums' }
-  if (view.name === 'treasure-maps') return { name: 'treasure-maps' }
-  if (view.name === 'skills') return { name: 'skills' }
-  if (view.name === 'titles') return { name: 'titles' }
-  if (view.name === 'fields') return { name: 'fields' }
-  if (view.name === 'sea-areas') return { name: 'sea-areas' }
+  if (view.name === 'quests') return { name: 'quests' }
+  if (view.name === 'users') return { name: 'users' }
   return { name: 'home' }
 }
 
 export function Dashboard({ user, token, onLogout, onToast }: DashboardProps) {
-  const [view, setView] = useState<View>(() => hashToView(window.location.hash))
+  const isAdmin = user.role === 'admin'
+  const [view, setView] = useState<View>(() =>
+    hashToView(window.location.hash, user.role === 'admin'),
+  )
   const [menuOpen, setMenuOpen] = useState(false)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const userMenuRef = useRef<HTMLDivElement>(null)
@@ -329,7 +284,7 @@ export function Dashboard({ user, token, onLogout, onToast }: DashboardProps) {
     }
 
     function syncFromLocation() {
-      const next = hashToView(window.location.hash)
+      const next = hashToView(window.location.hash, isAdmin)
       setView((prev) => {
         if (viewsEqual(prev, next)) return prev
         if (next.name === 'home') void refreshBoards()
@@ -343,7 +298,7 @@ export function Dashboard({ user, token, onLogout, onToast }: DashboardProps) {
       window.removeEventListener('hashchange', syncFromLocation)
       window.removeEventListener('popstate', syncFromLocation)
     }
-  }, [refreshBoards])
+  }, [refreshBoards, isAdmin])
 
   function navigate(target: MenuTarget) {
     if (target.name === 'home') {
@@ -370,48 +325,16 @@ export function Dashboard({ user, token, onLogout, onToast }: DashboardProps) {
       go({ name: 'ship-materials' })
       return
     }
-    if (target.name === 'quests') {
-      go({ name: 'quests' })
-      return
-    }
-    if (target.name === 'ports') {
-      go({ name: 'ports' })
-      return
-    }
-    if (target.name === 'regions') {
-      go({ name: 'regions' })
-      return
-    }
-    if (target.name === 'entry-permits') {
-      go({ name: 'entry-permits' })
-      return
-    }
     if (target.name === 'discoveries') {
       go({ name: 'discoveries' })
       return
     }
-    if (target.name === 'memorial-albums') {
-      go({ name: 'memorial-albums' })
+    if (target.name === 'quests') {
+      go({ name: 'quests' })
       return
     }
-    if (target.name === 'treasure-maps') {
-      go({ name: 'treasure-maps' })
-      return
-    }
-    if (target.name === 'skills') {
-      go({ name: 'skills' })
-      return
-    }
-    if (target.name === 'titles') {
-      go({ name: 'titles' })
-      return
-    }
-    if (target.name === 'fields') {
-      go({ name: 'fields' })
-      return
-    }
-    if (target.name === 'sea-areas') {
-      go({ name: 'sea-areas' })
+    if (target.name === 'users') {
+      if (isAdmin) go({ name: 'users' })
       return
     }
     go({ name: 'board', boardId: target.boardId })
@@ -528,7 +451,7 @@ export function Dashboard({ user, token, onLogout, onToast }: DashboardProps) {
             <div className="dash-head">
               <div>
                 <h1>대시보드</h1>
-                <p>게시판·선박·도감·개척·함장을 한곳에서 바로 엽니다.</p>
+                <p>게시판·선박을 한곳에서 바로 엽니다.</p>
               </div>
 
               <section className="level-card compact" aria-label="레벨 정보">
@@ -599,16 +522,8 @@ export function Dashboard({ user, token, onLogout, onToast }: DashboardProps) {
                 </div>
 
                 <div className="dash-link-group">
-                  <h3>도감</h3>
+                  <h3>기록</h3>
                   <div className="dash-links">
-                    <button
-                      type="button"
-                      className="dash-link"
-                      onClick={() => go({ name: 'quests' })}
-                    >
-                      <strong>퀘스트</strong>
-                      <span>퀘스트 목록·연계</span>
-                    </button>
                     <button
                       type="button"
                       className="dash-link"
@@ -620,89 +535,30 @@ export function Dashboard({ user, token, onLogout, onToast }: DashboardProps) {
                     <button
                       type="button"
                       className="dash-link"
-                      onClick={() => go({ name: 'memorial-albums' })}
+                      onClick={() => go({ name: 'quests' })}
                     >
-                      <strong>메모리얼 앨범</strong>
-                      <span>앨범 목록·항목</span>
-                    </button>
-                    <button
-                      type="button"
-                      className="dash-link"
-                      onClick={() => go({ name: 'treasure-maps' })}
-                    >
-                      <strong>지도</strong>
-                      <span>보물지도 목록·상세</span>
+                      <strong>퀘스트</strong>
+                      <span>퀘스트 목록·상세</span>
                     </button>
                   </div>
                 </div>
 
-                <div className="dash-link-group">
-                  <h3>개척</h3>
-                  <div className="dash-links">
-                    <button
-                      type="button"
-                      className="dash-link"
-                      onClick={() => go({ name: 'ports' })}
-                    >
-                      <strong>항구</strong>
-                      <span>항구·도시 정보</span>
-                    </button>
-                    <button
-                      type="button"
-                      className="dash-link"
-                      onClick={() => go({ name: 'regions' })}
-                    >
-                      <strong>지역</strong>
-                      <span>지역·해역 그룹</span>
-                    </button>
-                    <button
-                      type="button"
-                      className="dash-link"
-                      onClick={() => go({ name: 'entry-permits' })}
-                    >
-                      <strong>입항허가</strong>
-                      <span>입항허가·택일 퀘스트</span>
-                    </button>
-                    <button
-                      type="button"
-                      className="dash-link"
-                      onClick={() => go({ name: 'fields' })}
-                    >
-                      <strong>필드</strong>
-                      <span>필드·육지 조사</span>
-                    </button>
-                    <button
-                      type="button"
-                      className="dash-link"
-                      onClick={() => go({ name: 'sea-areas' })}
-                    >
-                      <strong>해역</strong>
-                      <span>해역·수집·목적지</span>
-                    </button>
+                {isAdmin && (
+                  <div className="dash-link-group">
+                    <h3>관리</h3>
+                    <div className="dash-links">
+                      <button
+                        type="button"
+                        className="dash-link dash-link-admin"
+                        onClick={() => go({ name: 'users' })}
+                      >
+                        <strong>회원</strong>
+                        <span>역할·계정 관리</span>
+                      </button>
+                    </div>
                   </div>
-                </div>
+                )}
 
-                <div className="dash-link-group">
-                  <h3>함장</h3>
-                  <div className="dash-links">
-                    <button
-                      type="button"
-                      className="dash-link"
-                      onClick={() => go({ name: 'skills' })}
-                    >
-                      <strong>스킬</strong>
-                      <span>스킬·습득 정보</span>
-                    </button>
-                    <button
-                      type="button"
-                      className="dash-link"
-                      onClick={() => go({ name: 'titles' })}
-                    >
-                      <strong>호칭</strong>
-                      <span>호칭·효과·필요</span>
-                    </button>
-                  </div>
-                </div>
               </div>
             </section>
 
@@ -758,45 +614,37 @@ export function Dashboard({ user, token, onLogout, onToast }: DashboardProps) {
           />
         )}
 
-        {view.name === 'ship-info' && <ShipInfo token={token} />}
+        {view.name === 'ship-info' && (
+          <ShipInfo token={token} isAdmin={isAdmin} onToast={onToast} />
+        )}
 
         {view.name === 'ship-accel' && <ShipAccel token={token} />}
 
         {view.name === 'ship-compare' && <ShipCompare token={token} />}
 
         {view.name === 'ship-materials' && (
-          <ShipMaterialCatalog token={token} />
+          <ShipMaterialCatalog
+            token={token}
+            isAdmin={isAdmin}
+            onToast={onToast}
+          />
+        )}
+
+        {view.name === 'discoveries' && (
+          <DiscoveryCatalog
+            token={token}
+            isAdmin={isAdmin}
+            onToast={onToast}
+          />
         )}
 
         {view.name === 'quests' && (
-          <QuestCatalog token={token} isAdmin={user.role === 'admin'} />
+          <QuestCatalog token={token} isAdmin={isAdmin} onToast={onToast} />
         )}
 
-        {view.name === 'ports' && <PortCatalog token={token} />}
-
-        {view.name === 'regions' && <RegionCatalog token={token} />}
-
-        {view.name === 'entry-permits' && (
-          <EntryPermitCatalog token={token} />
+        {view.name === 'users' && isAdmin && (
+          <UserManage user={user} token={token} onToast={onToast} />
         )}
-
-        {view.name === 'discoveries' && <DiscoveryCatalog token={token} />}
-
-        {view.name === 'memorial-albums' && (
-          <MemorialAlbumCatalog token={token} />
-        )}
-
-        {view.name === 'treasure-maps' && (
-          <TreasureMapCatalog token={token} />
-        )}
-
-        {view.name === 'skills' && <SkillCatalog token={token} />}
-
-        {view.name === 'titles' && <TitleCatalog token={token} />}
-
-        {view.name === 'fields' && <FieldCatalog token={token} />}
-
-        {view.name === 'sea-areas' && <SeaAreaCatalog token={token} />}
 
       </main>
     </div>

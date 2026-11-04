@@ -295,8 +295,13 @@ export async function ensureShipStore() {
   await runSqlFile('sql/007_ship_acquire.sql')
   await runSqlFile('sql/013_ship_material_detail.sql')
   await runSqlFile('sql/016_ship_build_detail.sql')
-  // 번들 JSON upsert — 신규 선박·획득 방법 반영
-  await seedShipsFromBundle()
+  // 부팅마다 전량 upsert 하면 Neon HTTP에서 수분 이상 걸려 API가 안 뜬다.
+  // 비어 있을 때만 시드하고, 강제 재시드는 reseedShipsFromBundle 사용.
+  const sql = getSql()
+  const rows = await sql`SELECT COUNT(*)::int AS n FROM ships`
+  if ((Number(rows[0]?.n) || 0) === 0) {
+    await seedShipsFromBundle()
+  }
 }
 
 async function loadLookups() {
