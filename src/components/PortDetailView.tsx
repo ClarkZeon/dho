@@ -25,7 +25,6 @@ import {
 import {
   PORT_CATEGORIES,
   isNationPortCategory,
-  parsePortCategory,
 } from '../lib/portCategories'
 import { DucatAmount, DucatMark } from './DucatAmount'
 import { LoadingOverlay } from './LoadingOverlay'
@@ -622,9 +621,11 @@ export function PortDetailView({
   const saleRows = (port.saleItems || []).filter((s) => s.vendor === saleTab)
 
   const facilitySet = new Set(parseFacilities(draft.facilities))
-  const categoryOptions = port.category && !PORT_CATEGORIES.includes(port.category)
-    ? [port.category, ...PORT_CATEGORIES]
-    : PORT_CATEGORIES
+  const categoryOptions =
+    port.category &&
+    !(PORT_CATEGORIES as readonly string[]).includes(port.category)
+      ? [port.category, ...PORT_CATEGORIES]
+      : [...PORT_CATEGORIES]
   const isNation = isNationPortCategory(port.category)
   const flagCountry = isNation ? countryNameFromCategory(port.category) : null
   // 깃발 모티브(블러 배경·타이틀 그라데이션·국가 깃발)는 본거지/영지만
