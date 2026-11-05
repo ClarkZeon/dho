@@ -240,6 +240,20 @@ export async function getSkillById(id) {
   return rows[0] ? decorateSkill(rows[0]) : null
 }
 
+/** 퀘스트 필요 스킬 칩 등 — 표시 이름으로 조회 */
+export async function getSkillByName(name) {
+  const key = normalizeName(name)
+  if (!key) return null
+  const sql = getSql()
+  const rows = await sql`
+    SELECT * FROM skills
+    WHERE enabled = TRUE
+      AND TRIM(BOTH FROM regexp_replace(name, '\\s+', ' ', 'g')) = ${key}
+    LIMIT 1
+  `
+  return rows[0] ? decorateSkill(rows[0]) : null
+}
+
 /** @param {number} id */
 export async function updateSkillFields(id, patch) {
   const sql = getSql()

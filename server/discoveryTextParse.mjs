@@ -14,6 +14,10 @@
  * 효과	논전 콤보	발견물 카드
  * 포인트 +30 & …	구렁이의 속박
  * 보아	비단뱀	아나콘다
+ * 장식품
+ * 장식품	발견물 카드
+ * 클레오덴드룸	클레오덴드룸
+ * 클레오덴드룸(꽃병)	클레오덴드룸	설화석고의 꽃병
  */
 
 import { createHash } from 'node:crypto'
@@ -224,6 +228,63 @@ function isDebateHeaderRow(cols) {
   )
 }
 
+/** 위키 「장식품」 섹션 (항구 「장식품 제작」과 구분) */
+function isOrnamentSection(line) {
+  const text = String(line || '').trim()
+  return /^장식품$/.test(text) || /^장식품\s*[|｜]/.test(text)
+}
+
+function isOrnamentHeaderRow(cols) {
+  return (
+    cols.length >= 2 &&
+    /^장식품$/.test(cols[0] || '') &&
+    /발견물\s*카드/.test(cols[1] || '')
+  )
+}
+
+function escapeRegExp(text) {
+  return String(text || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+/**
+ * 장식품명 토큰 여부.
+ * - `클레오덴드룸` (발견물명과 동일) → bare
+ * - `클레오덴드룸(꽃병)` / `클레오덴드룸(꽃병+탁자)` → variant
+ */
+function ornamentNameKind(token, discoveryName) {
+  const t = String(token || '').trim()
+  const base = String(discoveryName || '').trim()
+  if (!t || !base) return null
+  if (t === base) return 'bare'
+  const re = new RegExp(
+    `^${escapeRegExp(base)}\\s*[\\(（][^\\)）]+[\\)）]$`,
+  )
+  return re.test(t) ? 'variant' : null
+}
+
+/**
+ * 장식품 셀을 장식품명 기준으로 다음 줄(행)로 나눔.
+ * variant 이름은 항상 새 행. bare 이름은 행이 없을 때만 새 행(이후 bare는 카드).
+ */
+function splitOrnamentRowsByName(tokens, discoveryName) {
+  /** @type {Array<{ name: string, cards: string[] }>} */
+  const rows = []
+  /** @type {{ name: string, cards: string[] }|null} */
+  let current = null
+  for (const raw of tokens || []) {
+    const t = String(raw || '').trim()
+    if (!t) continue
+    const kind = ornamentNameKind(t, discoveryName)
+    if (kind === 'variant' || (kind === 'bare' && !current)) {
+      current = { name: t, cards: [] }
+      rows.push(current)
+      continue
+    }
+    if (current) current.cards.push(t)
+  }
+  return rows
+}
+
 /**
  * [대형생물] 5성 비단뱀
  */
@@ -360,11 +421,22 @@ export function parseDiscoveryText(text) {
     linkedQuests: [],
     /** @type {{ effect: string|null, comboName: string|null, cards: string[] }|null} */
     debateCombo: null,
+    /** @type {Array<{ name: string, cards: string[] }>} */
+    ornaments: [],
+    /** @type {string[]} 장식품 섹션 원본 셀 — 장식품명 기준으로 행 분리 */
+    ornamentTokens: [],
   }
 
   let description = ''
-  /** @type {null | 'linked' | 'debate'} */
+  /** @type {null | 'linked' | 'debate' | 'ornament'} */
   let mode = null
+
+  function flushOrnamentTokens() {
+    if (!state.ornamentTokens.length) return
+    const rows = splitOrnamentRowsByName(state.ornamentTokens, name)
+    state.ornaments.push(...rows)
+    state.ornamentTokens = []
+  }
 
   for (let i = nameIdx + 1; i < lines.length; i++) {
     const line = lines[i].replace(/^[\uFEFF\u200B\u200C\u200D]+/, '').trim()
@@ -391,6 +463,14 @@ export function parseDiscoveryText(text) {
       continue
     }
 
+    if (isOrnamentSection(line) || isOrnamentSection(first)) {
+      if (mode === 'ornament') flushOrnamentTokens()
+      mode = 'ornament'
+      // 「장식품\t발견물 카드」 헤더가 같은 줄에 붙은 경우
+      if (isOrnamentHeaderRow(cols)) continue
+      continue
+    }
+
     if (mode === 'linked') {
       if (/^\[/.test(line)) {
         const item = parseLinkedQuestLine(line)
@@ -407,6 +487,22 @@ export function parseDiscoveryText(text) {
 
     if (mode === 'debate') {
       if (isDebateHeaderRow(cols)) continue
+      if (isOrnamentHeaderRow(cols)) {
+        mode = 'ornament'
+        continue
+      }
+      // 헤더 없이 장식품 변형명(`이름(…)`)이 이어지면 장식품으로 전환
+      if (
+        state.debateCombo &&
+        (state.debateCombo.effect || state.debateCombo.comboName) &&
+        cols.some((c) => ornamentNameKind(c, name) === 'variant')
+      ) {
+        mode = 'ornament'
+        for (const cell of cols) {
+          if (cell.trim()) state.ornamentTokens.push(cell.trim())
+        }
+        continue
+      }
       if (!state.debateCombo) {
         state.debateCombo = { effect: null, comboName: null, cards: [] }
       }
@@ -423,6 +519,24 @@ export function parseDiscoveryText(text) {
         }
       }
       continue
+    }
+
+    if (mode === 'ornament') {
+      if (isOrnamentHeaderRow(cols)) continue
+      if (
+        isDebateSection(line) ||
+        isLinkedSection(line) ||
+        matchFieldLabel(first) ||
+        Object.keys(parseLabeledRow(cols)).length
+      ) {
+        flushOrnamentTokens()
+        mode = null
+      } else {
+        for (const cell of cols) {
+          if (cell.trim()) state.ornamentTokens.push(cell.trim())
+        }
+        continue
+      }
     }
 
     const compact = parseCompactDiscovery(line)
@@ -459,7 +573,12 @@ export function parseDiscoveryText(text) {
         for (let k = i + 1; k < lines.length; k++) {
           const next = lines[k].trim()
           if (!next) continue
-          if (isLinkedSection(next) || isDebateSection(next)) break
+          if (
+            isLinkedSection(next) ||
+            isDebateSection(next) ||
+            isOrnamentSection(next)
+          )
+            break
           if (matchFieldLabel(splitTabs(next)[0])) break
           const acquired = parseAcquireValue(next)
           state.acquireType = acquired.acquireType
@@ -482,6 +601,8 @@ export function parseDiscoveryText(text) {
       description = description ? `${description}\n${line}` : line
     }
   }
+
+  flushOrnamentTokens()
 
   const debate =
     state.debateCombo &&
@@ -507,5 +628,6 @@ export function parseDiscoveryText(text) {
     place: state.place,
     linkedQuests: state.linkedQuests,
     debateCombo: debate,
+    ornaments: state.ornaments,
   }
 }

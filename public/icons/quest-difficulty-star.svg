@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none">
+  <!-- base -->
+  <path d="M12 2.1 14.95 9.05 22.4 9.4 16.7 14.35 18.55 21.9 12 17.85 5.45 21.9 7.3 14.35 1.6 9.4 9.05 9.05Z" fill="#c48a12"/>
+  <!-- top-left facet (highlight) -->
+  <path d="M12 2.1 14.95 9.05 12 11.2 9.05 9.05Z" fill="#ffe08a"/>
+  <!-- upper-right -->
+  <path d="M14.95 9.05 22.4 9.4 16.7 14.35 12 11.2Z" fill="#f0c24d"/>
+  <!-- upper-left -->
+  <path d="M9.05 9.05 1.6 9.4 7.3 14.35 12 11.2Z" fill="#e8b43a"/>
+  <!-- lower-right (shadow) -->
+  <path d="M12 11.2 16.7 14.35 18.55 21.9 12 17.85Z" fill="#a6720e"/>
+  <!-- lower-left (deeper shadow) -->
+  <path d="M12 11.2 7.3 14.35 5.45 21.9 12 17.85Z" fill="#8a5c0a"/>
+  <!-- tip gleam -->
+  <path d="M12 2.1 13.35 5.4 12 6.2 10.65 5.4Z" fill="#fff6d0" opacity=".95"/>
+</svg>

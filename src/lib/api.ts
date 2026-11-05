@@ -313,10 +313,25 @@ export function fetchQuest(token: string, questId: number) {
   )
 }
 
-export function importQuestText(token: string, text: string) {
+/** id · slug · 이름 중 하나로 퀘스트 상세 (카탈로그 점프) */
+export function fetchQuestByKey(token: string, key: string) {
+  return request<{ quest: QuestDetail }>(
+    `/api/quests/${encodeURIComponent(key)}`,
+    { token },
+  )
+}
+
+export function importQuestText(
+  token: string,
+  text: string,
+  opts?: { destination?: string },
+) {
   return request<{ quest: QuestDetail }>('/api/quests/import-text', {
     token,
-    body: { text },
+    body: {
+      text,
+      ...(opts?.destination ? { destination: opts.destination } : {}),
+    },
   })
 }
 
@@ -360,6 +375,14 @@ export function setQuestCompletion(
 
 export function fetchPorts(token: string) {
   return request<{ ports: PortDetail[] }>('/api/ports', { token })
+}
+
+/** id · slug · 이름 중 하나로 도시 상세 (카탈로그 점프) */
+export function fetchPortByKey(token: string, key: string) {
+  return request<{ port: PortDetail }>(
+    `/api/ports/${encodeURIComponent(key)}`,
+    { token },
+  )
 }
 
 export function importPortText(token: string, text: string) {
@@ -464,6 +487,14 @@ export function updateEntryPermit(
 
 export function fetchFields(token: string) {
   return request<{ fields: FieldDetail[] }>('/api/fields', { token })
+}
+
+/** id · slug · 이름 중 하나로 육지 상세 (카탈로그 점프) */
+export function fetchFieldByKey(token: string, key: string) {
+  return request<{ field: FieldDetail }>(
+    `/api/fields/${encodeURIComponent(key)}`,
+    { token },
+  )
 }
 
 export function fetchSeaAreas(token: string) {
@@ -663,6 +694,14 @@ export function fetchTreasureMaps(token: string) {
   })
 }
 
+/** id · slug · 이름 중 하나로 지도 상세 (카탈로그 점프) */
+export function fetchTreasureMapByKey(token: string, key: string) {
+  return request<{ treasureMap: TreasureMapDetail }>(
+    `/api/treasure-maps/${encodeURIComponent(key)}`,
+    { token },
+  )
+}
+
 export function importTreasureMapText(token: string, text: string) {
   return request<{ treasureMap: TreasureMapDetail }>(
     '/api/treasure-maps/import-text',
@@ -789,9 +828,10 @@ export function setDiscoveryCompletion(
   )
 }
 
-export function fetchDiscovery(token: string, slug: string) {
+/** id · slug · 이름 중 하나로 발견물 상세 (카탈로그 점프) */
+export function fetchDiscovery(token: string, key: string) {
   return request<{ discovery: DiscoveryDetail }>(
-    `/api/discoveries/${encodeURIComponent(slug)}`,
+    `/api/discoveries/${encodeURIComponent(key)}`,
     { token },
   )
 }
@@ -837,6 +877,14 @@ export function deleteDiscovery(token: string, discoveryId: number) {
 
 export function fetchSkills(token: string) {
   return request<{ skills: SkillDetail[] }>('/api/skills', { token })
+}
+
+/** id · slug · 이름 중 하나로 스킬 상세 */
+export function fetchSkill(token: string, key: string) {
+  return request<{ skill: SkillDetail }>(
+    `/api/skills/${encodeURIComponent(key)}`,
+    { token },
+  )
 }
 
 export function importSkillText(token: string, text: string) {

@@ -2753,6 +2753,92 @@
   overflow-wrap: normal;
 }
 
+.region-catalog .admin-table {
+  width: 100%;
+  min-width: 0;
+  table-layout: fixed;
+}
+
+.region-catalog .admin-table th.col-action,
+.region-catalog .admin-table td.col-action {
+  width: 5.5rem;
+  padding-left: 0.5rem;
+  padding-right: 0.75rem;
+  text-align: center;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.region-catalog .admin-table td.col-action .admin-danger-btn {
+  display: inline-flex;
+  justify-content: center;
+  min-width: 3.6rem;
+}
+
+.field-catalog .admin-table {
+  width: 100%;
+  min-width: 0;
+  table-layout: fixed;
+}
+
+.field-catalog .admin-table th.col-action,
+.field-catalog .admin-table td.col-action {
+  width: 5.5rem;
+  padding-left: 0.5rem;
+  padding-right: 0.75rem;
+  text-align: center;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.field-catalog .admin-table td.col-action .admin-danger-btn {
+  display: inline-flex;
+  justify-content: center;
+  min-width: 3.6rem;
+}
+
+.field-dest-table {
+  table-layout: fixed;
+  width: 100%;
+}
+
+.field-dest-table .field-dest-col-item {
+  width: 32%;
+  vertical-align: middle;
+}
+
+.field-dest-table .field-dest-col-content {
+  width: 68%;
+  white-space: normal;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+  vertical-align: middle;
+}
+
+.field-dest-content {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.45rem;
+}
+
+.field-dest-content-text {
+  flex: 1 1 8rem;
+  min-width: 0;
+  line-height: 1.35;
+}
+
+/* 분류를 줄인 폭만큼 발견물에 배분 (이전 동등 배분 대비 약 1:3) */
+.quest-catalog .admin-table th.col-quest-cat,
+.quest-catalog .admin-table td.col-quest-cat {
+  width: 7%;
+}
+
+.quest-catalog .admin-table th.col-quest-discovery,
+.quest-catalog .admin-table td.col-quest-discovery {
+  width: 21%;
+}
+
 .quest-catalog .admin-table th.col-diff,
 .quest-catalog .admin-table td.col-diff {
   width: 4.25rem;
@@ -3296,6 +3382,133 @@
   outline-offset: -2px;
 }
 
+.catalog-jump-miss {
+  margin: 0;
+  padding: 0.35rem 0.15rem 0.15rem;
+  font-size: 0.98rem;
+  font-weight: 700;
+  color: var(--is-dark);
+  line-height: 1.5;
+  word-break: keep-all;
+}
+
+.catalog-confirm-panel {
+  width: min(420px, 100%);
+  max-height: none;
+}
+
+.catalog-confirm-body {
+  display: grid;
+  gap: 1rem;
+  padding: 1.15rem 1.1rem 1.05rem;
+}
+
+.catalog-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.quest-dest-confirm-panel {
+  width: min(520px, 100%);
+  max-height: none;
+}
+
+.quest-dest-confirm-body {
+  display: grid;
+  gap: 0.85rem;
+  padding: 1.15rem 1.1rem 1.05rem;
+}
+
+.quest-dest-confirm-title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--is-dark);
+}
+
+.quest-dest-confirm-raw {
+  margin: 0;
+  font-size: 0.86rem;
+  color: var(--is-grey);
+  word-break: keep-all;
+}
+
+.quest-dest-confirm-raw strong {
+  display: block;
+  margin-top: 0.35rem;
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--is-dark);
+}
+
+.quest-dest-confirm-ask {
+  margin: 0;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--is-dark);
+  word-break: keep-all;
+}
+
+.quest-dest-confirm-count-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.quest-dest-confirm-fields {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.quest-dest-confirm-fields .field {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.quest-dest-confirm-fields .field > span {
+  font-size: 0.76rem;
+  color: var(--is-grey);
+}
+
+.quest-dest-confirm-preview {
+  margin: 0;
+  font-size: 0.84rem;
+  color: var(--is-grey);
+  word-break: keep-all;
+}
+
+.quest-dest-confirm-preview strong {
+  color: var(--is-blue);
+  font-weight: 700;
+}
+
+.app-loading-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: grid;
+  place-items: center;
+  background: rgba(14, 42, 74, 0.35);
+  pointer-events: all;
+}
+
+.app-loading-spinner {
+  width: 2.35rem;
+  height: 2.35rem;
+  border: 3px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: app-spin 0.7s linear infinite;
+}
+
+@keyframes app-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .admin-modal {
   position: fixed;
   inset: 0;
@@ -3566,20 +3779,8 @@
 .quest-cat-type {
   display: inline-flex;
   align-items: center;
-  font-weight: 800;
-  color: var(--is-blue);
-}
-
-.quest-cat-label.is-adventure .quest-cat-type {
-  color: #0f7a4a;
-}
-
-.quest-cat-label.is-trade .quest-cat-type {
-  color: #b86a00;
-}
-
-.quest-cat-label.is-battle .quest-cat-type {
-  color: #be123c;
+  font-weight: 700;
+  color: var(--is-dark);
 }
 
 .col-quest-done {
@@ -3649,10 +3850,68 @@
   word-break: keep-all;
 }
 
+.discovery-quest-meta {
+  display: grid;
+  gap: 0.28rem;
+}
+
+.discovery-quest-meta-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--is-grey);
+}
+
+.discovery-quest-meta .quest-skill-chips {
+  margin: 0;
+}
+
+.discovery-quest-place-chips {
+  margin: 0;
+}
+
 .discovery-quest-place-chips li {
   border-color: color-mix(in srgb, var(--is-gold) 32%, transparent);
   background: color-mix(in srgb, var(--is-gold) 12%, var(--is-white));
   color: #8a5a00;
+}
+
+.quest-chain-skill-jump {
+  appearance: none;
+  border: 0;
+  background: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.quest-chain-skill-jump:hover,
+.quest-chain-skill-jump:focus-visible {
+  outline: none;
+  color: var(--is-blue);
+  text-decoration: none;
+}
+
+.quest-chain-skill-jump:disabled {
+  cursor: wait;
+  opacity: 0.7;
+}
+
+.discovery-ornament-table .quest-skill-chips {
+  margin: 0;
+}
+
+.discovery-ornament-table td {
+  vertical-align: middle;
+}
+
+.consumable-purchase-table td[rowspan] {
+  vertical-align: middle;
+  background: color-mix(in srgb, var(--is-light) 70%, var(--is-white));
+  font-weight: 700;
 }
 
 .discovery-quest-link {
@@ -3666,39 +3925,55 @@
   color: var(--is-blue);
   text-align: left;
   white-space: normal;
-  text-decoration: underline;
-  text-underline-offset: 0.15em;
+  text-decoration: none;
   cursor: pointer;
 }
 
-.discovery-quest-link:hover {
+.discovery-quest-link:hover,
+.discovery-quest-link:focus-visible {
+  outline: none;
+  text-decoration: none;
   color: #0f4f96;
+}
+
+.discovery-quest-link:disabled {
+  cursor: wait;
+  opacity: 0.7;
 }
 
 .discovery-quest-link.is-static {
   cursor: default;
-  text-decoration: none;
   color: inherit;
 }
 
 .quest-stars {
   display: inline-flex;
   align-items: center;
-  gap: 0.08rem;
+  gap: 0.12rem;
   font-size: 0.82rem;
   line-height: 1;
 }
 
-.quest-stars .is-on {
-  color: var(--is-gold);
+.quest-star-icon {
+  display: block;
+  width: 0.95em;
+  height: 0.95em;
+  object-fit: contain;
+  flex: 0 0 auto;
+  transform: translateY(0.02em);
 }
 
-.quest-stars .is-off {
-  color: rgba(36, 79, 128, 0.18);
+.quest-star-icon.is-on {
+  filter: drop-shadow(0 0.5px 0.5px rgba(120, 70, 0, 0.35));
+}
+
+.quest-star-icon.is-off {
+  opacity: 0.28;
+  filter: grayscale(0.85) brightness(1.15);
 }
 
 .quest-stars em {
-  margin-left: 0.35rem;
+  margin-left: 0.3rem;
   font-style: normal;
   font-size: 0.78rem;
   font-weight: 800;
@@ -3708,9 +3983,14 @@
 .discovery-rank-mark {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 0.06rem;
+  box-sizing: border-box;
   height: 1em;
+  margin: 0;
+  padding: 0;
   line-height: 1;
+  vertical-align: middle;
 }
 
 .discovery-rank-mark-gem {
@@ -3719,11 +3999,11 @@
   height: 0.92em;
   object-fit: contain;
   flex: 0 0 auto;
-  transform: translateY(0.02em);
 }
 
 .discovery-rank-mark-num {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
   font-weight: 800;
   font-size: 0.92em;
   line-height: 1;
@@ -3929,6 +4209,7 @@
   align-items: center;
   gap: 0.5rem;
   flex-wrap: wrap;
+  margin-top: 0.75rem;
 }
 
 .quest-walkthrough-actions.has-leading {
@@ -3983,6 +4264,27 @@
   color: var(--is-blue);
 }
 
+.quest-kv-grid .quest-skill-chips li.is-city-chip {
+  color: #8f2f2f;
+}
+
+.quest-kv-grid .quest-skill-chips li.is-land-chip {
+  color: #4d6a28;
+}
+
+.quest-kv-grid .quest-skill-chips li.is-consumable-chip {
+  color: #9a4a0e;
+}
+
+.quest-kv-grid .quest-skill-chips li.is-skill-chip {
+  color: #0a6a72;
+}
+
+.quest-kv-grid .quest-skill-chips li.quest-dest-sep {
+  color: var(--is-grey);
+  opacity: 0.45;
+}
+
 .quest-kv-grid .quest-skill-chips li > span {
   font-size: inherit;
   font-weight: inherit;
@@ -4031,6 +4333,8 @@
   display: flex;
   flex-wrap: wrap;
   gap: 0.4rem;
+  /* 외곽선 라벨이 위로 삐져나옴 */
+  overflow: visible;
 }
 
 .quest-skill-chips li {
@@ -4045,6 +4349,121 @@
   font-weight: 700;
   line-height: 1.2;
   color: var(--is-blue);
+}
+
+.quest-skill-chips li.is-city-chip,
+.quest-skill-chips li.is-land-chip,
+.quest-skill-chips li.is-discovery-chip,
+.quest-skill-chips li.is-skill-chip,
+.quest-skill-chips li.is-consumable-chip {
+  gap: 0.12rem;
+  line-height: 1;
+}
+
+.quest-skill-chips li.is-city-chip {
+  border-color: rgba(176, 58, 58, 0.34);
+  background: color-mix(in srgb, #b03a3a 7%, var(--is-white));
+  color: #8f2f2f;
+}
+
+.quest-skill-chips li.is-land-chip {
+  border-color: rgba(90, 118, 52, 0.36);
+  background: color-mix(in srgb, #6b8f3a 8%, var(--is-white));
+  color: #4d6a28;
+}
+
+.quest-skill-chips li.is-discovery-chip {
+  border-color: rgba(28, 109, 201, 0.28);
+  background: color-mix(in srgb, var(--is-blue) 8%, var(--is-white));
+  color: var(--is-blue);
+}
+
+/* 스킬: 청록 칩 (이름도 청록 — 파랑 유지 시 미적용처럼 보임). 레벨만 금색 */
+.quest-skill-chips li.is-skill-chip {
+  border-color: rgba(12, 124, 140, 0.5);
+  background: color-mix(in srgb, #0c7c8c 14%, var(--is-white));
+  color: #0a6a72;
+}
+
+.quest-skill-chips li.is-skill-chip em {
+  color: var(--is-gold);
+}
+
+.quest-skill-chips li.is-consumable-chip {
+  border-color: rgba(196, 95, 18, 0.4);
+  background: color-mix(in srgb, #c45f12 9%, var(--is-white));
+  color: #9a4a0e;
+}
+
+.quest-skill-chips li.is-consumable-chip em {
+  color: var(--is-gold);
+}
+
+/* 칩 앞 라벨 기본 디자인 — .cursor/rules/chip-edge-label.mdc */
+.chip-edge-label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  align-self: center;
+  box-sizing: border-box;
+  /* 외곽선(박스 섀도)과 글자 사이 상·하 여백 */
+  padding: 0.14rem 0.22rem;
+  border-radius: 2px;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0;
+  line-height: 1;
+  white-space: nowrap;
+  pointer-events: none;
+  /* rem만 줄이면 브라우저 최소 글자 크기에 막힘 → scale */
+  transform: scale(0.92);
+  transform-origin: center center;
+  /* scale 후 가로만 당겨 내용과 간격 축소 (세로 정렬은 center 유지) */
+  margin: 0 -0.1rem 0 0;
+}
+
+.chip-edge-label.is-city {
+  color: #b03a3a;
+  background: var(--is-white);
+  box-shadow: 0 0 0 1px color-mix(in srgb, #b03a3a 22%, transparent);
+}
+
+.chip-edge-label.is-land {
+  color: #5a7a32;
+  background: var(--is-white);
+  box-shadow: 0 0 0 1px color-mix(in srgb, #5a7a32 24%, transparent);
+}
+
+.chip-edge-label.is-discovery {
+  color: var(--is-blue);
+  background: var(--is-white);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--is-blue) 28%, transparent);
+}
+
+.chip-edge-label.is-skill {
+  color: #0c7c8c;
+  background: var(--is-white);
+  box-shadow: 0 0 0 1px color-mix(in srgb, #0c7c8c 28%, transparent);
+}
+
+.chip-edge-label.is-consumable {
+  color: #c45f12;
+  background: var(--is-white);
+  box-shadow: 0 0 0 1px color-mix(in srgb, #c45f12 28%, transparent);
+}
+
+/* 목적지 도시 » 육지 — 분류 뱃지(프랑스 » 본거지)와 동일 구분 기호 */
+.quest-skill-chips li.quest-dest-sep {
+  padding: 0 0.1rem;
+  border: 0;
+  background: transparent;
+  font-size: 0.86rem;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--is-grey);
+  opacity: 0.45;
+  pointer-events: none;
 }
 
 .quest-skill-chips em {
@@ -4084,39 +4503,54 @@
 
 .quest-skill-chips .quest-skill-chip-btn:hover,
 .quest-skill-chips .quest-skill-chip-btn:focus-visible {
-  text-decoration: underline;
   outline: none;
 }
 
+/* 라벨+이름 한 flex 줄 — 발견물·도시·육지·스킬 공통 (형제로 두면 scale 라벨이 어긋남) */
+.chip-edge-inner,
 .discovery-chip-inner {
   display: inline-flex;
   align-items: center;
-  gap: 0.28rem;
   line-height: 1;
   min-width: 0;
+  vertical-align: middle;
+}
+
+.chip-edge-inner {
+  gap: 0.12rem;
+}
+
+.discovery-chip-inner {
+  gap: 0.22rem;
 }
 
 .quest-skill-chips .quest-skill-chip-btn,
-.quest-skill-chips li > span {
+.quest-skill-chips li > span,
+.quest-skill-chips li > .chip-edge-inner {
   display: inline-flex;
   align-items: center;
   max-width: 100%;
+  line-height: 1;
 }
 
 .quest-skill-chips li {
-  /* 칩 안 분류·별·숫자·이름 세로 중앙 */
   align-items: center;
 }
 
 .quest-skill-chips .discovery-chip-cat {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   flex: 0 0 auto;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
   font-style: normal;
   font-size: 0.78em;
   font-weight: 800;
   line-height: 1;
   color: var(--is-grey);
+  transform: none;
 }
 
 .quest-skill-chips .discovery-chip-name {
@@ -4130,7 +4564,24 @@
 }
 
 .quest-skill-chips .discovery-rank-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   flex: 0 0 auto;
+  height: 1em;
+  line-height: 1;
+  transform: none;
+}
+
+.quest-skill-chips .discovery-rank-mark-gem {
+  display: block;
+  transform: none;
+}
+
+.quest-skill-chips .discovery-rank-mark-num {
+  display: inline-flex;
+  align-items: center;
+  line-height: 1;
 }
 
 .admin-table th.col-officer-name,
@@ -4154,11 +4605,13 @@
   gap: 0.3rem;
 }
 
+
 .admin-table td.col-officer-job .quest-skill-chips li,
 .admin-table td .quest-skill-chips li {
   padding: 0.22rem 0.5rem;
   font-size: 0.8rem;
 }
+
 
 .admin-table td.col-officer-name input,
 .admin-table td.col-officer-job input {
@@ -4166,64 +4619,38 @@
   max-width: 8.5rem;
 }
 
-.quest-prereq-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
+.quest-prereq-discovery-row {
   display: flex;
-  flex-direction: column;
-  gap: 0.65rem;
-}
-
-.quest-prereq-list > li {
-  padding: 0.55rem 0.7rem;
-  border-radius: 8px;
-  border: 1px solid rgba(45, 55, 72, 0.12);
-  background: rgba(45, 55, 72, 0.03);
-  font-size: 0.88rem;
-  line-height: 1.45;
-  overflow-x: clip;
-}
-
-.quest-prereq-main {
-  overflow-x: clip;
-}
-
-.quest-prereq-discovery {
-  display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   gap: 0.35rem 0.5rem;
+  min-width: 0;
 }
 
-.quest-prereq-discovery .quest-prereq-nested,
-.quest-prereq-list em.quest-prereq-nested {
+.quest-prereq-discovery-row .quest-skill-chips {
+  flex: 0 0 auto;
+  width: max-content;
+  max-width: 100%;
+}
+
+.quest-prereq-discovery-row > strong {
+  flex: 0 0 auto;
+}
+
+.quest-prereq-discovery-row .quest-prereq-nested-note {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
   font-style: normal;
   font-size: 0.82rem;
   font-weight: 600;
+  line-height: 1.35;
   color: var(--is-blue);
+  word-break: keep-all;
 }
 
-.quest-prereq-list em {
-  font-style: normal;
-  color: var(--is-blue);
-  font-weight: 600;
-}
-
-.quest-prereq-children {
-  margin: 0.4rem 0 0;
-  padding: 0 0 0 1.25rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
-
-.quest-prereq-children li {
-  padding: 0;
-  border: none;
-  background: transparent;
-  font-size: 0.86rem;
-  color: var(--is-ink, inherit);
+.quest-prereq-nested-chain {
+  margin-top: 0.55rem;
 }
 
 .quest-reward-grid {
@@ -4300,6 +4727,36 @@
   background: rgba(28, 109, 201, 0.07);
 }
 
+.quest-chain li.is-jumpable {
+  cursor: pointer;
+}
+
+.quest-chain .quest-chain-jump {
+  appearance: none;
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.quest-chain .quest-chain-jump:hover,
+.quest-chain .quest-chain-jump:focus-visible {
+  outline: none;
+  text-decoration: none;
+}
+
+.quest-chain .quest-chain-jump:disabled {
+  cursor: wait;
+  opacity: 0.7;
+}
+
 .quest-chain-idx {
   width: 1.55rem;
   height: 1.55rem;
@@ -4316,8 +4773,17 @@
   grid-template-columns: 1fr;
 }
 
+.quest-chain-title-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.65rem;
+}
+
 .quest-chain strong {
   display: block;
+  flex: 1 1 auto;
+  min-width: 0;
   font-size: 0.9rem;
   color: var(--is-blue);
   word-break: keep-all;
@@ -4332,6 +4798,34 @@
 
 .quest-chain-skills {
   color: var(--is-dark) !important;
+}
+
+.quest-chain-skill-chips {
+  margin-top: 0.35rem;
+}
+
+.quest-link-kind {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  margin: 0.1rem 0 0;
+  padding: 0.12rem 0.4rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.quest-link-kind.is-quest {
+  color: var(--is-blue);
+  background: color-mix(in srgb, var(--is-blue) 12%, var(--is-white));
+}
+
+.quest-link-kind.is-map {
+  color: #8a5a00;
+  background: color-mix(in srgb, var(--is-gold) 18%, var(--is-white));
 }
 
 .quest-steps-flow {

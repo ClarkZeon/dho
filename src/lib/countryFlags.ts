@@ -3,6 +3,7 @@ import { parsePortCategory } from './portCategories'
 /** 분류 `프랑스본거지` / `프랑스 » 본거지` → 국가 깃발 (papayaplay countries CDN) */
 export const COUNTRY_FLAG_IDS: Record<string, string> = {
   프랑스: '68dd7eed-7343-4d0e-936b-ed98573fe492',
+  잉글랜드: 'f1cb4725-6c5e-4968-9c8f-610b0aca38ae',
 }
 
 /** 국가 머리말 → 도시명 그라데이션 */
@@ -11,6 +12,8 @@ export const COUNTRY_TITLE_GRADIENTS: Record<string, string> = {
     'linear-gradient(100deg, #002395 0%, #3a5fbf 38%, #c81e3a 72%, #ed2939 100%)',
   포르투갈:
     'linear-gradient(100deg, #006600 0%, #2f8f2f 40%, #c8102e 78%, #ff0000 100%)',
+  잉글랜드:
+    'linear-gradient(100deg, #5c0a0a 0%, #8b0000 35%, #c8102e 70%, #9b1b1b 100%)',
 }
 
 export function countryTitleGradient(

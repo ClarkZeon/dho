@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type CSSProperties } from 'react'
-import { updatePort } from '../lib/api'
+import { fetchSkill, updatePort } from '../lib/api'
 import type {
   PortCharacter,
   PortCollectItem,
@@ -9,11 +9,14 @@ import type {
   PortProduction,
   PortReward,
   PortSaleItem,
+  SkillDetail,
 } from '../types'
+import { ConfirmLayer } from './ConfirmLayer'
 import {
   DetailSectionActions,
   DetailSectionHead,
 } from './DetailSectionHead'
+import { DetailModal } from './DetailModal'
 import {
   countryNameFromCategory,
   countryTitleGradient,
@@ -25,7 +28,11 @@ import {
   parsePortCategory,
 } from '../lib/portCategories'
 import { DucatAmount, DucatMark } from './DucatAmount'
+import { LoadingOverlay } from './LoadingOverlay'
 import { DiscoveryChips } from './modules/DiscoveryChips'
+import { PortCategoryBadge } from './PortCategoryBadge'
+import { SkillDetailView } from './SkillDetailView'
+import { SkillEdgeLabel } from './SkillEdgeLabel'
 
 function formatRewardAmount(amount: string | null | undefined) {
   const text = String(amount || '').trim()
@@ -39,6 +46,9 @@ function formatRewardAmount(amount: string | null | undefined) {
 
 type PortDetailViewProps = {
   port: PortDetail
+  /** 카탈로그 점프용 (없으면 edit.token) */
+  token?: string
+  isAdmin?: boolean
   /** 관리자 수정 모드 (토글). false면 사용자 화면처럼 표시 */
   editMode?: boolean
   edit?: {
@@ -217,32 +227,6 @@ function PortFlag({
   )
 }
 
-function PortCategoryBadge({
-  category,
-}: {
-  category: string | null | undefined
-}) {
-  const raw = String(category || '').trim()
-  if (!raw) {
-    return <span className="quest-badge">항구 · 도시</span>
-  }
-  const parts = parsePortCategory(raw)
-  if (parts.head && parts.kind) {
-    return (
-      <span
-        className={`quest-badge port-category-badge${parts.kind === '영지' ? ' is-fief' : ''}${parts.kind === '본거지' ? ' is-home' : ''}`}
-      >
-        <em className="port-category-head">{parts.head}</em>
-        <span className="port-category-sep" aria-hidden="true">
-          »
-        </span>
-        <span className="port-category-kind">{parts.kind}</span>
-      </span>
-    )
-  }
-  return <span className="quest-badge">{raw}</span>
-}
-
 function numOrEmpty(value: number | null | undefined) {
   return value == null ? '' : String(value)
 }
@@ -416,9 +400,12 @@ function setRewardKind(
 
 export function PortDetailView({
   port,
+  token,
+  isAdmin = false,
   edit,
   editMode = false,
 }: PortDetailViewProps) {
+  const authToken = token || edit?.token || ''
   const canEdit = Boolean(edit) && editMode
   const [editing, setEditing] = useState<EditSection | null>(null)
   const [draft, setDraft] = useState(() => clonePort(port))
@@ -427,11 +414,18 @@ export function PortDetailView({
   const [prodTab, setProdTab] = useState(PRODUCTION_TABS[0])
   const [destTab, setDestTab] = useState(DEST_TABS[0])
   const [saleTab, setSaleTab] = useState(SALE_VENDORS[0])
+  const [skillDetail, setSkillDetail] = useState<SkillDetail | null>(null)
+  const [skillLoading, setSkillLoading] = useState(false)
+  const [skillMissName, setSkillMissName] = useState('')
+  const [skillError, setSkillError] = useState('')
 
   useEffect(() => {
     setDraft(clonePort(port))
     setEditing(null)
     setError('')
+    setSkillDetail(null)
+    setSkillMissName('')
+    setSkillError('')
   }, [port])
 
   useEffect(() => {
@@ -493,6 +487,36 @@ export function PortDetailView({
     setDraft(clonePort(port))
     setError('')
     setEditing(null)
+  }
+
+  async function openMatchedSkill(name: string) {
+    if (!authToken) return
+    const key = name.trim()
+    if (!key) return
+    setSkillLoading(true)
+    setSkillMissName('')
+    setSkillError('')
+    try {
+      const res = await fetchSkill(authToken, key)
+      setSkillDetail(res.skill)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : ''
+      if (/찾을 수 없|없습니다/i.test(message)) {
+        setSkillMissName(key)
+      } else {
+        setSkillError(message || '스킬 상세를 불러오지 못했습니다.')
+      }
+    } finally {
+      setSkillLoading(false)
+    }
+  }
+
+  function openSkillsAddTab(skillName: string) {
+    const params = new URLSearchParams()
+    params.set('q', skillName)
+    params.set('add', '1')
+    const url = `${window.location.pathname}${window.location.search}#/skills?${params.toString()}`
+    window.open(url, '_blank', 'noopener,noreferrer')
   }
 
   async function saveSection() {
@@ -853,11 +877,26 @@ export function PortDetailView({
               <span>언어</span>
               {languageChips.length > 0 ? (
                 <ul className="quest-skill-chips">
-                  {languageChips.map((lang) => (
-                    <li key={lang}>
-                      <span>{lang}</span>
-                    </li>
-                  ))}
+                  {languageChips.map((lang) => {
+                    const canOpen = Boolean(authToken && lang)
+                    return (
+                      <li key={lang} className="is-skill-chip">
+                        <SkillEdgeLabel />
+                        {canOpen ? (
+                          <button
+                            type="button"
+                            className="quest-skill-chip-btn"
+                            disabled={skillLoading}
+                            onClick={() => void openMatchedSkill(lang)}
+                          >
+                            <span>{lang}</span>
+                          </button>
+                        ) : (
+                          <span>{lang}</span>
+                        )}
+                      </li>
+                    )
+                  })}
                 </ul>
               ) : (
                 <strong>-</strong>
@@ -1072,7 +1111,8 @@ export function PortDetailView({
                           {skillChips.length > 0 ? (
                             <ul className="quest-skill-chips">
                               {skillChips.map((skill) => (
-                                <li key={skill}>
+                                <li key={skill} className="is-skill-chip">
+                                  <SkillEdgeLabel />
                                   <span>{skill}</span>
                                 </li>
                               ))}
@@ -1566,6 +1606,70 @@ export function PortDetailView({
           )}
         </section>
       )}
+
+      {skillLoading ? <LoadingOverlay label="스킬 불러오는 중…" /> : null}
+
+      {skillMissName ? (
+        <ConfirmLayer
+          title="확인"
+          message={`「${skillMissName}」 스킬이 없습니다.`}
+          stack={1}
+          onCancel={() => setSkillMissName('')}
+          confirmLabel={isAdmin ? '등록하러 이동하기' : undefined}
+          onConfirm={
+            isAdmin
+              ? () => {
+                  openSkillsAddTab(skillMissName)
+                  setSkillMissName('')
+                }
+              : undefined
+          }
+        />
+      ) : null}
+
+      {skillError ? (
+        <ConfirmLayer
+          title="확인"
+          message={skillError}
+          stack={1}
+          onCancel={() => setSkillError('')}
+        />
+      ) : null}
+
+      {skillDetail ? (
+        <DetailModal
+          title="스킬 상세"
+          label={`${skillDetail.name} 상세`}
+          onClose={() => {
+            setSkillDetail(null)
+            setSkillError('')
+          }}
+          stack={1}
+          headerActions={
+            isAdmin ? (
+              <button
+                type="button"
+                className="admin-btn"
+                onClick={() => {
+                  const params = new URLSearchParams()
+                  params.set('q', skillDetail.name)
+                  params.set('open', skillDetail.slug || skillDetail.name)
+                  const url = `${window.location.pathname}${window.location.search}#/skills?${params.toString()}`
+                  window.open(url, '_blank', 'noopener,noreferrer')
+                }}
+              >
+                스킬 메뉴로 이동
+              </button>
+            ) : undefined
+          }
+        >
+          <SkillDetailView
+            skill={skillDetail}
+            token={authToken}
+            isAdmin={isAdmin}
+          />
+        </DetailModal>
+      ) : null}
     </div>
   )
 }

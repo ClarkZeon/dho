@@ -1,17 +1,12 @@
 import type { DiscoveryQuestRef, QuestSkillReq } from '../types'
+import { formatQuestSkillLabel } from './questSkills'
 
 function formatQuestSkillClause(
   difficulty: number | null | undefined,
   skills: QuestSkillReq[] | null | undefined,
 ) {
   const skillParts = (skills || [])
-    .map((skill) => {
-      const name = String(skill?.name || '').trim()
-      if (!name) return ''
-      return skill.level != null && Number.isFinite(Number(skill.level))
-        ? `${name} ${skill.level}`
-        : name
-    })
+    .map((skill) => formatQuestSkillLabel(skill))
     .filter(Boolean)
 
   if (difficulty != null && Number.isFinite(Number(difficulty))) {

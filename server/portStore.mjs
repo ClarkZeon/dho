@@ -183,6 +183,22 @@ export async function getPortById(id) {
   return rows[0] ? decoratePort(rows[0]) : null
 }
 
+/** 카탈로그 점프 — 표시 이름으로 조회 */
+export async function getPortByName(name) {
+  const key = String(name || '')
+    .trim()
+    .replace(/\s+/g, ' ')
+  if (!key) return null
+  const sql = getSql()
+  const rows = await sql`
+    SELECT * FROM ports
+    WHERE enabled = TRUE
+      AND TRIM(BOTH FROM regexp_replace(name, '\\s+', ' ', 'g')) = ${key}
+    LIMIT 1
+  `
+  return rows[0] ? decoratePort(rows[0]) : null
+}
+
 function normalizeRewards(list) {
   if (!Array.isArray(list)) throw new Error('보상 형식이 올바르지 않습니다.')
   return list.map((item) => ({

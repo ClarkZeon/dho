@@ -1,0 +1,80 @@
+---
+description: 카탈로그 점프 — 칩→상세 팝업→새 탭 카탈로그 검색+상세 자동 오픈
+alwaysApply: true
+---
+
+# 카탈로그 점프
+
+사용자가 「카탈로그 점프」라고 하면 아래 UX·구현 패턴을 의미한다. 다른 링크(발견물·퀘스트·직업 등)에 **동일 패턴**으로 확장한다.
+
+## UX 흐름
+
+1. 상세 안 **칩/링크** 클릭
+2. **스피너 레이어** (`LoadingOverlay`)로 로딩 → 끝나면 닫기 (본문에 「불러오는 중…」 문구 금지)
+3. **상세 팝업** (`DetailModal`, 중첩이면 `stack={1}`)
+4. 팝업 헤더에 **「{카탈로그} 메뉴로 이동」** 버튼 (**관리자만**)
+5. 버튼 → **새 탭** (`window.open(..., '_blank', 'noopener,noreferrer')`)
+6. 새 탭: 해당 카탈로그 목록 + **검색어 채움** + **해당 항목 상세 팝업 자동 오픈**
+
+## URL 계약
+
+해시 쿼리 (스킬 기준 예시, 다른 카탈로그도 동일 형태):
+
+```
+#/skills?q={검색어}&open={slug또는이름}
+#/skills?q={검색어}&add=1
+#/quests?q={검색어}&open={slug또는이름}
+#/quests?q={검색어}&add=1
+#/discoveries?q={검색어}&open={slug또는이름}
+#/discoveries?q={검색어}&add=1
+#/ports?q={검색어}&open={slug또는이름}
+#/ports?q={검색어}&add=1
+#/fields?q={검색어}&open={slug또는이름}
+#/fields?q={검색어}&add=1
+#/treasure-maps?q={검색어}&open={slug또는이름}
+#/treasure-maps?q={검색어}&add=1
+```
+
+| 파라미터 | 역할 |
+|---|---|
+| `q` | 목록 검색창 초기값 |
+| `open` | 목록 로드 후 매칭되는 항목 상세 팝업 1회 오픈 |
+| `add=1` | **관리자만** — 목록에서 추가(임포트) 폼 오픈 |
+
+- `Dashboard` `viewToHash` / `hashToView` / `viewsEqual`에 `q`·`open`·`add` 반영
+- 카탈로그 컴포넌트 props: `initialQuery`, `openKey`, `initialAdd`
+
+## 보안 (`add` 등 쓰기 액션)
+
+URL 파라미터만으로 일반 유저가 추가 UI·쓰기를 열 수 없게 한다.
+
+1. **해시 파싱**: `hashToView(..., isAdmin)` — `add=1` 은 `isAdmin`일 때만 `view.add`로 인정
+2. **전달**: `initialAdd={isAdmin && view.add}` — 비관리자에게는 항상 false
+3. **UI**: 추가 버튼·임포트 폼은 `canAdd`(=`isAdmin`)일 때만 렌더. `!canAdd`면 `showImport` 강제 false
+4. **제출**: `handleImport` 선두에서 `!canAdd`이면 거부
+5. **API**: `POST .../import-text` 등 쓰기는 서버 `requireAdmin` (403). UI 우회해도 저장 불가
+
+일반 유저가 `#/skills?add=1` / `#/quests?add=1` / `#/discoveries?add=1` / `#/ports?add=1` / `#/fields?add=1` / `#/treasure-maps?add=1` 을 직접 넣어도 추가 폼이 열리지 않고, API로도 등록되지 않는다.
+
+## UI 디테일
+
+- 칩 호버 **밑줄 없음** (클릭 가능해도 underline 금지)
+- **칩 디자인** (`chip-edge-label.mdc`) — 카탈로그 점프 칩을 넣을 때 **점프 UX와 항상 함께** 적용: 칩 **앞 라벨** + 종류별 **외곽선 색 + 칩 배경색** (도시/발견물/스킬/소비품/육지 등)
+- 언어 스킬 등 도메인 규칙(레벨 숨김 등)은 기존 규칙 유지
+- **없는 데이터** (`ConfirmLayer`):
+  - 스피너 종료 후 `「{이름}」 {종류}이(가) 없습니다.`
+  - **닫기** / (**관리자만**) **등록하러 이동하기**
+  - 등록하러 이동 → 새 탭 `#/{catalog}?q={이름}&add=1` → 추가 폼 표시
+  - 일반 유저: 닫기만 (등록 버튼 없음)
+
+## 구현 앵커 (스킬 = 레퍼런스)
+
+| 역할 | 위치 |
+|---|---|
+| 칩 클릭·스피너·팝업·새 탭 버튼 | `QuestDetailView` 필요 스킬 · 발견물 · 의뢰 장소(도시) · 목적지(육지) · 연속 퀘스트 · 연결 지도/퀘스트 · `DiscoveryDetailView` 퀘스트·퀘스트 내 스킬 · `PortDetailView` 언어 · `SkillDetailView` 스킬 습득·사용 도시 |
+| 스피너 | `LoadingOverlay` + `.app-loading-overlay` |
+| 새 탭 진입·검색·자동 상세 | `SkillCatalog` / `QuestCatalog` / `DiscoveryCatalog` / `PortCatalog` / `FieldCatalog` / `TreasureMapCatalog` (`initialQuery` / `openKey`) |
+| 해시 라우팅 | `Dashboard` `#/skills?q=&open=` · `#/quests?q=&open=` · `#/discoveries?q=&open=` · `#/ports?q=&open=` · `#/fields?q=&open=` · `#/treasure-maps?q=&open=` |
+| 단건 조회 API | `GET /api/skills/:key` · `GET /api/quests/:key` · `GET /api/discoveries/:key` · `GET /api/ports/:key` · `GET /api/fields/:key` · `GET /api/treasure-maps/:key` — id/slug/이름 |
+
+다른 대상에 적용할 때: **레퍼런스 스킬과 같은 4단** (칩 → 오버레이 → 팝업+메뉴 버튼 → `#/{catalog}?q=&open=`) + **칩 외곽선 라벨**을 함께 맞춘다.

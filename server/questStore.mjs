@@ -10,6 +10,7 @@ import {
 import { getSql, hasDatabaseUrl, runSqlFile } from './db.mjs'
 import {
   nestPrerequisiteItems,
+  normalizeQuestSkills,
   splitChainAndLinked,
   stripWikiMapNoise,
 } from './questTextParse.mjs'
@@ -45,6 +46,7 @@ export async function ensureQuestStore() {
   await runSqlFile('sql/008_quests.sql')
   await runSqlFile('sql/015_user_quest_completions.sql')
   await runSqlFile('sql/035_quest_prerequisites.sql')
+  await runSqlFile('sql/046_quest_chrono_feature.sql')
 }
 
 function normalizeQuestName(name) {
@@ -77,6 +79,8 @@ function decorateQuest(row) {
         : stripWikiMapNoise(String(row.description)) || null,
     category: row.category == null ? null : String(row.category),
     questType: row.quest_type == null ? null : String(row.quest_type),
+    chronoQuest: row.chrono_quest == null ? null : String(row.chrono_quest),
+    feature: row.feature == null ? null : String(row.feature),
     difficulty: row.difficulty == null ? null : Number(row.difficulty),
     requestPlaces:
       row.request_places == null ? null : String(row.request_places),
@@ -87,7 +91,7 @@ function decorateQuest(row) {
       row.discovery_rank == null ? null : Number(row.discovery_rank),
     discoveryName:
       row.discovery_name == null ? null : String(row.discovery_name),
-    skills: asJsonArray(row.skills),
+    skills: normalizeQuestSkills(asJsonArray(row.skills)),
     prerequisites: nestPrerequisiteItems(asJsonArray(row.prerequisites)),
     rewardDucat: row.reward_ducat == null ? null : Number(row.reward_ducat),
     rewardAdvance:
@@ -310,14 +314,28 @@ export async function setUserQuestCompleted(userId, questId, completed) {
   }
 }
 
-export async function getQuestBySlug(slug) {
+export async function getQuestBySlug(slug, userId = null) {
   const sql = getSql()
   const rows = await sql`
     SELECT * FROM quests WHERE slug = ${slug} AND enabled = TRUE LIMIT 1
   `
   if (!rows[0]) return null
-  const [quest] = await withDiscoveryRefs([decorateQuest(rows[0])])
-  return quest
+  return getQuestById(Number(rows[0].id), userId)
+}
+
+/** 카탈로그 점프 — 표시 이름으로 조회 */
+export async function getQuestByName(name, userId = null) {
+  const key = normalizeQuestName(name)
+  if (!key) return null
+  const sql = getSql()
+  const rows = await sql`
+    SELECT id FROM quests
+    WHERE enabled = TRUE
+      AND TRIM(BOTH FROM regexp_replace(name, '\\s+', ' ', 'g')) = ${key}
+    LIMIT 1
+  `
+  if (!rows[0]) return null
+  return getQuestById(Number(rows[0].id), userId)
 }
 
 export async function getQuestById(id, userId = null) {
@@ -399,6 +417,8 @@ export async function updateQuestFields(id, patch) {
     'description',
     'category',
     'questType',
+    'chronoQuest',
+    'feature',
     'requestPlaces',
     'destination',
     'discoveryCategory',
@@ -479,6 +499,8 @@ export async function updateQuestFields(id, patch) {
       description = ${next.description},
       category = ${next.category},
       quest_type = ${next.questType},
+      chrono_quest = ${next.chronoQuest},
+      feature = ${next.feature},
       difficulty = ${next.difficulty},
       request_places = ${next.requestPlaces},
       destination = ${next.destination},
@@ -545,6 +567,8 @@ export async function upsertQuestFromParsed(parsed) {
         description = ${parsed.description},
         category = ${parsed.category},
         quest_type = ${parsed.questType},
+        chrono_quest = ${parsed.chronoQuest ?? null},
+        feature = ${parsed.feature ?? null},
         difficulty = COALESCE(${parsed.difficulty}, difficulty),
         request_places = ${parsed.requestPlaces},
         destination = ${parsed.destination},
@@ -590,7 +614,8 @@ export async function upsertQuestFromParsed(parsed) {
 
   await sql`
     INSERT INTO quests (
-      id, slug, name, description, category, quest_type, difficulty,
+      id, slug, name, description, category, quest_type,
+      chrono_quest, feature, difficulty,
       request_places, destination,
       discovery_category, discovery_rank, discovery_name,
       skills, prerequisites, reward_ducat, reward_advance,
@@ -599,7 +624,8 @@ export async function upsertQuestFromParsed(parsed) {
       enabled, sort_order
     ) VALUES (
       ${id}, ${slug}, ${name}, ${parsed.description},
-      ${parsed.category}, ${parsed.questType}, ${parsed.difficulty},
+      ${parsed.category}, ${parsed.questType},
+      ${parsed.chronoQuest ?? null}, ${parsed.feature ?? null}, ${parsed.difficulty},
       ${parsed.requestPlaces}, ${parsed.destination},
       ${parsed.discoveryCategory}, ${parsed.discoveryRank}, ${parsed.discoveryName},
       ${skillsJson}, ${prerequisitesJson},

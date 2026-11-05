@@ -17,7 +17,11 @@ import { QuestCatalog } from './QuestCatalog'
 import { SkillCatalog } from './SkillCatalog'
 import { JobCatalog } from './JobCatalog'
 import { RefineCatalog } from './RefineCatalog'
+import { ConsumableCatalog } from './ConsumableCatalog'
 import { PortCatalog } from './PortCatalog'
+import { RegionCatalog } from './RegionCatalog'
+import { FieldCatalog } from './FieldCatalog'
+import { TreasureMapCatalog } from './TreasureMapCatalog'
 import { UserManage } from './UserManage'
 import { BrandMark } from './BrandMark'
 import { SlideMenu, type MenuTarget } from './SlideMenu'
@@ -30,12 +34,16 @@ type View =
   | { name: 'ship-accel' }
   | { name: 'ship-compare' }
   | { name: 'ship-materials' }
-  | { name: 'discoveries' }
-  | { name: 'quests' }
-  | { name: 'skills' }
+  | { name: 'discoveries'; q?: string; open?: string; add?: boolean }
+  | { name: 'quests'; q?: string; open?: string; add?: boolean }
+  | { name: 'skills'; q?: string; open?: string; add?: boolean }
   | { name: 'jobs' }
   | { name: 'refine' }
-  | { name: 'ports' }
+  | { name: 'consumables' }
+  | { name: 'ports'; q?: string; open?: string; add?: boolean }
+  | { name: 'regions' }
+  | { name: 'fields'; q?: string; open?: string; add?: boolean }
+  | { name: 'treasure-maps'; q?: string; open?: string; add?: boolean }
   | { name: 'users' }
 
 type DashboardProps = {
@@ -58,18 +66,62 @@ function viewToHash(view: View): string {
       return '#/ship-compare'
     case 'ship-materials':
       return '#/ship-materials'
-    case 'discoveries':
-      return '#/discoveries'
-    case 'quests':
-      return '#/quests'
-    case 'skills':
-      return '#/skills'
+    case 'discoveries': {
+      const params = new URLSearchParams()
+      if (view.q?.trim()) params.set('q', view.q.trim())
+      if (view.open?.trim()) params.set('open', view.open.trim())
+      if (view.add) params.set('add', '1')
+      const qs = params.toString()
+      return qs ? `#/discoveries?${qs}` : '#/discoveries'
+    }
+    case 'quests': {
+      const params = new URLSearchParams()
+      if (view.q?.trim()) params.set('q', view.q.trim())
+      if (view.open?.trim()) params.set('open', view.open.trim())
+      if (view.add) params.set('add', '1')
+      const qs = params.toString()
+      return qs ? `#/quests?${qs}` : '#/quests'
+    }
+    case 'skills': {
+      const params = new URLSearchParams()
+      if (view.q?.trim()) params.set('q', view.q.trim())
+      if (view.open?.trim()) params.set('open', view.open.trim())
+      if (view.add) params.set('add', '1')
+      const qs = params.toString()
+      return qs ? `#/skills?${qs}` : '#/skills'
+    }
     case 'jobs':
       return '#/jobs'
     case 'refine':
       return '#/refine'
-    case 'ports':
-      return '#/ports'
+    case 'consumables':
+      return '#/consumables'
+    case 'ports': {
+      const params = new URLSearchParams()
+      if (view.q?.trim()) params.set('q', view.q.trim())
+      if (view.open?.trim()) params.set('open', view.open.trim())
+      if (view.add) params.set('add', '1')
+      const qs = params.toString()
+      return qs ? `#/ports?${qs}` : '#/ports'
+    }
+    case 'regions':
+      return '#/regions'
+    case 'fields': {
+      const params = new URLSearchParams()
+      if (view.q?.trim()) params.set('q', view.q.trim())
+      if (view.open?.trim()) params.set('open', view.open.trim())
+      if (view.add) params.set('add', '1')
+      const qs = params.toString()
+      return qs ? `#/fields?${qs}` : '#/fields'
+    }
+    case 'treasure-maps': {
+      const params = new URLSearchParams()
+      if (view.q?.trim()) params.set('q', view.q.trim())
+      if (view.open?.trim()) params.set('open', view.open.trim())
+      if (view.add) params.set('add', '1')
+      const qs = params.toString()
+      return qs ? `#/treasure-maps?${qs}` : '#/treasure-maps'
+    }
     case 'users':
       return '#/users'
     case 'board':
@@ -96,8 +148,12 @@ function applyViewUrl(view: View) {
 
 function hashToView(hash: string, isAdmin: boolean): View {
   const raw = hash.replace(/^#/, '').trim()
-  const path = raw.startsWith('/') ? raw : `/${raw}`
+  const qIndex = raw.indexOf('?')
+  const pathRaw = qIndex >= 0 ? raw.slice(0, qIndex) : raw
+  const queryRaw = qIndex >= 0 ? raw.slice(qIndex + 1) : ''
+  const path = pathRaw.startsWith('/') ? pathRaw : `/${pathRaw}`
   const parts = path.split('/').filter(Boolean)
+  const params = new URLSearchParams(queryRaw)
 
   if (parts.length === 0) return { name: 'home' }
   if (parts[0] === 'messages') return { name: 'messages' }
@@ -105,12 +161,54 @@ function hashToView(hash: string, isAdmin: boolean): View {
   if (parts[0] === 'ship-accel') return { name: 'ship-accel' }
   if (parts[0] === 'ship-compare') return { name: 'ship-compare' }
   if (parts[0] === 'ship-materials') return { name: 'ship-materials' }
-  if (parts[0] === 'discoveries') return { name: 'discoveries' }
-  if (parts[0] === 'quests') return { name: 'quests' }
-  if (parts[0] === 'skills') return { name: 'skills' }
+  if (parts[0] === 'discoveries') {
+    const q = params.get('q')?.trim() || undefined
+    const open = params.get('open')?.trim() || undefined
+    // add=1 은 URL만으로 열 수 없게 — 관리자 세션에서만 인정
+    const add = isAdmin && params.get('add') === '1'
+    return { name: 'discoveries', q, open, add: add || undefined }
+  }
+  if (parts[0] === 'quests') {
+    const q = params.get('q')?.trim() || undefined
+    const open = params.get('open')?.trim() || undefined
+    // add=1 은 URL만으로 열 수 없게 — 관리자 세션에서만 인정
+    const add = isAdmin && params.get('add') === '1'
+    return { name: 'quests', q, open, add: add || undefined }
+  }
+  if (parts[0] === 'skills') {
+    const q = params.get('q')?.trim() || undefined
+    const open = params.get('open')?.trim() || undefined
+    // add=1 은 URL만으로 열 수 없게 — 관리자 세션에서만 인정
+    const add = isAdmin && params.get('add') === '1'
+    return { name: 'skills', q, open, add: add || undefined }
+  }
   if (parts[0] === 'jobs') return { name: 'jobs' }
   if (parts[0] === 'refine') return { name: 'refine' }
-  if (parts[0] === 'ports' || parts[0] === 'cities') return { name: 'ports' }
+  if (parts[0] === 'consumables') return { name: 'consumables' }
+  if (parts[0] === 'ports' || parts[0] === 'cities') {
+    const q = params.get('q')?.trim() || undefined
+    const open = params.get('open')?.trim() || undefined
+    // add=1 은 URL만으로 열 수 없게 — 관리자 세션에서만 인정
+    const add = isAdmin && params.get('add') === '1'
+    return { name: 'ports', q, open, add: add || undefined }
+  }
+  if (parts[0] === 'regions') return { name: 'regions' }
+  if (parts[0] === 'fields' || parts[0] === 'lands') {
+    const q = params.get('q')?.trim() || undefined
+    const open = params.get('open')?.trim() || undefined
+    const add = isAdmin && params.get('add') === '1'
+    return { name: 'fields', q, open, add: add || undefined }
+  }
+  if (
+    parts[0] === 'treasure-maps' ||
+    parts[0] === 'maps' ||
+    parts[0] === 'treasuremaps'
+  ) {
+    const q = params.get('q')?.trim() || undefined
+    const open = params.get('open')?.trim() || undefined
+    const add = isAdmin && params.get('add') === '1'
+    return { name: 'treasure-maps', q, open, add: add || undefined }
+  }
   if (parts[0] === 'users') {
     return isAdmin ? { name: 'users' } : { name: 'home' }
   }
@@ -128,6 +226,48 @@ function viewsEqual(a: View, b: View): boolean {
   if (a.name !== b.name) return false
   if (a.name === 'board' && b.name === 'board') {
     return a.boardId === b.boardId && a.postId === b.postId
+  }
+  if (a.name === 'skills' && b.name === 'skills') {
+    return (
+      (a.q || '') === (b.q || '') &&
+      (a.open || '') === (b.open || '') &&
+      Boolean(a.add) === Boolean(b.add)
+    )
+  }
+  if (a.name === 'quests' && b.name === 'quests') {
+    return (
+      (a.q || '') === (b.q || '') &&
+      (a.open || '') === (b.open || '') &&
+      Boolean(a.add) === Boolean(b.add)
+    )
+  }
+  if (a.name === 'discoveries' && b.name === 'discoveries') {
+    return (
+      (a.q || '') === (b.q || '') &&
+      (a.open || '') === (b.open || '') &&
+      Boolean(a.add) === Boolean(b.add)
+    )
+  }
+  if (a.name === 'ports' && b.name === 'ports') {
+    return (
+      (a.q || '') === (b.q || '') &&
+      (a.open || '') === (b.open || '') &&
+      Boolean(a.add) === Boolean(b.add)
+    )
+  }
+  if (a.name === 'fields' && b.name === 'fields') {
+    return (
+      (a.q || '') === (b.q || '') &&
+      (a.open || '') === (b.open || '') &&
+      Boolean(a.add) === Boolean(b.add)
+    )
+  }
+  if (a.name === 'treasure-maps' && b.name === 'treasure-maps') {
+    return (
+      (a.q || '') === (b.q || '') &&
+      (a.open || '') === (b.open || '') &&
+      Boolean(a.add) === Boolean(b.add)
+    )
   }
   return true
 }
@@ -200,7 +340,10 @@ function toMenuTarget(view: View): MenuTarget {
   if (view.name === 'skills') return { name: 'skills' }
   if (view.name === 'jobs') return { name: 'jobs' }
   if (view.name === 'refine') return { name: 'refine' }
+  if (view.name === 'consumables') return { name: 'consumables' }
   if (view.name === 'ports') return { name: 'ports' }
+  if (view.name === 'regions') return { name: 'regions' }
+  if (view.name === 'fields') return { name: 'fields' }
   if (view.name === 'users') return { name: 'users' }
   return { name: 'home' }
 }
@@ -373,7 +516,7 @@ export function Dashboard({ user, token, onLogout, onToast }: DashboardProps) {
       return
     }
     if (target.name === 'skills') {
-      go({ name: 'skills' })
+      go({ name: 'skills', q: undefined, open: undefined })
       return
     }
     if (target.name === 'jobs') {
@@ -384,8 +527,20 @@ export function Dashboard({ user, token, onLogout, onToast }: DashboardProps) {
       go({ name: 'refine' })
       return
     }
+    if (target.name === 'consumables') {
+      go({ name: 'consumables' })
+      return
+    }
     if (target.name === 'ports') {
       go({ name: 'ports' })
+      return
+    }
+    if (target.name === 'regions') {
+      go({ name: 'regions' })
+      return
+    }
+    if (target.name === 'fields') {
+      go({ name: 'fields' })
       return
     }
     if (target.name === 'users') {
@@ -629,6 +784,20 @@ export function Dashboard({ user, token, onLogout, onToast }: DashboardProps) {
                 </div>
 
                 <div className="dash-link-group">
+                  <h3>아이템</h3>
+                  <div className="dash-links">
+                    <button
+                      type="button"
+                      className="dash-link"
+                      onClick={() => go({ name: 'consumables' })}
+                    >
+                      <strong>소비품</strong>
+                      <span>소비품 목록·상세</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="dash-link-group">
                   <h3>월드</h3>
                   <div className="dash-links">
                     <button
@@ -638,6 +807,22 @@ export function Dashboard({ user, token, onLogout, onToast }: DashboardProps) {
                     >
                       <strong>도시</strong>
                       <span>도시·항구 목록·상세</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="dash-link"
+                      onClick={() => go({ name: 'regions' })}
+                    >
+                      <strong>지역</strong>
+                      <span>지역·해역 그룹 목록·상세</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="dash-link"
+                      onClick={() => go({ name: 'fields' })}
+                    >
+                      <strong>육지</strong>
+                      <span>필드·육지 조사 목록·상세</span>
                     </button>
                   </div>
                 </div>
@@ -734,15 +919,32 @@ export function Dashboard({ user, token, onLogout, onToast }: DashboardProps) {
             token={token}
             isAdmin={isAdmin}
             onToast={onToast}
+            initialQuery={view.q || ''}
+            openKey={view.open || ''}
+            initialAdd={isAdmin && Boolean(view.add)}
           />
         )}
 
         {view.name === 'quests' && (
-          <QuestCatalog token={token} isAdmin={isAdmin} onToast={onToast} />
+          <QuestCatalog
+            token={token}
+            isAdmin={isAdmin}
+            onToast={onToast}
+            initialQuery={view.q || ''}
+            openKey={view.open || ''}
+            initialAdd={isAdmin && Boolean(view.add)}
+          />
         )}
 
         {view.name === 'skills' && (
-          <SkillCatalog token={token} isAdmin={isAdmin} onToast={onToast} />
+          <SkillCatalog
+            token={token}
+            isAdmin={isAdmin}
+            onToast={onToast}
+            initialQuery={view.q || ''}
+            openKey={view.open || ''}
+            initialAdd={isAdmin && Boolean(view.add)}
+          />
         )}
 
         {view.name === 'jobs' && (
@@ -753,8 +955,53 @@ export function Dashboard({ user, token, onLogout, onToast }: DashboardProps) {
           <RefineCatalog token={token} isAdmin={isAdmin} onToast={onToast} />
         )}
 
+        {view.name === 'consumables' && (
+          <ConsumableCatalog
+            token={token}
+            isAdmin={isAdmin}
+            onToast={onToast}
+          />
+        )}
+
         {view.name === 'ports' && (
-          <PortCatalog token={token} isAdmin={isAdmin} onToast={onToast} />
+          <PortCatalog
+            token={token}
+            isAdmin={isAdmin}
+            onToast={onToast}
+            initialQuery={view.q || ''}
+            openKey={view.open || ''}
+            initialAdd={isAdmin && Boolean(view.add)}
+          />
+        )}
+
+        {view.name === 'regions' && (
+          <RegionCatalog
+            token={token}
+            isAdmin={isAdmin}
+            onToast={onToast}
+          />
+        )}
+
+        {view.name === 'fields' && (
+          <FieldCatalog
+            token={token}
+            isAdmin={isAdmin}
+            onToast={onToast}
+            initialQuery={view.q || ''}
+            openKey={view.open || ''}
+            initialAdd={isAdmin && Boolean(view.add)}
+          />
+        )}
+
+        {view.name === 'treasure-maps' && (
+          <TreasureMapCatalog
+            token={token}
+            isAdmin={isAdmin}
+            onToast={onToast}
+            initialQuery={view.q || ''}
+            openKey={view.open || ''}
+            initialAdd={isAdmin && Boolean(view.add)}
+          />
         )}
 
         {view.name === 'users' && isAdmin && (

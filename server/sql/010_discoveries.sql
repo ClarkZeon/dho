@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS discoveries (
   place TEXT,
   linked_quests JSONB NOT NULL DEFAULT '[]'::jsonb,
   debate_combo JSONB,
+  ornaments JSONB NOT NULL DEFAULT '[]'::jsonb,
   enabled BOOLEAN NOT NULL DEFAULT TRUE,
   sort_order INTEGER NOT NULL DEFAULT 0,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -28,10 +29,15 @@ ALTER TABLE discoveries ADD COLUMN IF NOT EXISTS card_exp INTEGER;
 ALTER TABLE discoveries ADD COLUMN IF NOT EXISTS report_fame INTEGER;
 ALTER TABLE discoveries ADD COLUMN IF NOT EXISTS linked_quests JSONB;
 ALTER TABLE discoveries ADD COLUMN IF NOT EXISTS debate_combo JSONB;
+ALTER TABLE discoveries ADD COLUMN IF NOT EXISTS ornaments JSONB;
 
 UPDATE discoveries
 SET linked_quests = '[]'::jsonb
 WHERE linked_quests IS NULL;
+
+UPDATE discoveries
+SET ornaments = '[]'::jsonb
+WHERE ornaments IS NULL;
 
 CREATE INDEX IF NOT EXISTS idx_discoveries_name ON discoveries (name);
 CREATE INDEX IF NOT EXISTS idx_discoveries_enabled_sort ON discoveries (enabled, sort_order, id);

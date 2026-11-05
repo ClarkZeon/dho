@@ -106,12 +106,46 @@ export async function getTreasureMapById(id) {
   return rows[0] ? decorateMap(rows[0]) : null
 }
 
-async function getBySlug(slug) {
+export async function getTreasureMapBySlug(slug) {
+  const key = String(slug || '').trim()
+  if (!key) return null
   const sql = getSql()
   const rows = await sql`
-    SELECT * FROM treasure_maps WHERE slug = ${slug} AND enabled = TRUE LIMIT 1
+    SELECT * FROM treasure_maps WHERE slug = ${key} AND enabled = TRUE LIMIT 1
   `
   return rows[0] ? decorateMap(rows[0]) : null
+}
+
+/** @deprecated use getTreasureMapBySlug */
+async function getBySlug(slug) {
+  return getTreasureMapBySlug(slug)
+}
+
+export async function getTreasureMapByName(name) {
+  const key = normalizeName(name)
+  if (!key) return null
+  const sql = getSql()
+  const rows = await sql`
+    SELECT * FROM treasure_maps
+    WHERE enabled = TRUE
+      AND TRIM(BOTH FROM regexp_replace(name, '\\s+', ' ', 'g')) = ${key}
+    LIMIT 1
+  `
+  return rows[0] ? decorateMap(rows[0]) : null
+}
+
+/** id · slug · 이름 */
+export async function getTreasureMapByKey(key) {
+  const raw = String(key || '').trim()
+  if (!raw) return null
+  const asId = Number(raw)
+  if (Number.isFinite(asId) && String(asId) === raw) {
+    const byId = await getTreasureMapById(asId)
+    if (byId) return byId
+  }
+  const bySlug = await getTreasureMapBySlug(raw)
+  if (bySlug) return bySlug
+  return getTreasureMapByName(raw)
 }
 
 function payloadFrom(parsed) {

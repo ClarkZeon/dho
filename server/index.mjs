@@ -53,6 +53,8 @@ import {
   deleteQuest,
   ensureQuestStore,
   getQuestById,
+  getQuestByName,
+  getQuestBySlug,
   listQuestsPage,
   setUserQuestCompleted,
   updateQuestFields,
@@ -62,6 +64,9 @@ import { parseQuestText } from './questTextParse.mjs'
 import {
   deletePort,
   ensurePortStore,
+  getPortById,
+  getPortByName,
+  getPortBySlug,
   listPorts,
   updatePortFields,
   upsertPortFromParsed,
@@ -87,6 +92,8 @@ import {
   deleteField,
   ensureFieldStore,
   getFieldById,
+  getFieldByName,
+  getFieldBySlug,
   listFields,
   updateFieldFields,
   upsertFieldFromParsed,
@@ -134,6 +141,7 @@ import {
   deleteDiscovery,
   ensureDiscoveryStore,
   getDiscoveryById,
+  getDiscoveryByName,
   getDiscoveryBySlug,
   listDiscoveries,
   listDiscoveryCategoryTree,
@@ -145,6 +153,9 @@ import { parseDiscoveryText } from './discoveryTextParse.mjs'
 import {
   deleteSkill,
   ensureSkillStore,
+  getSkillById,
+  getSkillByName,
+  getSkillBySlug,
   listSkills,
   updateSkillFields,
   upsertSkillFromParsed,
@@ -174,6 +185,7 @@ import {
 import {
   deleteTreasureMap,
   ensureTreasureMapStore,
+  getTreasureMapByKey,
   listTreasureMaps,
   updateTreasureMapFields,
   upsertTreasureMapFromParsed,
@@ -1132,8 +1144,13 @@ export async function handleRequest(req, res) {
       if (!requireAdmin(authUser, res)) return
       const body = await readBody(req)
       const text = typeof body.text === 'string' ? body.text : ''
+      const destinationOverride =
+        typeof body.destination === 'string' ? body.destination.trim() : ''
       try {
         const parsed = parseQuestText(text)
+        if (destinationOverride) {
+          parsed.destination = destinationOverride
+        }
         const quest = await upsertQuestFromParsed(parsed)
         sendJson(res, 201, { quest })
       } catch (err) {
@@ -1181,6 +1198,28 @@ export async function handleRequest(req, res) {
     }
 
     const portMatch = pathname.match(/^\/api\/ports\/([^/]+)$/)
+    if (portMatch && req.method === 'GET') {
+      const authUser = await getAuthUser(req)
+      if (!authUser) {
+        sendJson(res, 401, { error: '로그인이 필요합니다.' })
+        return
+      }
+      const key = decodeURIComponent(portMatch[1]).trim()
+      const asId = Number(key)
+      let port =
+        Number.isFinite(asId) && String(asId) === key
+          ? await getPortById(asId)
+          : null
+      if (!port) port = await getPortBySlug(key)
+      if (!port) port = await getPortByName(key)
+      if (!port) {
+        sendJson(res, 404, { error: '도시를 찾을 수 없습니다.' })
+        return
+      }
+      sendJson(res, 200, { port })
+      return
+    }
+
     if (portMatch && req.method === 'PATCH') {
       const authUser = await getAuthUser(req)
       if (!authUser) {
@@ -1908,6 +1947,28 @@ export async function handleRequest(req, res) {
     }
 
     const fieldMatch = pathname.match(/^\/api\/fields\/([^/]+)$/)
+    if (fieldMatch && req.method === 'GET') {
+      const authUser = await getAuthUser(req)
+      if (!authUser) {
+        sendJson(res, 401, { error: '로그인이 필요합니다.' })
+        return
+      }
+      const key = decodeURIComponent(fieldMatch[1]).trim()
+      const asId = Number(key)
+      let field =
+        Number.isFinite(asId) && String(asId) === key
+          ? await getFieldById(asId)
+          : null
+      if (!field) field = await getFieldBySlug(key)
+      if (!field) field = await getFieldByName(key)
+      if (!field) {
+        sendJson(res, 404, { error: '육지를 찾을 수 없습니다.' })
+        return
+      }
+      sendJson(res, 200, { field })
+      return
+    }
+
     if (fieldMatch && req.method === 'PATCH') {
       const authUser = await getAuthUser(req)
       if (!authUser) {
@@ -2058,8 +2119,14 @@ export async function handleRequest(req, res) {
         sendJson(res, 401, { error: '로그인이 필요합니다.' })
         return
       }
-      const slug = decodeURIComponent(discoveryMatch[1])
-      const discovery = await getDiscoveryBySlug(slug, authUser.id)
+      const key = decodeURIComponent(discoveryMatch[1]).trim()
+      const asId = Number(key)
+      let discovery =
+        Number.isFinite(asId) && String(asId) === key
+          ? await getDiscoveryById(asId, authUser.id)
+          : null
+      if (!discovery) discovery = await getDiscoveryBySlug(key, authUser.id)
+      if (!discovery) discovery = await getDiscoveryByName(key, authUser.id)
       if (!discovery) {
         sendJson(res, 404, { error: '발견물을 찾을 수 없습니다.' })
         return
@@ -2173,6 +2240,27 @@ export async function handleRequest(req, res) {
     }
 
     const skillMatch = pathname.match(/^\/api\/skills\/([^/]+)$/)
+    if (skillMatch && req.method === 'GET') {
+      const authUser = await getAuthUser(req)
+      if (!authUser) {
+        sendJson(res, 401, { error: '로그인이 필요합니다.' })
+        return
+      }
+      const key = decodeURIComponent(skillMatch[1]).trim()
+      const asId = Number(key)
+      let skill =
+        Number.isFinite(asId) && String(asId) === key
+          ? await getSkillById(asId)
+          : null
+      if (!skill) skill = await getSkillBySlug(key)
+      if (!skill) skill = await getSkillByName(key)
+      if (!skill) {
+        sendJson(res, 404, { error: '스킬을 찾을 수 없습니다.' })
+        return
+      }
+      sendJson(res, 200, { skill })
+      return
+    }
     if (skillMatch && req.method === 'PATCH') {
       const authUser = await getAuthUser(req)
       if (!authUser) {
@@ -2480,6 +2568,22 @@ export async function handleRequest(req, res) {
     }
 
     const treasureMapMatch = pathname.match(/^\/api\/treasure-maps\/([^/]+)$/)
+    if (treasureMapMatch && req.method === 'GET') {
+      const authUser = await getAuthUser(req)
+      if (!authUser) {
+        sendJson(res, 401, { error: '로그인이 필요합니다.' })
+        return
+      }
+      const key = decodeURIComponent(treasureMapMatch[1]).trim()
+      const treasureMap = await getTreasureMapByKey(key)
+      if (!treasureMap) {
+        sendJson(res, 404, { error: '지도를 찾을 수 없습니다.' })
+        return
+      }
+      sendJson(res, 200, { treasureMap })
+      return
+    }
+
     if (treasureMapMatch && req.method === 'PATCH') {
       const authUser = await getAuthUser(req)
       if (!authUser) {
@@ -2536,12 +2640,14 @@ export async function handleRequest(req, res) {
         sendJson(res, 401, { error: '로그인이 필요합니다.' })
         return
       }
-      const questId = Number(decodeURIComponent(questMatch[1]))
-      if (!Number.isFinite(questId)) {
-        sendJson(res, 400, { error: '잘못된 퀘스트 ID입니다.' })
-        return
-      }
-      const quest = await getQuestById(questId, authUser.id)
+      const key = decodeURIComponent(questMatch[1]).trim()
+      const asId = Number(key)
+      let quest =
+        Number.isFinite(asId) && String(asId) === key
+          ? await getQuestById(asId, authUser.id)
+          : null
+      if (!quest) quest = await getQuestBySlug(key, authUser.id)
+      if (!quest) quest = await getQuestByName(key, authUser.id)
       if (!quest) {
         sendJson(res, 404, { error: '퀘스트를 찾을 수 없습니다.' })
         return

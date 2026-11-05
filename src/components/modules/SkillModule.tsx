@@ -1,4 +1,5 @@
 import { getModuleDef } from '../../lib/detailModules'
+import { SkillEdgeLabel } from '../SkillEdgeLabel'
 
 export type SkillModuleRef = {
   id?: number
@@ -106,9 +107,15 @@ export function SkillBonusChips({
       {items.map((item, index) => (
         <li
           key={`${item.name}-${item.bonus || ''}-${index}`}
-          className={item.specialist ? 'is-specialist' : undefined}
+          className={[
+            'is-skill-chip',
+            item.specialist ? 'is-specialist' : '',
+          ]
+            .filter(Boolean)
+            .join(' ')}
           title={item.specialist ? '전문 스킬' : undefined}
         >
+          <SkillEdgeLabel />
           <span>{item.name}</span>
           {item.bonus ? <em>{item.bonus}</em> : null}
         </li>
@@ -131,9 +138,15 @@ function SkillChipList({
           key={
             item.id != null ? `id:${item.id}` : `name:${item.name}-${index}`
           }
-          className={item.specialist ? 'is-specialist' : undefined}
+          className={[
+            'is-skill-chip',
+            item.specialist ? 'is-specialist' : '',
+          ]
+            .filter(Boolean)
+            .join(' ')}
           title={item.specialist ? '전문 스킬' : undefined}
         >
+          <SkillEdgeLabel />
           {onOpenSkill ? (
             <button
               type="button"

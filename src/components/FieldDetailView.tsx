@@ -11,6 +11,7 @@ import type {
   FieldSurveyTask,
 } from '../types'
 import { DetailSectionActions, DetailSectionHead } from './DetailSectionHead'
+import { FieldDestContent } from './FieldDestContent'
 import { DiscoveryChips } from './modules/DiscoveryChips'
 
 type FieldEditConfig = {
@@ -1308,23 +1309,23 @@ export function FieldDetailView({
             </>
           ) : viewDestRows.length > 0 ? (
             <div className="admin-table-wrap">
-              <table className="admin-table">
+              <table className="admin-table field-dest-table">
                 <thead>
                   <tr>
-                    <th>
+                    <th className="field-dest-col-item">
                       {destTab === '퀘스트'
                         ? '퀘스트'
                         : destTab === '보물지도'
                           ? '보물지도'
                           : '발견물'}
                     </th>
-                    <th>내용</th>
+                    <th className="field-dest-col-content">내용</th>
                   </tr>
                 </thead>
                 <tbody>
                   {viewDestRows.map((item, idx) => (
                     <tr key={`${destTab}-${item.discovery}-${idx}`}>
-                      <td>
+                      <td className="field-dest-col-item">
                         {item.discovery?.trim() ? (
                           destTab === '퀘스트' ? (
                             item.discovery
@@ -1335,7 +1336,9 @@ export function FieldDetailView({
                           '-'
                         )}
                       </td>
-                      <td>{item.content || '-'}</td>
+                      <td className="field-dest-col-content">
+                        <FieldDestContent content={item.content} />
+                      </td>
                     </tr>
                   ))}
                 </tbody>

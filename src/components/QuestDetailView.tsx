@@ -1,18 +1,42 @@
 import { Fragment, useEffect, useState } from 'react'
 import {
   fetchDiscovery,
+  fetchFieldByKey,
+  fetchFields,
+  fetchPortByKey,
+  fetchPorts,
+  fetchQuestByKey,
+  fetchSkill,
+  fetchTreasureMapByKey,
   setDiscoveryCompletion,
+  setQuestCompletion,
   updateQuest,
 } from '../lib/api'
-import { splitChainAndLinked } from '../lib/questChain'
+import {
+  formatQuestSkillLabel,
+  normalizeQuestSkills,
+  skillDisplayLevel,
+} from '../lib/questSkills'
+import {
+  resolveLinkedKind,
+  splitChainAndLinked,
+} from '../lib/questChain'
+import { splitQuestDestination } from '../lib/questDestination'
+import { CityEdgeLabel } from './CityEdgeLabel'
+import { LandEdgeLabel } from './LandEdgeLabel'
+import { ConsumableEdgeLabel } from './ConsumableEdgeLabel'
+import { SkillEdgeLabel } from './SkillEdgeLabel'
 import type {
   DiscoveryDetail,
-  DiscoveryQuestRef,
+  FieldDetail,
+  PortDetail,
   QuestChainItem,
   QuestDetail,
   QuestPrerequisite,
   QuestRewardItem,
   QuestSkillReq,
+  SkillDetail,
+  TreasureMapDetail,
 } from '../types'
 import { DetailModal } from './DetailModal'
 import {
@@ -21,11 +45,18 @@ import {
 } from './DetailSectionHead'
 import { getModuleDef } from '../lib/detailModules'
 import { DiscoveryDetailView } from './DiscoveryDetailView'
+import { ConfirmLayer } from './ConfirmLayer'
+import { LoadingOverlay } from './LoadingOverlay'
+import { FieldDetailView } from './FieldDetailView'
+import { PortDetailView } from './PortDetailView'
+import { SkillDetailView } from './SkillDetailView'
+import { TreasureMapDetailView } from './TreasureMapDetailView'
 import {
   DiscoveryChips,
   parseDiscoveryLabel,
 } from './modules/DiscoveryChips'
 import { DiscoveryModule } from './modules/DiscoveryModule'
+import { QuestDifficultyStars } from './QuestDifficultyStars'
 
 type QuestEditSection =
   | 'basic'
@@ -42,6 +73,8 @@ type QuestDraft = {
   category: string
   name: string
   questType: string
+  chronoQuest: string
+  feature: string
   difficulty: number | null
   requestPlaces: string
   destination: string
@@ -109,13 +142,15 @@ function makeDraft(quest: QuestDetail): QuestDraft {
     category: quest.category || '',
     name: quest.name || '',
     questType: quest.questType || '',
+    chronoQuest: quest.chronoQuest || '',
+    feature: quest.feature || '',
     difficulty: quest.difficulty,
     requestPlaces: quest.requestPlaces || '',
     destination: quest.destination || '',
     discoveryName: quest.discoveryName || '',
     discoveryCategory: quest.discoveryCategory || '',
     discoveryRank: quest.discoveryRank,
-    skills: (quest.skills || []).map((s) => ({ ...s })),
+    skills: normalizeQuestSkills(quest.skills).map((s) => ({ ...s })),
     prerequisites: (quest.prerequisites || []).map((p) => ({
       ...p,
       children: (p.children || []).map((c) => ({ ...c })),
@@ -273,21 +308,45 @@ function extractWalkthroughSkills(
   return { action: rest, skills: matched }
 }
 
+/** 목적지 전체·단계별 지명 — 위키 지도 위젯 제목으로 쓰인 ※ 노트 제거용 */
+function destinationCaptionNames(
+  destination: string | null | undefined,
+  options?: { cityNames?: readonly string[]; landNames?: readonly string[] },
+): string[] {
+  const dest = String(destination || '')
+    .replace(/\s+/g, ' ')
+    .trim()
+  if (!dest) return []
+  const names = new Set<string>([dest])
+  for (const part of dest.split(/\s*(?:»|>>|›|→|➜|➔|⟶|⇒|->)\s*/)) {
+    const p = part.trim()
+    if (p) names.add(p)
+  }
+  for (const step of splitQuestDestination(dest, options).steps) {
+    if (step.name) names.add(step.name)
+  }
+  return [...names]
+}
+
 function isWalkthroughMapCaption(
   line: string,
-  destination: string,
+  destinationNames: string[],
   placePrefixes: string[],
 ) {
   const t = line.replace(/\s+/g, ' ').trim()
   if (!t) return false
   if (/^\d+\./.test(t) || /^[-–—]/.test(t) || /^[（(]/.test(t)) return false
   if (/지도\s*출처/.test(t)) return true
-  if (destination && t === destination) return true
+  if (destinationNames.some((name) => name && t === name)) return true
   return placePrefixes.some((p) => p && t === p)
 }
 
-function dropMapSource(text: string, destination?: string | null) {
-  const dest = (destination || '').replace(/\s+/g, ' ').trim()
+function dropMapSource(
+  text: string,
+  destination?: string | null,
+  options?: { cityNames?: readonly string[]; landNames?: readonly string[] },
+) {
+  const destinationNames = destinationCaptionNames(destination, options)
   const lines = text.split('\n')
   const placePrefixes = lines.map(placePrefixFromStep).filter(Boolean)
   const kept = lines
@@ -297,12 +356,13 @@ function dropMapSource(text: string, destination?: string | null) {
       if (!t || /지도\s*출처/.test(t)) return false
       const next = arr.slice(idx + 1).find((l) => l.trim())
       if (next && /지도\s*출처/.test(next) && !/^\d+\./.test(t)) return false
-      if (isWalkthroughMapCaption(t, dest, placePrefixes)) return false
+      if (isWalkthroughMapCaption(t, destinationNames, placePrefixes))
+        return false
       return true
     })
   while (kept.length) {
     const last = kept[kept.length - 1].trim()
-    if (!last || isWalkthroughMapCaption(last, dest, placePrefixes)) {
+    if (!last || isWalkthroughMapCaption(last, destinationNames, placePrefixes)) {
       kept.pop()
       continue
     }
@@ -311,25 +371,13 @@ function dropMapSource(text: string, destination?: string | null) {
   return kept.join('\n').trim()
 }
 
-function DifficultyStars({ value }: { value: number | null }) {
-  if (value == null) return <span className="quest-muted">-</span>
-  const filled = Math.max(0, Math.min(10, value))
-  return (
-    <span className="quest-stars" aria-label={`난이도 ${filled}`}>
-      {Array.from({ length: 10 }, (_, i) => (
-        <span key={i} className={i < filled ? 'is-on' : 'is-off'}>
-          ★
-        </span>
-      ))}
-      <em>{filled}</em>
-    </span>
-  )
-}
 
 type QuestDetailViewProps = {
   quest: QuestDetail
   /** 발견물 상세 조회용 (있으면 이름 매칭 시 링크) */
   token?: string
+  /** 카탈로그 점프 없음 컨펌의 「등록하러 이동」 등 — 관리자만 */
+  isAdmin?: boolean
   completionBusy?: boolean
   onToggleCompleted?: (completed: boolean) => void
   /** 관리자 수정 모드 (토글). false면 사용자 화면처럼 표시 */
@@ -345,50 +393,90 @@ function QuestRelatedList({
   items,
   currentName,
   numbered,
+  showLinkKind = false,
+  onOpen,
+  busy = false,
 }: {
   items: QuestChainItem[]
   currentName: string
   numbered: boolean
+  /** 연결 지도/퀘스트 — 퀘스트·지도 뱃지 */
+  showLinkKind?: boolean
+  /** 현재 퀘스트 제외 — 카탈로그 점프 */
+  onOpen?: (item: QuestChainItem) => void
+  busy?: boolean
 }) {
   const Tag = numbered ? 'ol' : 'ul'
   return (
     <Tag className={`quest-chain${numbered ? '' : ' is-linked'}`}>
       {items.map((item, idx) => {
+        const name = (item.name || '').replace(/\s+/g, ' ').trim()
         const isCurrent =
-          item.name &&
-          item.name.replace(/\s+/g, ' ') === currentName.replace(/\s+/g, ' ')
-        return (
-          <li
-            key={`${item.name || item.raw || idx}-${idx}`}
-            className={isCurrent ? 'is-current' : undefined}
-          >
-            {numbered ? (
-              <span className="quest-chain-idx">{idx + 1}</span>
-            ) : null}
-            <div>
+          Boolean(name) &&
+          name === currentName.replace(/\s+/g, ' ').trim()
+        const canJump = Boolean(onOpen && !isCurrent && name)
+        const linkKind = showLinkKind ? resolveLinkedKind(item) : null
+        const meta = [
+          item.category,
+          item.difficulty != null ? `난이도 ${item.difficulty}` : null,
+          item.places,
+        ]
+          .filter(Boolean)
+          .join(' · ')
+        const skillsLine =
+          item.skills && item.skills.length > 0
+            ? item.skills
+                .map((s) => formatQuestSkillLabel(s))
+                .filter(Boolean)
+                .join(', ')
+            : ''
+        const body = (
+          <>
+            <div className="quest-chain-title-row">
               <strong>
                 {item.name || item.raw || '퀘스트'}
                 {isCurrent ? ' (현재)' : ''}
               </strong>
-              <p>
-                {[
-                  item.category,
-                  item.difficulty != null ? `난이도 ${item.difficulty}` : null,
-                  item.places,
-                ]
-                  .filter(Boolean)
-                  .join(' · ')}
-              </p>
-              {item.skills && item.skills.length > 0 && (
-                <p className="quest-chain-skills">
-                  {item.skills
-                    .map((s) =>
-                      s.level != null ? `${s.name} ${s.level}` : s.name,
-                    )
-                    .join(', ')}
-                </p>
-              )}
+              {linkKind ? (
+                <span
+                  className={`quest-link-kind is-${linkKind}`}
+                  aria-label={linkKind === 'map' ? '지도' : '퀘스트'}
+                >
+                  {linkKind === 'map' ? '지도' : '퀘스트'}
+                </span>
+              ) : null}
             </div>
+            {meta ? <p>{meta}</p> : null}
+            {skillsLine ? (
+              <p className="quest-chain-skills">{skillsLine}</p>
+            ) : null}
+          </>
+        )
+        return (
+          <li
+            key={`${item.name || item.raw || idx}-${idx}`}
+            className={[
+              isCurrent ? 'is-current' : '',
+              canJump ? 'is-jumpable' : '',
+            ]
+              .filter(Boolean)
+              .join(' ') || undefined}
+          >
+            {numbered ? (
+              <span className="quest-chain-idx">{idx + 1}</span>
+            ) : null}
+            {canJump ? (
+              <button
+                type="button"
+                className="quest-chain-jump"
+                disabled={busy}
+                onClick={() => onOpen?.(item)}
+              >
+                {body}
+              </button>
+            ) : (
+              <div>{body}</div>
+            )}
           </li>
         )
       })}
@@ -396,69 +484,181 @@ function QuestRelatedList({
   )
 }
 
-function PrerequisiteLabel({ item }: { item: QuestPrerequisite }) {
-  if (item.kind === 'discovery') {
-    const fromRaw = parseDiscoveryLabel(
-      String(item.raw || '')
-        .replace(/\s*<[^>]*>\s*$/, '')
-        .trim(),
-    )
-    const name = item.discoveryName?.trim() || fromRaw?.name || ''
-    const chip = name
-      ? {
-          name,
-          category: item.discoveryCategory ?? fromRaw?.category ?? null,
-          rank: item.discoveryRank ?? fromRaw?.rank ?? null,
-        }
-      : null
-
-    return (
-      <span className="quest-prereq-discovery">
-        {chip ? <DiscoveryChips items={[chip]} /> : item.raw}
-        {item.nested ? (
-          <em className="quest-prereq-nested">&lt;{item.nested}&gt;</em>
-        ) : null}
-      </span>
-    )
-  }
-  if (item.kind === 'quest' && item.name) {
-    const skillPart = (item.skills || [])
-      .map((s) => (s.level != null ? `${s.name} ${s.level}` : s.name))
-      .join(', ')
-    const paren = [
-      item.difficulty != null ? String(item.difficulty) : null,
-      skillPart || null,
-    ]
-      .filter(Boolean)
-      .join(' ')
-    const bits = [
-      item.category ? `${item.category} |` : null,
-      item.name,
-      paren ? `(${paren})` : null,
-      item.places ? `- ${item.places}` : null,
-    ].filter(Boolean)
-    return <span>{bits.join(' ') || item.raw}</span>
-  }
-  return <span>{item.raw}</span>
+type PrerequisiteJumpProps = {
+  onOpenDiscovery?: (item: {
+    slug?: string
+    name: string
+    id?: number
+  }) => void
+  onOpenQuest?: (name: string) => void
+  discoveryBusy?: boolean
+  questBusy?: boolean
 }
 
-function PrerequisiteBlock({ item }: { item: QuestPrerequisite }) {
-  const children = item.children || []
+function PrerequisiteQuestBody({ item }: { item: QuestPrerequisite }) {
+  const meta = [
+    item.category,
+    item.difficulty != null ? `난이도 ${item.difficulty}` : null,
+    item.places,
+  ]
+    .filter(Boolean)
+    .join(' · ')
+  const skillsLine =
+    item.skills && item.skills.length > 0
+      ? item.skills
+          .map((s) => formatQuestSkillLabel(s))
+          .filter(Boolean)
+          .join(', ')
+      : ''
   return (
-    <div className="quest-prereq-item">
-      <div className="quest-prereq-main">
-        <PrerequisiteLabel item={item} />
+    <>
+      <div className="quest-chain-title-row">
+        <strong>{item.name || item.raw || '퀘스트'}</strong>
       </div>
-      {children.length > 0 ? (
-        <ol className="quest-prereq-children">
-          {children.map((child, idx) => (
-            <li key={`${child.raw}-${idx}`}>
-              <PrerequisiteLabel item={child} />
-            </li>
-          ))}
-        </ol>
+      {meta ? <p>{meta}</p> : null}
+      {skillsLine ? <p className="quest-chain-skills">{skillsLine}</p> : null}
+    </>
+  )
+}
+
+function PrerequisiteDiscoveryBody({
+  item,
+  onOpenDiscovery,
+}: {
+  item: QuestPrerequisite
+  onOpenDiscovery?: PrerequisiteJumpProps['onOpenDiscovery']
+}) {
+  const fromRaw = parseDiscoveryLabel(
+    String(item.raw || '')
+      .replace(/\s*<[^>]*>\s*$/, '')
+      .trim(),
+  )
+  const name = item.discoveryName?.trim() || fromRaw?.name || ''
+  const chip = name
+    ? {
+        name,
+        category: item.discoveryCategory ?? fromRaw?.category ?? null,
+        rank: item.discoveryRank ?? fromRaw?.rank ?? null,
+      }
+    : null
+
+  return (
+    <div className="quest-prereq-discovery-row">
+      {chip ? (
+        <DiscoveryChips items={[chip]} onOpen={onOpenDiscovery} />
+      ) : (
+        <strong>{item.raw || '발견물'}</strong>
+      )}
+      {item.nested ? (
+        <em className="quest-prereq-nested-note">&lt;{item.nested}&gt;</em>
       ) : null}
     </div>
+  )
+}
+
+function PrerequisiteCard({
+  item,
+  onOpenDiscovery,
+  onOpenQuest,
+  discoveryBusy = false,
+  questBusy = false,
+}: {
+  item: QuestPrerequisite
+} & PrerequisiteJumpProps) {
+  const children = item.children || []
+
+  if (item.kind === 'discovery') {
+    return (
+      <li>
+        <PrerequisiteDiscoveryBody
+          item={item}
+          onOpenDiscovery={onOpenDiscovery}
+        />
+        {children.length > 0 ? (
+          <ul className="quest-chain is-linked quest-prereq-nested-chain">
+            {children.map((child, idx) => (
+              <PrerequisiteCard
+                key={`${child.raw}-${idx}`}
+                item={child}
+                onOpenDiscovery={onOpenDiscovery}
+                onOpenQuest={onOpenQuest}
+                discoveryBusy={discoveryBusy}
+                questBusy={questBusy}
+              />
+            ))}
+          </ul>
+        ) : null}
+      </li>
+    )
+  }
+
+  if (item.kind === 'quest' && (item.name || item.raw)) {
+    const questName = (item.name || '').trim()
+    const canJump = Boolean(onOpenQuest && questName)
+    const body = <PrerequisiteQuestBody item={item} />
+    return (
+      <li className={canJump ? 'is-jumpable' : undefined}>
+        {canJump ? (
+          <button
+            type="button"
+            className="quest-chain-jump"
+            disabled={questBusy}
+            onClick={() => onOpenQuest?.(questName)}
+          >
+            {body}
+          </button>
+        ) : (
+          <div>{body}</div>
+        )}
+        {children.length > 0 ? (
+          <ul className="quest-chain is-linked quest-prereq-nested-chain">
+            {children.map((child, idx) => (
+              <PrerequisiteCard
+                key={`${child.raw}-${idx}`}
+                item={child}
+                onOpenDiscovery={onOpenDiscovery}
+                onOpenQuest={onOpenQuest}
+                discoveryBusy={discoveryBusy}
+                questBusy={questBusy}
+              />
+            ))}
+          </ul>
+        ) : null}
+      </li>
+    )
+  }
+
+  return (
+    <li>
+      <div className="quest-chain-title-row">
+        <strong>{item.raw || '—'}</strong>
+      </div>
+    </li>
+  )
+}
+
+function PrerequisiteList({
+  items,
+  onOpenDiscovery,
+  onOpenQuest,
+  discoveryBusy = false,
+  questBusy = false,
+}: {
+  items: QuestPrerequisite[]
+} & PrerequisiteJumpProps) {
+  return (
+    <ul className="quest-chain is-linked quest-prereq-chain">
+      {items.map((item, idx) => (
+        <PrerequisiteCard
+          key={`${item.raw}-${idx}`}
+          item={item}
+          onOpenDiscovery={onOpenDiscovery}
+          onOpenQuest={onOpenQuest}
+          discoveryBusy={discoveryBusy}
+          questBusy={questBusy}
+        />
+      ))}
+    </ul>
   )
 }
 
@@ -598,14 +798,6 @@ function EditSkills({
           </tbody>
         </table>
       </div>
-      <button
-        type="button"
-        className="admin-btn"
-        disabled={disabled}
-        onClick={() => onChange([...skills, { name: '', level: null }])}
-      >
-        추가
-      </button>
     </>
   )
 }
@@ -764,6 +956,7 @@ function EditRelatedList({
 export function QuestDetailView({
   quest,
   token,
+  isAdmin = false,
   completionBusy = false,
   onToggleCompleted,
   editMode = false,
@@ -780,14 +973,73 @@ export function QuestDetailView({
     null,
   )
   const [discoveryLoading, setDiscoveryLoading] = useState(false)
+  const [discoveryMissName, setDiscoveryMissName] = useState('')
   const [discoveryError, setDiscoveryError] = useState('')
   const [discoveryCompletionBusy, setDiscoveryCompletionBusy] = useState(false)
+  const [skillDetail, setSkillDetail] = useState<SkillDetail | null>(null)
+  const [skillLoading, setSkillLoading] = useState(false)
+  /** 없는 스킬 이름 — 컨펌 레이어용 */
+  const [skillMissName, setSkillMissName] = useState('')
+  const [skillError, setSkillError] = useState('')
+  const [jumpQuestDetail, setJumpQuestDetail] = useState<QuestDetail | null>(
+    null,
+  )
+  const [jumpQuestLoading, setJumpQuestLoading] = useState(false)
+  const [jumpQuestMissName, setJumpQuestMissName] = useState('')
+  const [jumpQuestError, setJumpQuestError] = useState('')
+  const [jumpQuestBusy, setJumpQuestBusy] = useState(false)
+  const [portDetail, setPortDetail] = useState<PortDetail | null>(null)
+  const [portLoading, setPortLoading] = useState(false)
+  const [portMissName, setPortMissName] = useState('')
+  const [portError, setPortError] = useState('')
+  const [fieldDetail, setFieldDetail] = useState<FieldDetail | null>(null)
+  const [fieldLoading, setFieldLoading] = useState(false)
+  const [fieldMissName, setFieldMissName] = useState('')
+  const [fieldError, setFieldError] = useState('')
+  const [mapDetail, setMapDetail] = useState<TreasureMapDetail | null>(null)
+  const [mapLoading, setMapLoading] = useState(false)
+  const [mapMissName, setMapMissName] = useState('')
+  const [mapError, setMapError] = useState('')
+  /** 목적지 다단 분할용 — 도시·육지 카탈로그 이름 */
+  const [destCityNames, setDestCityNames] = useState<string[]>([])
+  const [destLandNames, setDestLandNames] = useState<string[]>([])
 
   useEffect(() => {
     setDraft(makeDraft(quest))
     setEditing(null)
     setError('')
   }, [quest])
+
+  useEffect(() => {
+    if (!authToken) {
+      setDestCityNames([])
+      setDestLandNames([])
+      return
+    }
+    let cancelled = false
+    void Promise.all([fetchPorts(authToken), fetchFields(authToken)])
+      .then(([portsRes, fieldsRes]) => {
+        if (cancelled) return
+        setDestCityNames(
+          (portsRes.ports || []).flatMap((p) =>
+            [p.name, p.altName].filter(Boolean),
+          ) as string[],
+        )
+        setDestLandNames(
+          (fieldsRes.fields || []).flatMap((f) =>
+            [f.name, f.altName].filter(Boolean),
+          ) as string[],
+        )
+      })
+      .catch(() => {
+        if (cancelled) return
+        setDestCityNames([])
+        setDestLandNames([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [authToken])
 
   useEffect(() => {
     if (!canEdit) {
@@ -799,7 +1051,20 @@ export function QuestDetailView({
 
   useEffect(() => {
     setDiscoveryDetail(null)
+    setDiscoveryMissName('')
     setDiscoveryError('')
+    setSkillDetail(null)
+    setSkillMissName('')
+    setSkillError('')
+    setJumpQuestDetail(null)
+    setJumpQuestMissName('')
+    setJumpQuestError('')
+    setPortDetail(null)
+    setPortMissName('')
+    setPortError('')
+    setMapDetail(null)
+    setMapMissName('')
+    setMapError('')
   }, [quest.id])
 
   function startEdit(section: QuestEditSection) {
@@ -818,21 +1083,228 @@ export function QuestDetailView({
     setDraft((prev) => ({ ...prev, ...partial }))
   }
 
-  async function openMatchedDiscovery(ref: DiscoveryQuestRef) {
+  async function openMatchedDiscovery(item: {
+    slug?: string
+    name: string
+    id?: number
+  }) {
     if (!authToken) return
+    const key = (item.slug || item.name || '').trim()
+    if (!key) return
+    const missLabel = (item.name || key).trim()
     setDiscoveryLoading(true)
+    setDiscoveryMissName('')
     setDiscoveryError('')
     try {
-      const res = await fetchDiscovery(authToken, ref.slug)
+      const res = await fetchDiscovery(authToken, key)
       setDiscoveryDetail(res.discovery)
     } catch (err) {
-      setDiscoveryError(
-        err instanceof Error
-          ? err.message
-          : '발견물 상세를 불러오지 못했습니다.',
-      )
+      const message = err instanceof Error ? err.message : ''
+      if (/찾을 수 없|없습니다/i.test(message)) {
+        setDiscoveryMissName(missLabel)
+      } else {
+        setDiscoveryError(message || '발견물 상세를 불러오지 못했습니다.')
+      }
     } finally {
       setDiscoveryLoading(false)
+    }
+  }
+
+  function openDiscoveriesAddTab(discoveryName: string) {
+    const params = new URLSearchParams()
+    params.set('q', discoveryName)
+    params.set('add', '1')
+    const url = `${window.location.pathname}${window.location.search}#/discoveries?${params.toString()}`
+    window.open(url, '_blank', 'noopener,noreferrer')
+  }
+
+  async function openMatchedSkill(name: string) {
+    if (!authToken) return
+    const key = name.trim()
+    if (!key) return
+    setSkillLoading(true)
+    setSkillMissName('')
+    setSkillError('')
+    try {
+      const res = await fetchSkill(authToken, key)
+      setSkillDetail(res.skill)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : ''
+      if (/찾을 수 없|없습니다/i.test(message)) {
+        setSkillMissName(key)
+      } else {
+        setSkillError(message || '스킬 상세를 불러오지 못했습니다.')
+      }
+    } finally {
+      setSkillLoading(false)
+    }
+  }
+
+  function openSkillsAddTab(skillName: string) {
+    const params = new URLSearchParams()
+    params.set('q', skillName)
+    params.set('add', '1')
+    const url = `${window.location.pathname}${window.location.search}#/skills?${params.toString()}`
+    window.open(url, '_blank', 'noopener,noreferrer')
+  }
+
+  async function openMatchedChainQuest(name: string) {
+    if (!authToken) return
+    const key = name.trim()
+    if (!key) return
+    setJumpQuestLoading(true)
+    setJumpQuestMissName('')
+    setJumpQuestError('')
+    try {
+      const res = await fetchQuestByKey(authToken, key)
+      setJumpQuestDetail(res.quest)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : ''
+      if (/찾을 수 없|없습니다/i.test(message)) {
+        setJumpQuestMissName(key)
+      } else {
+        setJumpQuestError(message || '퀘스트 상세를 불러오지 못했습니다.')
+      }
+    } finally {
+      setJumpQuestLoading(false)
+    }
+  }
+
+  async function openMatchedMap(name: string) {
+    if (!authToken) return
+    const key = name.trim()
+    if (!key) return
+    setMapLoading(true)
+    setMapMissName('')
+    setMapError('')
+    try {
+      const res = await fetchTreasureMapByKey(authToken, key)
+      setMapDetail(res.treasureMap)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : ''
+      if (/찾을 수 없|없습니다/i.test(message)) {
+        setMapMissName(key)
+      } else {
+        setMapError(message || '지도 상세를 불러오지 못했습니다.')
+      }
+    } finally {
+      setMapLoading(false)
+    }
+  }
+
+  function openMatchedLinked(item: QuestChainItem) {
+    const name = (item.name || item.raw || '').replace(/\s+/g, ' ').trim()
+    if (!name) return
+    if (resolveLinkedKind(item) === 'map') {
+      void openMatchedMap(name)
+      return
+    }
+    void openMatchedChainQuest(name)
+  }
+
+  function openMapsAddTab(mapName: string) {
+    const params = new URLSearchParams()
+    params.set('q', mapName)
+    params.set('add', '1')
+    const url = `${window.location.pathname}${window.location.search}#/treasure-maps?${params.toString()}`
+    window.open(url, '_blank', 'noopener,noreferrer')
+  }
+
+  function openQuestsAddTab(questName: string) {
+    const params = new URLSearchParams()
+    params.set('q', questName)
+    params.set('add', '1')
+    const url = `${window.location.pathname}${window.location.search}#/quests?${params.toString()}`
+    window.open(url, '_blank', 'noopener,noreferrer')
+  }
+
+  async function openMatchedPort(name: string) {
+    if (!authToken) return
+    const key = name.trim()
+    if (!key) return
+    setPortLoading(true)
+    setPortMissName('')
+    setPortError('')
+    try {
+      const res = await fetchPortByKey(authToken, key)
+      setPortDetail(res.port)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : ''
+      if (/찾을 수 없|없습니다/i.test(message)) {
+        setPortMissName(key)
+      } else {
+        setPortError(message || '도시 상세를 불러오지 못했습니다.')
+      }
+    } finally {
+      setPortLoading(false)
+    }
+  }
+
+  function openPortsAddTab(portName: string) {
+    const params = new URLSearchParams()
+    params.set('q', portName)
+    params.set('add', '1')
+    const url = `${window.location.pathname}${window.location.search}#/ports?${params.toString()}`
+    window.open(url, '_blank', 'noopener,noreferrer')
+  }
+
+  async function openMatchedField(name: string) {
+    if (!authToken) return
+    const key = name.trim()
+    if (!key) return
+    setFieldLoading(true)
+    setFieldMissName('')
+    setFieldError('')
+    try {
+      const res = await fetchFieldByKey(authToken, key)
+      setFieldDetail(res.field)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : ''
+      if (/찾을 수 없|없습니다/i.test(message)) {
+        setFieldMissName(key)
+      } else {
+        setFieldError(message || '육지 상세를 불러오지 못했습니다.')
+      }
+    } finally {
+      setFieldLoading(false)
+    }
+  }
+
+  function openFieldsAddTab(fieldName: string) {
+    const params = new URLSearchParams()
+    params.set('q', fieldName)
+    params.set('add', '1')
+    const url = `${window.location.pathname}${window.location.search}#/fields?${params.toString()}`
+    window.open(url, '_blank', 'noopener,noreferrer')
+  }
+
+  async function toggleJumpQuestCompleted(next: boolean) {
+    if (!authToken || !jumpQuestDetail || jumpQuestBusy) return
+    setJumpQuestBusy(true)
+    setJumpQuestError('')
+    try {
+      const res = await setQuestCompletion(
+        authToken,
+        jumpQuestDetail.id,
+        next,
+      )
+      setJumpQuestDetail((prev) =>
+        prev
+          ? {
+              ...prev,
+              completed: res.completed,
+              completedAt: res.completedAt,
+            }
+          : prev,
+      )
+    } catch (err) {
+      setJumpQuestError(
+        err instanceof Error
+          ? err.message
+          : '퀘스트 완료 상태 저장에 실패했습니다.',
+      )
+    } finally {
+      setJumpQuestBusy(false)
     }
   }
 
@@ -886,6 +1358,8 @@ export function QuestDetailView({
           category: nullableText(draft.category),
           name: draft.name.trim(),
           questType: nullableText(draft.questType),
+          chronoQuest: nullableText(draft.chronoQuest),
+          feature: nullableText(draft.feature),
           difficulty: draft.difficulty,
           requestPlaces: nullableText(draft.requestPlaces),
           destination: nullableText(draft.destination),
@@ -958,10 +1432,19 @@ export function QuestDetailView({
   const split = splitChainAndLinked(quest.chainQuests)
   const chainQuests = split.chainQuests
   const linkedQuests = combinedLinked(quest)
-  const description = dropMapSource(quest.description || '', quest.destination)
+  const mapNoiseOpts = {
+    cityNames: destCityNames,
+    landNames: destLandNames,
+  }
+  const description = dropMapSource(
+    quest.description || '',
+    quest.destination,
+    mapNoiseOpts,
+  )
   const walkthroughSteps = dropMapSource(
     quest.walkthrough || '',
     quest.destination,
+    mapNoiseOpts,
   )
     .split('\n')
     .filter((line) => line.trim().length > 0)
@@ -972,12 +1455,17 @@ export function QuestDetailView({
   )
 
   // 1. / 1-1. / 2-1. 등 모두 동일 레벨 진행 단계로 분리
-  const progressBlocks = dropMapSource(quest.progress || '', quest.destination)
+  const progressBlocks = dropMapSource(
+    quest.progress || '',
+    quest.destination,
+    mapNoiseOpts,
+  )
     .split(/\n(?=\d+(?:-\d+)*\.\s+|결론\s*[-–—])/)
     .map((block) => block.trim())
     .filter(Boolean)
 
-  const showSkills = canEdit || quest.skills.length > 0
+  const questSkills = normalizeQuestSkills(quest.skills)
+  const showSkills = canEdit || questSkills.length > 0
   const showPrerequisites =
     canEdit || (quest.prerequisites || []).length > 0
   const showRewards =
@@ -1007,6 +1495,10 @@ export function QuestDetailView({
     .split(/[,，、]/)
     .map((s) => s.trim())
     .filter(Boolean)
+  const destinationParts = splitQuestDestination(quest.destination, {
+    cityNames: destCityNames,
+    landNames: destLandNames,
+  })
 
   const sectionActions = (
     <DetailSectionActions
@@ -1032,7 +1524,7 @@ export function QuestDetailView({
               <span className="quest-badge quest-badge-done">완료</span>
             ) : null}
           </div>
-          <DifficultyStars value={quest.difficulty} />
+          <QuestDifficultyStars value={quest.difficulty} />
         </div>
         <h2>{quest.name}</h2>
       </header>
@@ -1103,6 +1595,22 @@ export function QuestDetailView({
                 <input
                   value={draft.questType}
                   onChange={(e) => patchDraft({ questType: e.target.value })}
+                  disabled={saving}
+                />
+              </label>
+              <label className="field">
+                <span>크로노 퀘스트</span>
+                <input
+                  value={draft.chronoQuest}
+                  onChange={(e) => patchDraft({ chronoQuest: e.target.value })}
+                  disabled={saving}
+                />
+              </label>
+              <label className="field">
+                <span>특징</span>
+                <input
+                  value={draft.feature}
+                  onChange={(e) => patchDraft({ feature: e.target.value })}
                   disabled={saving}
                 />
               </label>
@@ -1183,18 +1691,52 @@ export function QuestDetailView({
             <div>
               <span>난이도</span>
               <strong>
-                <DifficultyStars value={quest.difficulty} />
+                <QuestDifficultyStars value={quest.difficulty} />
               </strong>
             </div>
+            {canEdit || quest.chronoQuest?.trim() ? (
+              <div>
+                <span>크로노 퀘스트</span>
+                <strong>
+                  {quest.chronoQuest?.trim() ? quest.chronoQuest : '-'}
+                </strong>
+              </div>
+            ) : null}
+            {canEdit || quest.feature?.trim() ? (
+              <div>
+                <span>특징</span>
+                <strong>{quest.feature?.trim() ? quest.feature : '-'}</strong>
+              </div>
+            ) : null}
             <div>
               <span>의뢰 장소</span>
               {requestPlaceChips.length > 0 ? (
                 <ul className="quest-skill-chips">
-                  {requestPlaceChips.map((place) => (
-                    <li key={place}>
-                      <span>{place}</span>
-                    </li>
-                  ))}
+                  {requestPlaceChips.map((place) => {
+                    const canOpen = Boolean(authToken && place)
+                    const inner = (
+                      <span className="chip-edge-inner">
+                        <CityEdgeLabel />
+                        <span>{place}</span>
+                      </span>
+                    )
+                    return (
+                      <li key={place} className="is-city-chip">
+                        {canOpen ? (
+                          <button
+                            type="button"
+                            className="quest-skill-chip-btn"
+                            disabled={portLoading}
+                            onClick={() => void openMatchedPort(place)}
+                          >
+                            {inner}
+                          </button>
+                        ) : (
+                          inner
+                        )}
+                      </li>
+                    )
+                  })}
                 </ul>
               ) : (
                 <strong>-</strong>
@@ -1202,7 +1744,64 @@ export function QuestDetailView({
             </div>
             <div>
               <span>목적지</span>
-              <strong>{quest.destination || '-'}</strong>
+              {destinationParts.steps.length > 0 ? (
+                <ul className="quest-skill-chips">
+                  {destinationParts.steps.map((step, idx) => (
+                    <Fragment key={`dest-${step.kind}-${step.name}-${idx}`}>
+                      {idx > 0 ? (
+                        <li className="quest-dest-sep" aria-hidden="true">
+                          »
+                        </li>
+                      ) : null}
+                      {step.kind === 'city' ? (
+                        <li className="is-city-chip">
+                          {authToken ? (
+                            <button
+                              type="button"
+                              className="quest-skill-chip-btn"
+                              disabled={portLoading}
+                              onClick={() => void openMatchedPort(step.name)}
+                            >
+                              <span className="chip-edge-inner">
+                                <CityEdgeLabel />
+                                <span>{step.name}</span>
+                              </span>
+                            </button>
+                          ) : (
+                            <span className="chip-edge-inner">
+                              <CityEdgeLabel />
+                              <span>{step.name}</span>
+                            </span>
+                          )}
+                        </li>
+                      ) : (
+                        <li className="is-land-chip">
+                          {authToken ? (
+                            <button
+                              type="button"
+                              className="quest-skill-chip-btn"
+                              disabled={fieldLoading}
+                              onClick={() => void openMatchedField(step.name)}
+                            >
+                              <span className="chip-edge-inner">
+                                <LandEdgeLabel />
+                                <span>{step.name}</span>
+                              </span>
+                            </button>
+                          ) : (
+                            <span className="chip-edge-inner">
+                              <LandEdgeLabel />
+                              <span>{step.name}</span>
+                            </span>
+                          )}
+                        </li>
+                      )}
+                    </Fragment>
+                  ))}
+                </ul>
+              ) : (
+                <strong>-</strong>
+              )}
             </div>
           </div>
         )}
@@ -1211,11 +1810,10 @@ export function QuestDetailView({
       <DiscoveryModule
         quest={quest}
         canEdit={canEdit}
-        discoveryLoading={discoveryLoading}
-        discoveryError={discoveryError}
+        discoveryBusy={discoveryLoading}
         onOpenDiscovery={
           authToken
-            ? (ref) => void openMatchedDiscovery(ref)
+            ? (item) => void openMatchedDiscovery(item)
             : undefined
         }
       />
@@ -1235,17 +1833,59 @@ export function QuestDetailView({
                 onChange={(skills) => patchDraft({ skills })}
                 disabled={saving}
               />
-              {sectionActions}
+              <DetailSectionActions
+                busy={saving}
+                onCancel={cancelEdit}
+                onSave={() => void saveSection()}
+                leading={
+                  <button
+                    type="button"
+                    className="btn-admin"
+                    disabled={saving}
+                    onClick={() =>
+                      patchDraft({
+                        skills: [...draft.skills, { name: '', level: null }],
+                      })
+                    }
+                  >
+                    추가
+                  </button>
+                }
+              />
             </>
-          ) : quest.skills.length ? (
-            <ul className="quest-skill-chips">
-              {quest.skills.map((skill, idx) => (
-                <li key={`${skill.name}-${skill.level}-${idx}`}>
-                  <span>{skill.name}</span>
-                  {skill.level != null && <em>Lv.{skill.level}</em>}
-                </li>
-              ))}
-            </ul>
+          ) : questSkills.length ? (
+            <>
+              <ul className="quest-skill-chips">
+                {questSkills.map((skill, idx) => {
+                  const level = skillDisplayLevel(skill)
+                  const canOpen = Boolean(authToken && skill.name.trim())
+                  return (
+                    <li
+                      key={`${skill.name}-${skill.level}-${idx}`}
+                      className="is-skill-chip"
+                    >
+                      <SkillEdgeLabel />
+                      {canOpen ? (
+                        <button
+                          type="button"
+                          className="quest-skill-chip-btn"
+                          disabled={skillLoading}
+                          onClick={() => void openMatchedSkill(skill.name)}
+                        >
+                          <span>{skill.name}</span>
+                          {level != null ? <em>Lv.{level}</em> : null}
+                        </button>
+                      ) : (
+                        <>
+                          <span>{skill.name}</span>
+                          {level != null ? <em>Lv.{level}</em> : null}
+                        </>
+                      )}
+                    </li>
+                  )
+                })}
+              </ul>
+            </>
           ) : (
             <p className="quest-muted">없음</p>
           )}
@@ -1270,13 +1910,21 @@ export function QuestDetailView({
               {sectionActions}
             </>
           ) : (quest.prerequisites || []).length ? (
-            <ul className="quest-prereq-list">
-              {(quest.prerequisites || []).map((item, idx) => (
-                <li key={`${item.raw}-${idx}`}>
-                  <PrerequisiteBlock item={item} />
-                </li>
-              ))}
-            </ul>
+            <PrerequisiteList
+              items={quest.prerequisites || []}
+              onOpenDiscovery={
+                authToken
+                  ? (item) => void openMatchedDiscovery(item)
+                  : undefined
+              }
+              onOpenQuest={
+                authToken
+                  ? (name) => void openMatchedChainQuest(name)
+                  : undefined
+              }
+              discoveryBusy={discoveryLoading}
+              questBusy={jumpQuestLoading}
+            />
           ) : (
             <p className="quest-muted">없음</p>
           )}
@@ -1421,7 +2069,11 @@ export function QuestDetailView({
                   {quest.rewardItems.length ? (
                     <ul className="quest-skill-chips">
                       {quest.rewardItems.map((item, idx) => (
-                        <li key={`${item.name}-${item.qty}-${idx}`}>
+                        <li
+                          key={`${item.name}-${item.qty}-${idx}`}
+                          className="is-consumable-chip"
+                        >
+                          <ConsumableEdgeLabel />
                           <span>{item.name}</span>
                           {item.qty != null && <em>×{item.qty}</em>}
                         </li>
@@ -1460,6 +2112,17 @@ export function QuestDetailView({
               items={chainQuests}
               currentName={quest.name}
               numbered
+              onOpen={
+                authToken
+                  ? (item) => {
+                      const name = (item.name || '')
+                        .replace(/\s+/g, ' ')
+                        .trim()
+                      if (name) void openMatchedChainQuest(name)
+                    }
+                  : undefined
+              }
+              busy={jumpQuestLoading}
             />
           ) : (
             <p className="quest-muted">없음</p>
@@ -1490,6 +2153,13 @@ export function QuestDetailView({
               items={linkedQuests}
               currentName={quest.name}
               numbered={false}
+              showLinkKind
+              onOpen={
+                authToken
+                  ? (item) => openMatchedLinked(item)
+                  : undefined
+              }
+              busy={jumpQuestLoading || mapLoading}
             />
           ) : (
             <p className="quest-muted">없음</p>
@@ -1527,7 +2197,7 @@ export function QuestDetailView({
                   item.type === 'step' && idx === walkthroughLastStepIdx
                 const lastSkills =
                   isLastStep && item.type === 'step'
-                    ? extractWalkthroughSkills(item.action, quest.skills)
+                    ? extractWalkthroughSkills(item.action, questSkills)
                     : null
                 const tile =
                   item.type === 'step' ? (
@@ -1550,16 +2220,19 @@ export function QuestDetailView({
                         )}
                         {lastSkills && lastSkills.skills.length > 0 ? (
                           <ul className="quest-skill-chips quest-step-skill-chips">
-                            {lastSkills.skills.map((skill, skillIdx) => (
-                              <li
-                                key={`${skill.name}-${skill.level}-${skillIdx}`}
-                              >
-                                <span>{skill.name}</span>
-                                {skill.level != null && (
-                                  <em>Lv.{skill.level}</em>
-                                )}
-                              </li>
-                            ))}
+                            {lastSkills.skills.map((skill, skillIdx) => {
+                              const level = skillDisplayLevel(skill)
+                              return (
+                                <li
+                                  key={`${skill.name}-${skill.level}-${skillIdx}`}
+                                  className="is-skill-chip"
+                                >
+                                  <SkillEdgeLabel />
+                                  <span>{skill.name}</span>
+                                  {level != null && <em>Lv.{level}</em>}
+                                </li>
+                              )
+                            })}
                           </ul>
                         ) : null}
                         {item.hint ? (
@@ -1659,6 +2332,179 @@ export function QuestDetailView({
         </div>
       )}
 
+      {discoveryLoading ? (
+        <LoadingOverlay label="발견물 불러오는 중…" />
+      ) : null}
+      {skillLoading ? <LoadingOverlay label="스킬 불러오는 중…" /> : null}
+      {jumpQuestLoading ? (
+        <LoadingOverlay label="퀘스트 불러오는 중…" />
+      ) : null}
+      {portLoading ? <LoadingOverlay label="도시 불러오는 중…" /> : null}
+      {fieldLoading ? <LoadingOverlay label="육지 불러오는 중…" /> : null}
+      {mapLoading ? <LoadingOverlay label="지도 불러오는 중…" /> : null}
+
+      {discoveryMissName ? (
+        <ConfirmLayer
+          title="확인"
+          message={`「${discoveryMissName}」 발견물이 없습니다.`}
+          stack={1}
+          onCancel={() => setDiscoveryMissName('')}
+          confirmLabel={isAdmin ? '등록하러 이동하기' : undefined}
+          onConfirm={
+            isAdmin
+              ? () => {
+                  openDiscoveriesAddTab(discoveryMissName)
+                  setDiscoveryMissName('')
+                }
+              : undefined
+          }
+        />
+      ) : null}
+
+      {discoveryError ? (
+        <ConfirmLayer
+          title="확인"
+          message={discoveryError}
+          stack={1}
+          onCancel={() => setDiscoveryError('')}
+        />
+      ) : null}
+
+      {skillMissName ? (
+        <ConfirmLayer
+          title="확인"
+          message={`「${skillMissName}」 스킬이 없습니다.`}
+          stack={1}
+          onCancel={() => setSkillMissName('')}
+          confirmLabel={isAdmin ? '등록하러 이동하기' : undefined}
+          onConfirm={
+            isAdmin
+              ? () => {
+                  openSkillsAddTab(skillMissName)
+                  setSkillMissName('')
+                }
+              : undefined
+          }
+        />
+      ) : null}
+
+      {jumpQuestMissName ? (
+        <ConfirmLayer
+          title="확인"
+          message={`「${jumpQuestMissName}」 퀘스트가 없습니다.`}
+          stack={1}
+          onCancel={() => setJumpQuestMissName('')}
+          confirmLabel={isAdmin ? '등록하러 이동하기' : undefined}
+          onConfirm={
+            isAdmin
+              ? () => {
+                  openQuestsAddTab(jumpQuestMissName)
+                  setJumpQuestMissName('')
+                }
+              : undefined
+          }
+        />
+      ) : null}
+
+      {skillError ? (
+        <ConfirmLayer
+          title="확인"
+          message={skillError}
+          stack={1}
+          onCancel={() => setSkillError('')}
+        />
+      ) : null}
+
+      {jumpQuestError ? (
+        <ConfirmLayer
+          title="확인"
+          message={jumpQuestError}
+          stack={1}
+          onCancel={() => setJumpQuestError('')}
+        />
+      ) : null}
+
+      {portMissName ? (
+        <ConfirmLayer
+          title="확인"
+          message={`「${portMissName}」 도시가 없습니다.`}
+          stack={1}
+          onCancel={() => setPortMissName('')}
+          confirmLabel={isAdmin ? '등록하러 이동하기' : undefined}
+          onConfirm={
+            isAdmin
+              ? () => {
+                  openPortsAddTab(portMissName)
+                  setPortMissName('')
+                }
+              : undefined
+          }
+        />
+      ) : null}
+
+      {portError ? (
+        <ConfirmLayer
+          title="확인"
+          message={portError}
+          stack={1}
+          onCancel={() => setPortError('')}
+        />
+      ) : null}
+
+      {fieldMissName ? (
+        <ConfirmLayer
+          title="확인"
+          message={`「${fieldMissName}」 육지가 없습니다.`}
+          stack={1}
+          onCancel={() => setFieldMissName('')}
+          confirmLabel={isAdmin ? '등록하러 이동하기' : undefined}
+          onConfirm={
+            isAdmin
+              ? () => {
+                  openFieldsAddTab(fieldMissName)
+                  setFieldMissName('')
+                }
+              : undefined
+          }
+        />
+      ) : null}
+
+      {fieldError ? (
+        <ConfirmLayer
+          title="확인"
+          message={fieldError}
+          stack={1}
+          onCancel={() => setFieldError('')}
+        />
+      ) : null}
+
+      {mapMissName ? (
+        <ConfirmLayer
+          title="확인"
+          message={`「${mapMissName}」 지도가 없습니다.`}
+          stack={1}
+          onCancel={() => setMapMissName('')}
+          confirmLabel={isAdmin ? '등록하러 이동하기' : undefined}
+          onConfirm={
+            isAdmin
+              ? () => {
+                  openMapsAddTab(mapMissName)
+                  setMapMissName('')
+                }
+              : undefined
+          }
+        />
+      ) : null}
+
+      {mapError ? (
+        <ConfirmLayer
+          title="확인"
+          message={mapError}
+          stack={1}
+          onCancel={() => setMapError('')}
+        />
+      ) : null}
+
       {discoveryDetail ? (
         <DetailModal
           title="발견물 상세"
@@ -1668,14 +2514,220 @@ export function QuestDetailView({
             setDiscoveryError('')
           }}
           stack={1}
+          headerActions={
+            isAdmin ? (
+              <button
+                type="button"
+                className="admin-btn"
+                onClick={() => {
+                  const params = new URLSearchParams()
+                  params.set('q', discoveryDetail.name)
+                  params.set(
+                    'open',
+                    discoveryDetail.slug || discoveryDetail.name,
+                  )
+                  const url = `${window.location.pathname}${window.location.search}#/discoveries?${params.toString()}`
+                  window.open(url, '_blank', 'noopener,noreferrer')
+                }}
+              >
+                발견물 메뉴로 이동
+              </button>
+            ) : undefined
+          }
         >
           <DiscoveryDetailView
             discovery={discoveryDetail}
+            token={authToken}
+            isAdmin={isAdmin}
             completionBusy={discoveryCompletionBusy}
             onToggleCompleted={(completed) =>
               void toggleDiscoveryCompleted(completed)
             }
           />
+        </DetailModal>
+      ) : null}
+
+      {skillDetail ? (
+        <DetailModal
+          title="스킬 상세"
+          label={`${skillDetail.name} 상세`}
+          onClose={() => {
+            setSkillDetail(null)
+            setSkillError('')
+          }}
+          stack={1}
+          headerActions={
+            isAdmin ? (
+              <button
+                type="button"
+                className="admin-btn"
+                onClick={() => {
+                  const params = new URLSearchParams()
+                  params.set('q', skillDetail.name)
+                  params.set('open', skillDetail.slug || skillDetail.name)
+                  const url = `${window.location.pathname}${window.location.search}#/skills?${params.toString()}`
+                  window.open(url, '_blank', 'noopener,noreferrer')
+                }}
+              >
+                스킬 메뉴로 이동
+              </button>
+            ) : undefined
+          }
+        >
+          <SkillDetailView
+            skill={skillDetail}
+            token={authToken}
+            isAdmin={isAdmin}
+          />
+        </DetailModal>
+      ) : null}
+
+      {jumpQuestDetail ? (
+        <DetailModal
+          title="퀘스트 상세"
+          label={`${jumpQuestDetail.name} 상세`}
+          onClose={() => {
+            setJumpQuestDetail(null)
+            setJumpQuestError('')
+          }}
+          stack={1}
+          headerActions={
+            isAdmin ? (
+              <button
+                type="button"
+                className="admin-btn"
+                onClick={() => {
+                  const params = new URLSearchParams()
+                  params.set('q', jumpQuestDetail.name)
+                  params.set(
+                    'open',
+                    jumpQuestDetail.slug || jumpQuestDetail.name,
+                  )
+                  const url = `${window.location.pathname}${window.location.search}#/quests?${params.toString()}`
+                  window.open(url, '_blank', 'noopener,noreferrer')
+                }}
+              >
+                퀘스트 메뉴로 이동
+              </button>
+            ) : undefined
+          }
+        >
+          <QuestDetailView
+            quest={jumpQuestDetail}
+            token={authToken}
+            isAdmin={isAdmin}
+            completionBusy={jumpQuestBusy}
+            onToggleCompleted={(completed) =>
+              void toggleJumpQuestCompleted(completed)
+            }
+          />
+        </DetailModal>
+      ) : null}
+
+      {portDetail ? (
+        <DetailModal
+          title="도시 상세"
+          label={`${portDetail.name} 상세`}
+          onClose={() => {
+            setPortDetail(null)
+            setPortError('')
+          }}
+          stack={1}
+          headerActions={
+            isAdmin ? (
+              <button
+                type="button"
+                className="admin-btn"
+                onClick={() => {
+                  const params = new URLSearchParams()
+                  params.set('q', portDetail.name)
+                  params.set('open', portDetail.slug || portDetail.name)
+                  const url = `${window.location.pathname}${window.location.search}#/ports?${params.toString()}`
+                  window.open(url, '_blank', 'noopener,noreferrer')
+                }}
+              >
+                도시 메뉴로 이동
+              </button>
+            ) : undefined
+          }
+        >
+          <PortDetailView
+            port={portDetail}
+            token={authToken}
+            isAdmin={isAdmin}
+          />
+        </DetailModal>
+      ) : null}
+
+      {fieldDetail ? (
+        <DetailModal
+          title="육지 상세"
+          label={`${fieldDetail.name} 상세`}
+          onClose={() => {
+            setFieldDetail(null)
+            setFieldError('')
+          }}
+          stack={1}
+          headerActions={
+            isAdmin ? (
+              <button
+                type="button"
+                className="admin-btn"
+                onClick={() => {
+                  const params = new URLSearchParams()
+                  params.set('q', fieldDetail.name)
+                  params.set('open', fieldDetail.slug || fieldDetail.name)
+                  const url = `${window.location.pathname}${window.location.search}#/fields?${params.toString()}`
+                  window.open(url, '_blank', 'noopener,noreferrer')
+                }}
+              >
+                육지 메뉴로 이동
+              </button>
+            ) : undefined
+          }
+        >
+          <FieldDetailView
+            field={fieldDetail}
+            edit={
+              isAdmin && authToken
+                ? {
+                    token: authToken,
+                    onSaved: (field) => setFieldDetail(field),
+                  }
+                : undefined
+            }
+          />
+        </DetailModal>
+      ) : null}
+
+      {mapDetail ? (
+        <DetailModal
+          title="지도 상세"
+          label={`${mapDetail.name} 상세`}
+          onClose={() => {
+            setMapDetail(null)
+            setMapError('')
+          }}
+          stack={1}
+          headerActions={
+            isAdmin ? (
+              <button
+                type="button"
+                className="admin-btn"
+                onClick={() => {
+                  const params = new URLSearchParams()
+                  params.set('q', mapDetail.name)
+                  params.set('open', mapDetail.slug || mapDetail.name)
+                  const url = `${window.location.pathname}${window.location.search}#/treasure-maps?${params.toString()}`
+                  window.open(url, '_blank', 'noopener,noreferrer')
+                }}
+              >
+                지도 메뉴로 이동
+              </button>
+            ) : undefined
+          }
+        >
+          <TreasureMapDetailView map={mapDetail} />
         </DetailModal>
       ) : null}
     </div>

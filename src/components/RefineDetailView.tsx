@@ -1,5 +1,6 @@
 import { getModuleDef } from '../lib/detailModules'
 import type { RefineDetail } from '../types'
+import { SkillEdgeLabel } from './SkillEdgeLabel'
 
 type RefineDetailViewProps = {
   refine: RefineDetail
@@ -48,7 +49,8 @@ export function RefineDetailView({
                 <span className="skill-module-row-label">스킬</span>
                 <ul className="quest-skill-chips">
                   {skills.map((name, index) => (
-                    <li key={`${name}-${index}`}>
+                    <li key={`${name}-${index}`} className="is-skill-chip">
+                      <SkillEdgeLabel />
                       {onOpenSkill ? (
                         <button
                           type="button"

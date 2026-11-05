@@ -1,21 +1,32 @@
 import {
   useCallback,
   useEffect,
+  useRef,
   useState,
   type FormEvent,
   type KeyboardEvent,
 } from 'react'
 import {
   deleteQuest,
+  fetchFields,
+  fetchPorts,
+  fetchQuestByKey,
   fetchQuests,
   importQuestText,
   setQuestCompletion,
   updateQuest,
 } from '../lib/api'
+import {
+  extractDestinationFromQuestText,
+  formatQuestDestination,
+  isAmbiguousQuestDestination,
+} from '../lib/questDestination'
 import { useTableSort } from '../lib/tableSort'
 import type { QuestDetail } from '../types'
+import { ConfirmLayer } from './ConfirmLayer'
 import { DetailModal } from './DetailModal'
-import { DiscoveryChips } from './modules/DiscoveryChips'
+import { QuestDestinationConfirmLayer } from './QuestDestinationConfirmLayer'
+import { QuestDiscoveryLabel } from './DiscoveryRankMark'
 import { QuestDetailView } from './QuestDetailView'
 import { SortableTh } from './SortableTh'
 
@@ -27,6 +38,12 @@ type QuestCatalogProps = {
   token: string
   isAdmin?: boolean
   onToast?: (message: string) => void
+  /** 해시 `#/quests?q=` 검색어 */
+  initialQuery?: string
+  /** 해시 `#/quests?open=` 상세 자동 오픈 (slug 또는 이름) */
+  openKey?: string
+  /** 해시 `#/quests?add=1` — 관리자 퀘스트 추가 폼 오픈 */
+  initialAdd?: boolean
 }
 
 type QuestSortKey =
@@ -42,17 +59,8 @@ function QuestCategoryCell({ quest }: { quest: QuestDetail }) {
   const questType = quest.questType?.trim()
   if (!category && !questType) return '-'
 
-  const tone =
-    category === '모험'
-      ? 'is-adventure'
-      : category === '교역'
-        ? 'is-trade'
-        : category === '전투'
-          ? 'is-battle'
-          : ''
-
   return (
-    <span className={`quest-cat-label${tone ? ` ${tone}` : ''}`}>
+    <span className="quest-cat-label">
       {category ? <em className="quest-cat-bracket">[{category}]</em> : null}
       {questType ? <span className="quest-cat-type">{questType}</span> : null}
     </span>
@@ -63,6 +71,9 @@ export function QuestCatalog({
   token,
   isAdmin = false,
   onToast,
+  initialQuery = '',
+  openKey = '',
+  initialAdd = false,
 }: QuestCatalogProps) {
   const [quests, setQuests] = useState<QuestDetail[]>([])
   const [total, setTotal] = useState(0)
@@ -71,19 +82,60 @@ export function QuestCatalog({
   const [error, setError] = useState('')
   const [detail, setDetail] = useState<QuestDetail | null>(null)
   const [detailEditMode, setDetailEditMode] = useState(false)
-  const [query, setQuery] = useState('')
-  const [debouncedQuery, setDebouncedQuery] = useState('')
+  const [query, setQuery] = useState(initialQuery)
+  const [debouncedQuery, setDebouncedQuery] = useState(
+    () => initialQuery.trim(),
+  )
   const [completionFilter, setCompletionFilter] =
     useState<QuestCompletionFilter>('all')
   const [page, setPage] = useState(0)
   const [busyId, setBusyId] = useState<number | null>(null)
   const [busyDiffId, setBusyDiffId] = useState<number | null>(null)
   const [deletingId, setDeletingId] = useState<number | null>(null)
-  const [showImport, setShowImport] = useState(false)
+  const canAdd = isAdmin
+  const [showImport, setShowImport] = useState(
+    () => Boolean(canAdd && initialAdd),
+  )
   const [importText, setImportText] = useState('')
   const [importing, setImporting] = useState(false)
   const [importNote, setImportNote] = useState('')
+  const [openMiss, setOpenMiss] = useState('')
+  const openedKeyRef = useRef('')
   const { sortKey, sortDir, toggleSort } = useTableSort<QuestSortKey>()
+  /** 목적지 다단 표기용 — 도시·육지 카탈로그 이름 */
+  const [destCityNames, setDestCityNames] = useState<string[]>([])
+  const [destLandNames, setDestLandNames] = useState<string[]>([])
+  /** 구분자 없는 목적지 — 저장 전 단계 확인 */
+  const [destConfirm, setDestConfirm] = useState<{
+    raw: string
+    text: string
+  } | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    void Promise.all([fetchPorts(token), fetchFields(token)])
+      .then(([portsRes, fieldsRes]) => {
+        if (cancelled) return
+        setDestCityNames(
+          (portsRes.ports || []).flatMap((p) =>
+            [p.name, p.altName].filter(Boolean),
+          ) as string[],
+        )
+        setDestLandNames(
+          (fieldsRes.fields || []).flatMap((f) =>
+            [f.name, f.altName].filter(Boolean),
+          ) as string[],
+        )
+      })
+      .catch(() => {
+        if (cancelled) return
+        setDestCityNames([])
+        setDestLandNames([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [token])
 
   useEffect(() => {
     const next = query.trim()
@@ -95,6 +147,49 @@ export function QuestCatalog({
     }, 300)
     return () => window.clearTimeout(timer)
   }, [query])
+
+  useEffect(() => {
+    if (initialQuery.trim()) setQuery(initialQuery)
+  }, [initialQuery])
+
+  useEffect(() => {
+    if (!canAdd) {
+      setShowImport(false)
+      return
+    }
+    if (initialAdd) setShowImport(true)
+  }, [canAdd, initialAdd])
+
+  useEffect(() => {
+    const key = openKey.trim()
+    if (!key) return
+    if (openedKeyRef.current === key) return
+    openedKeyRef.current = key
+    const label = initialQuery.trim() || key
+    if (initialQuery.trim()) setQuery(initialQuery.trim())
+    let cancelled = false
+    void (async () => {
+      try {
+        const res = await fetchQuestByKey(token, key)
+        if (cancelled) return
+        setOpenMiss('')
+        setQuery(initialQuery.trim() || res.quest.name)
+        setDetailEditMode(false)
+        setDetail(res.quest)
+      } catch (err) {
+        if (cancelled) return
+        const message = err instanceof Error ? err.message : ''
+        if (/찾을 수 없|없습니다/i.test(message)) {
+          setOpenMiss(label)
+        } else {
+          setError(message || '퀘스트를 불러오지 못했습니다.')
+        }
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [openKey, token, initialQuery])
 
   const loadQuests = useCallback(
     async (opts?: { quiet?: boolean }) => {
@@ -198,18 +293,21 @@ export function QuestCatalog({
     }
   }
 
-  async function handleImport(e: FormEvent) {
-    e.preventDefault()
-    if (!importText.trim()) {
-      setImportNote('텍스트를 붙여넣어 주세요.')
-      return
-    }
+  async function saveImportedQuest(
+    text: string,
+    destinationOverride?: string,
+  ) {
     setImporting(true)
     setImportNote('')
     try {
-      const res = await importQuestText(token, importText)
+      const res = await importQuestText(
+        token,
+        text,
+        destinationOverride ? { destination: destinationOverride } : undefined,
+      )
       setImportText('')
       setShowImport(false)
+      setDestConfirm(null)
       setImportNote(
         `「${res.quest.name}」을(를) 저장했습니다. (동일 이름이면 내용이 갱신됩니다)`,
       )
@@ -222,6 +320,24 @@ export function QuestCatalog({
     } finally {
       setImporting(false)
     }
+  }
+
+  async function handleImport(e: FormEvent) {
+    e.preventDefault()
+    if (!canAdd) {
+      setImportNote('관리자만 퀘스트를 등록할 수 있습니다.')
+      return
+    }
+    if (!importText.trim()) {
+      setImportNote('텍스트를 붙여넣어 주세요.')
+      return
+    }
+    const rawDest = extractDestinationFromQuestText(importText)
+    if (rawDest && isAmbiguousQuestDestination(rawDest)) {
+      setDestConfirm({ raw: rawDest, text: importText })
+      return
+    }
+    await saveImportedQuest(importText)
   }
 
   async function handleDelete(quest: QuestDetail) {
@@ -289,7 +405,7 @@ export function QuestCatalog({
             {countLabel ? ` (${countLabel})` : ''}
           </p>
         </div>
-        {isAdmin && (
+        {canAdd && (
           <div className="admin-page-actions">
             <button
               type="button"
@@ -313,7 +429,7 @@ export function QuestCatalog({
         )}
       </div>
 
-      {isAdmin && showImport && (
+      {canAdd && showImport && (
         <form className="admin-import-form" onSubmit={handleImport}>
           <label className="field">
             <span>퀘스트 텍스트 (분류~진행 전체)</span>
@@ -392,6 +508,38 @@ export function QuestCatalog({
         </p>
       )}
 
+      {openMiss ? (
+        <ConfirmLayer
+          title="확인"
+          message={`「${openMiss}」 퀘스트가 없습니다.`}
+          onCancel={() => setOpenMiss('')}
+          confirmLabel={canAdd ? '등록하러 이동하기' : undefined}
+          onConfirm={
+            canAdd
+              ? () => {
+                  setShowImport(true)
+                  setQuery(openMiss)
+                  setOpenMiss('')
+                }
+              : undefined
+          }
+        />
+      ) : null}
+
+      {destConfirm ? (
+        <QuestDestinationConfirmLayer
+          rawDestination={destConfirm.raw}
+          cityNames={destCityNames}
+          landNames={destLandNames}
+          onCancel={() => setDestConfirm(null)}
+          onConfirm={(normalized) => {
+            const pending = destConfirm.text
+            setDestConfirm(null)
+            void saveImportedQuest(pending, normalized)
+          }}
+        />
+      ) : null}
+
       {loading && quests.length === 0 ? (
         <p className="form-note">불러오는 중…</p>
       ) : (
@@ -408,7 +556,7 @@ export function QuestCatalog({
                     onSort={handleSort}
                   />
                   <SortableTh
-                    className="col-desk"
+                    className="col-desk col-quest-cat"
                     label="분류"
                     sortKey="category"
                     activeKey={sortKey}
@@ -440,7 +588,7 @@ export function QuestCatalog({
                     onSort={handleSort}
                   />
                   <SortableTh
-                    className="col-desk"
+                    className="col-desk col-quest-discovery"
                     label="발견물"
                     sortKey="discovery"
                     activeKey={sortKey}
@@ -466,7 +614,7 @@ export function QuestCatalog({
                     }}
                   >
                     <td>{quest.name}</td>
-                    <td className="col-desk">
+                    <td className="col-desk col-quest-cat">
                       <QuestCategoryCell quest={quest} />
                     </td>
                     <td
@@ -498,23 +646,14 @@ export function QuestCatalog({
                       )}
                     </td>
                     <td className="col-desk">{quest.requestPlaces || '-'}</td>
-                    <td className="col-desk">{quest.destination || '-'}</td>
                     <td className="col-desk">
-                      {quest.discoveryName?.trim() ? (
-                        <DiscoveryChips
-                          items={[
-                            {
-                              name: quest.discoveryName,
-                              category: quest.discoveryCategory,
-                              rank: quest.discoveryRank,
-                              id: quest.discoveryRef?.id,
-                              slug: quest.discoveryRef?.slug,
-                            },
-                          ]}
-                        />
-                      ) : (
-                        '-'
-                      )}
+                      {formatQuestDestination(quest.destination, {
+                        cityNames: destCityNames,
+                        landNames: destLandNames,
+                      }) || '-'}
+                    </td>
+                    <td className="col-desk col-quest-discovery">
+                      <QuestDiscoveryLabel quest={quest} />
                     </td>
                     <td className="col-quest-done">
                       {quest.completed ? (
@@ -625,6 +764,7 @@ export function QuestCatalog({
           <QuestDetailView
             quest={detail}
             token={token}
+            isAdmin={isAdmin}
             editMode={detailEditMode}
             completionBusy={busyId === detail.id}
             onToggleCompleted={(completed) =>

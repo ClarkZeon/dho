@@ -1,3 +1,4 @@
+import { DiscoveryEdgeLabel } from '../DiscoveryEdgeLabel'
 import { DiscoveryRankMark } from '../DiscoveryRankMark'
 
 export type DiscoveryChipItem = {
@@ -89,10 +90,12 @@ export function DiscoveryChips({ items, onOpen }: DiscoveryChipsProps) {
   return (
     <ul className="quest-skill-chips">
       {list.map((item, index) => {
-        const clickable =
-          Boolean(onOpen) && item.id != null && Boolean(item.slug)
+        const clickable = Boolean(onOpen && item.name.trim())
         return (
-          <li key={item.id != null ? `id:${item.id}` : `${item.name}-${index}`}>
+          <li
+            key={item.id != null ? `id:${item.id}` : `${item.name}-${index}`}
+            className="is-discovery-chip"
+          >
             {clickable ? (
               <button
                 type="button"
@@ -116,6 +119,7 @@ export function DiscoveryChips({ items, onOpen }: DiscoveryChipsProps) {
 function DiscoveryChipInner({ item }: { item: DiscoveryChipItem }) {
   return (
     <span className="discovery-chip-inner">
+      <DiscoveryEdgeLabel />
       {item.category ? (
         <em className="discovery-chip-cat">[{item.category}]</em>
       ) : null}

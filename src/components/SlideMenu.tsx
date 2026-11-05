@@ -15,7 +15,10 @@ export type MenuTarget =
   | { name: 'skills' }
   | { name: 'jobs' }
   | { name: 'refine' }
+  | { name: 'consumables' }
   | { name: 'ports' }
+  | { name: 'regions' }
+  | { name: 'fields' }
   | { name: 'users' }
 
 type MenuSectionId =
@@ -23,6 +26,7 @@ type MenuSectionId =
   | 'ships'
   | 'records'
   | 'character'
+  | 'items'
   | 'world'
   | 'manage'
 
@@ -32,6 +36,7 @@ const MENU_SECTION_IDS: MenuSectionId[] = [
   'ships',
   'records',
   'character',
+  'items',
   'world',
   'manage',
 ]
@@ -158,7 +163,11 @@ export function SlideMenu({
     active.name === 'skills' ||
     active.name === 'jobs' ||
     active.name === 'refine'
-  const worldActive = active.name === 'ports'
+  const itemsActive = active.name === 'consumables'
+  const worldActive =
+    active.name === 'ports' ||
+    active.name === 'regions' ||
+    active.name === 'fields'
   const manageActive = active.name === 'users'
 
   const sectionHasActive: Record<MenuSectionId, boolean> = {
@@ -166,6 +175,7 @@ export function SlideMenu({
     ships: shipsActive,
     records: recordsActive,
     character: characterActive,
+    items: itemsActive,
     world: worldActive,
     manage: manageActive,
   }
@@ -190,6 +200,7 @@ export function SlideMenu({
     shipsActive,
     recordsActive,
     characterActive,
+    itemsActive,
     worldActive,
     manageActive,
   ])
@@ -347,6 +358,22 @@ export function SlideMenu({
           </MenuSection>
 
           <MenuSection
+            id="items"
+            title="아이템"
+            open={openSections.has('items')}
+            active={itemsActive}
+            onToggle={toggleSection}
+          >
+            <button
+              type="button"
+              className={active.name === 'consumables' ? 'active' : ''}
+              onClick={() => go({ name: 'consumables' })}
+            >
+              소비품
+            </button>
+          </MenuSection>
+
+          <MenuSection
             id="world"
             title="월드"
             open={openSections.has('world')}
@@ -359,6 +386,20 @@ export function SlideMenu({
               onClick={() => go({ name: 'ports' })}
             >
               도시
+            </button>
+            <button
+              type="button"
+              className={active.name === 'regions' ? 'active' : ''}
+              onClick={() => go({ name: 'regions' })}
+            >
+              지역
+            </button>
+            <button
+              type="button"
+              className={active.name === 'fields' ? 'active' : ''}
+              onClick={() => go({ name: 'fields' })}
+            >
+              육지
             </button>
           </MenuSection>
 

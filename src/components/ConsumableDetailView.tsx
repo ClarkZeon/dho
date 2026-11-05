@@ -409,7 +409,7 @@ export function ConsumableDetailView({
       {showAcquire ? (
         <section className="quest-detail-section">
           <DetailSectionHead
-            title="획득 상세"
+            title="획득 방법"
             canEdit={canEdit}
             editing={editing === 'acquire'}
             onEdit={() => startEdit('acquire')}
@@ -456,6 +456,16 @@ export function ConsumableDetailView({
                 busy={saving}
                 onCancel={cancelEdit}
                 onSave={() => void saveSection()}
+                leading={
+                  <button
+                    type="button"
+                    className="btn-admin"
+                    disabled={saving}
+                    onClick={() => setDraft(appendAcquireRow(draft, acquireTab))}
+                  >
+                    추가
+                  </button>
+                }
               />
             </>
           ) : (
@@ -477,12 +487,8 @@ function AcquireViewer({
   if (tab === 'purchases') {
     const rows = consumable.purchases || []
     if (!rows.length) return <p className="form-note">등록된 구입 정보가 없습니다.</p>
-    return (
-      <SimpleTable
-        headers={['판매 NPC', '지역', '장소', '가격']}
-        rows={rows.map((r) => [r.npc, r.region, r.place, r.price || '-'])}
-      />
-    )
+    const showPrice = rows.some((r) => Boolean(r.price?.trim()))
+    return <PurchaseTable rows={rows} showPrice={showPrice} />
   }
   if (tab === 'productions') {
     const rows = consumable.productions || []
@@ -539,6 +545,49 @@ function AcquireViewer({
   )
 }
 
+function emptyPurchase(): ConsumablePurchase {
+  return { npc: '', region: '', place: '', price: null }
+}
+
+function emptyProduction(): ConsumableProduction {
+  return { recipeBook: '', recipe: '', skill: '', materials: '' }
+}
+
+function emptyLandResurvey(): ConsumableLandResurvey {
+  return { region: '', fields: '' }
+}
+
+function emptyPet(): ConsumablePet {
+  return { category: '', region: '', place: '' }
+}
+
+function emptyInfoRow(): ConsumableInfoRow {
+  return { name: '', detail: null }
+}
+
+function appendAcquireRow(
+  draft: ConsumableDetail,
+  tab: AcquireTabKey,
+): ConsumableDetail {
+  if (tab === 'purchases') {
+    return { ...draft, purchases: [...draft.purchases, emptyPurchase()] }
+  }
+  if (tab === 'productions') {
+    return { ...draft, productions: [...draft.productions, emptyProduction()] }
+  }
+  if (tab === 'landResurveys') {
+    return {
+      ...draft,
+      landResurveys: [...draft.landResurveys, emptyLandResurvey()],
+    }
+  }
+  if (tab === 'pets') {
+    return { ...draft, pets: [...draft.pets, emptyPet()] }
+  }
+  const rows = draft[tab] as ConsumableInfoRow[]
+  return { ...draft, [tab]: [...rows, emptyInfoRow()] }
+}
+
 function AcquireEditor({
   tab,
   draft,
@@ -557,12 +606,6 @@ function AcquireEditor({
         headers={['판매 NPC', '지역', '장소', '가격']}
         rows={draft.purchases}
         keys={['npc', 'region', 'place', 'price'] as const}
-        emptyRow={(): ConsumablePurchase => ({
-          npc: '',
-          region: '',
-          place: '',
-          price: null,
-        })}
         onChange={(purchases) => onChange({ ...draft, purchases })}
       />
     )
@@ -574,12 +617,6 @@ function AcquireEditor({
         headers={['레시피 책', '레시피', '스킬', '재료']}
         rows={draft.productions}
         keys={['recipeBook', 'recipe', 'skill', 'materials'] as const}
-        emptyRow={(): ConsumableProduction => ({
-          recipeBook: '',
-          recipe: '',
-          skill: '',
-          materials: '',
-        })}
         onChange={(productions) => onChange({ ...draft, productions })}
       />
     )
@@ -591,7 +628,6 @@ function AcquireEditor({
         headers={['지역', '필드']}
         rows={draft.landResurveys}
         keys={['region', 'fields'] as const}
-        emptyRow={(): ConsumableLandResurvey => ({ region: '', fields: '' })}
         onChange={(landResurveys) => onChange({ ...draft, landResurveys })}
       />
     )
@@ -603,11 +639,6 @@ function AcquireEditor({
         headers={['분류', '지역', '장소']}
         rows={draft.pets}
         keys={['category', 'region', 'place'] as const}
-        emptyRow={(): ConsumablePet => ({
-          category: '',
-          region: '',
-          place: '',
-        })}
         onChange={(pets) => onChange({ ...draft, pets })}
       />
     )
@@ -620,9 +651,60 @@ function AcquireEditor({
       headers={['이름', '비고']}
       rows={rows}
       keys={['name', 'detail'] as const}
-      emptyRow={(): ConsumableInfoRow => ({ name: '', detail: null })}
       onChange={(next) => onChange({ ...draft, [key]: next })}
     />
+  )
+}
+
+function PurchaseTable({
+  rows,
+  showPrice,
+}: {
+  rows: ConsumablePurchase[]
+  showPrice: boolean
+}) {
+  const spans: number[] = []
+  for (let i = 0; i < rows.length; ) {
+    let span = 1
+    while (
+      i + span < rows.length &&
+      rows[i + span].npc.trim() === rows[i].npc.trim()
+    ) {
+      span++
+    }
+    spans[i] = span
+    for (let k = 1; k < span; k++) spans[i + k] = 0
+    i += span
+  }
+
+  return (
+    <div className="admin-table-wrap">
+      <table className="admin-table consumable-purchase-table">
+        <thead>
+          <tr>
+            <th>판매 NPC</th>
+            <th>지역</th>
+            <th>장소</th>
+            {showPrice ? <th>가격</th> : null}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row, idx) => (
+            <tr
+              key={`purchase-${idx}`}
+              className={idx % 2 === 0 ? 'is-even' : 'is-odd'}
+            >
+              {spans[idx] > 0 ? (
+                <td rowSpan={spans[idx]}>{row.npc || '-'}</td>
+              ) : null}
+              <td>{row.region || '-'}</td>
+              <td>{row.place || '-'}</td>
+              {showPrice ? <td>{row.price?.trim() || '-'}</td> : null}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   )
 }
 
@@ -664,81 +746,69 @@ function EditGrid<T extends Record<string, string | null | undefined>>({
   headers,
   rows,
   keys,
-  emptyRow,
   onChange,
   disabled,
 }: {
   headers: string[]
   rows: T[]
   keys: ReadonlyArray<keyof T>
-  emptyRow: () => T
   onChange: (rows: T[]) => void
   disabled?: boolean
 }) {
   return (
-    <>
-      <div className="admin-table-wrap">
-        <table className="admin-table">
-          <thead>
-            <tr>
-              {headers.map((h) => (
-                <th key={h}>{h}</th>
-              ))}
-              <th className="col-action">삭제</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row, idx) => (
-              <tr key={`edit-${idx}`}>
-                {keys.map((key) => (
-                  <td key={String(key)}>
-                    <input
-                      value={row[key] == null ? '' : String(row[key])}
-                      disabled={disabled}
-                      onChange={(e) => {
-                        const value = e.target.value
-                        onChange(
-                          rows.map((r, i) =>
-                            i === idx
-                              ? {
-                                  ...r,
-                                  [key]:
-                                    value === '' && key === 'detail'
-                                      ? null
-                                      : value === '' && key === 'price'
-                                        ? null
-                                        : value,
-                                }
-                              : r,
-                          ),
-                        )
-                      }}
-                    />
-                  </td>
-                ))}
-                <td className="col-action">
-                  <button
-                    type="button"
-                    className="admin-danger-btn"
-                    disabled={disabled}
-                    onClick={() => onChange(rows.filter((_, i) => i !== idx))}
-                  >
-                    삭제
-                  </button>
-                </td>
-              </tr>
+    <div className="admin-table-wrap">
+      <table className="admin-table">
+        <thead>
+          <tr>
+            {headers.map((h) => (
+              <th key={h}>{h}</th>
             ))}
-          </tbody>
-        </table>
-      </div>
-      <button
-        type="button"
-        className="admin-btn"
-        disabled={disabled}
-        onClick={() => onChange([...rows, emptyRow()])}
-      >
-        추가
-      </button>
-    </>
+            <th className="col-action">삭제</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row, idx) => (
+            <tr key={`edit-${idx}`}>
+              {keys.map((key) => (
+                <td key={String(key)}>
+                  <input
+                    value={row[key] == null ? '' : String(row[key])}
+                    disabled={disabled}
+                    onChange={(e) => {
+                      const value = e.target.value
+                      onChange(
+                        rows.map((r, i) =>
+                          i === idx
+                            ? {
+                                ...r,
+                                [key]:
+                                  value === '' && key === 'detail'
+                                    ? null
+                                    : value === '' && key === 'price'
+                                      ? null
+                                      : value,
+                              }
+                            : r,
+                        ),
+                      )
+                    }}
+                  />
+                </td>
+              ))}
+              <td className="col-action">
+                <button
+                  type="button"
+                  className="admin-danger-btn"
+                  disabled={disabled}
+                  onClick={() => onChange(rows.filter((_, i) => i !== idx))}
+                >
+                  삭제
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   )
 }

@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useRef,
   useState,
   type FormEvent,
   type KeyboardEvent,
@@ -15,6 +16,7 @@ import {
 import { formatDiscoveryAcquire } from '../lib/discoveryAcquire'
 import { compareIdDesc, useTableSort } from '../lib/tableSort'
 import type { DiscoveryDetail } from '../types'
+import { ConfirmLayer } from './ConfirmLayer'
 import { DetailModal } from './DetailModal'
 import { DiscoveryDetailView } from './DiscoveryDetailView'
 import { DiscoveryRankMark } from './DiscoveryRankMark'
@@ -24,6 +26,12 @@ type DiscoveryCatalogProps = {
   token: string
   isAdmin?: boolean
   onToast?: (message: string) => void
+  /** 해시 `#/discoveries?q=` 검색어 */
+  initialQuery?: string
+  /** 해시 `#/discoveries?open=` 상세 자동 오픈 (slug 또는 이름) */
+  openKey?: string
+  /** 해시 `#/discoveries?add=1` — 관리자 발견물 추가 폼 오픈 */
+  initialAdd?: boolean
 }
 
 type DiscoverySortKey =
@@ -126,19 +134,27 @@ export function DiscoveryCatalog({
   token,
   isAdmin = false,
   onToast,
+  initialQuery = '',
+  openKey = '',
+  initialAdd = false,
 }: DiscoveryCatalogProps) {
   const [discoveries, setDiscoveries] = useState<DiscoveryDetail[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [detail, setDetail] = useState<DiscoveryDetail | null>(null)
-  const [query, setQuery] = useState('')
-  const [showImport, setShowImport] = useState(false)
+  const [query, setQuery] = useState(initialQuery)
+  const canAdd = isAdmin
+  const [showImport, setShowImport] = useState(
+    () => Boolean(canAdd && initialAdd),
+  )
   const [importText, setImportText] = useState('')
   const [importing, setImporting] = useState(false)
   const [importNote, setImportNote] = useState('')
   const [deletingId, setDeletingId] = useState<number | null>(null)
   const [busyRankId, setBusyRankId] = useState<number | null>(null)
   const [busyId, setBusyId] = useState<number | null>(null)
+  const [openMiss, setOpenMiss] = useState('')
+  const openedKeyRef = useRef('')
   const { sortKey, sortDir, toggleSort, sortRows } =
     useTableSort<DiscoverySortKey>()
 
@@ -162,6 +178,42 @@ export function DiscoveryCatalog({
   useEffect(() => {
     void loadDiscoveries()
   }, [loadDiscoveries])
+
+  useEffect(() => {
+    if (initialQuery.trim()) setQuery(initialQuery)
+  }, [initialQuery])
+
+  useEffect(() => {
+    if (!canAdd) {
+      setShowImport(false)
+      return
+    }
+    if (initialAdd) setShowImport(true)
+  }, [canAdd, initialAdd])
+
+  useEffect(() => {
+    const key = openKey.trim()
+    if (!key || loading) return
+    if (openedKeyRef.current === key) return
+    openedKeyRef.current = key
+    const lower = key.toLowerCase()
+    const found = discoveries.find(
+      (d) =>
+        d.slug === key ||
+        d.name.trim().toLowerCase() === lower ||
+        d.name.trim() === key ||
+        String(d.id) === key,
+    )
+    const label = initialQuery.trim() || key
+    if (initialQuery.trim()) setQuery(initialQuery.trim())
+    if (!found) {
+      setOpenMiss(label)
+      return
+    }
+    setOpenMiss('')
+    setQuery(initialQuery.trim() || found.name)
+    setDetail(found)
+  }, [openKey, loading, discoveries, initialQuery])
 
   function applyUpdate(discovery: DiscoveryDetail) {
     setDiscoveries((prev) =>
@@ -213,6 +265,10 @@ export function DiscoveryCatalog({
 
   async function handleImport(e: FormEvent) {
     e.preventDefault()
+    if (!canAdd) {
+      setImportNote('관리자만 발견물을 등록할 수 있습니다.')
+      return
+    }
     if (!importText.trim()) {
       setImportNote('텍스트를 붙여넣어 주세요.')
       return
@@ -331,7 +387,7 @@ export function DiscoveryCatalog({
             {countLabel ? ` (${countLabel})` : ''}
           </p>
         </div>
-        {isAdmin && (
+        {canAdd && (
           <div className="admin-page-actions">
             <button
               type="button"
@@ -355,7 +411,7 @@ export function DiscoveryCatalog({
         )}
       </div>
 
-      {isAdmin && showImport && (
+      {canAdd && showImport && (
         <form className="admin-import-form" onSubmit={handleImport}>
           <label className="field">
             <span>발견물 텍스트</span>
@@ -407,6 +463,24 @@ export function DiscoveryCatalog({
           {error}
         </p>
       )}
+
+      {openMiss ? (
+        <ConfirmLayer
+          title="확인"
+          message={`「${openMiss}」 발견물이 없습니다.`}
+          onCancel={() => setOpenMiss('')}
+          confirmLabel={canAdd ? '등록하러 이동하기' : undefined}
+          onConfirm={
+            canAdd
+              ? () => {
+                  setShowImport(true)
+                  setQuery(openMiss)
+                  setOpenMiss('')
+                }
+              : undefined
+          }
+        />
+      ) : null}
 
       {loading ? (
         <p className="form-note">불러오는 중…</p>
@@ -585,18 +659,11 @@ export function DiscoveryCatalog({
         >
           <DiscoveryDetailView
             discovery={detail}
+            token={token}
+            isAdmin={isAdmin}
             completionBusy={busyId === detail.id}
             onToggleCompleted={(completed) =>
               void toggleCompleted(detail, completed)
-            }
-            basicInfoEdit={
-              isAdmin
-                ? {
-                    token,
-                    onToast,
-                    onSaved: applyUpdate,
-                  }
-                : undefined
             }
           />
         </DetailModal>

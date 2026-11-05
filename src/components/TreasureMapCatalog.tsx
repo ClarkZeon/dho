@@ -1,7 +1,13 @@
-import { useEffect, useState, type KeyboardEvent } from 'react'
+import {
+  useEffect,
+  useRef,
+  useState,
+  type KeyboardEvent,
+} from 'react'
 import { fetchTreasureMaps } from '../lib/api'
 import { compareIdDesc, useTableSort } from '../lib/tableSort'
 import type { TreasureMapDetail } from '../types'
+import { ConfirmLayer } from './ConfirmLayer'
 import { DetailModal } from './DetailModal'
 import { SortableTh } from './SortableTh'
 import { TreasureMapDetailView } from './TreasureMapDetailView'
@@ -10,17 +16,33 @@ const PAGE_SIZE = 15
 
 type TreasureMapCatalogProps = {
   token: string
+  isAdmin?: boolean
+  onToast?: (message: string) => void
+  /** 해시 `#/treasure-maps?q=` 검색어 */
+  initialQuery?: string
+  /** 해시 `#/treasure-maps?open=` 상세 자동 오픈 */
+  openKey?: string
+  /** 해시 `#/treasure-maps?add=1` — 검색어 채움 (등록은 관리자 패널) */
+  initialAdd?: boolean
 }
 
 type SortKey = 'name' | 'category' | 'academicField' | 'destination'
 
-export function TreasureMapCatalog({ token }: TreasureMapCatalogProps) {
+export function TreasureMapCatalog({
+  token,
+  isAdmin = false,
+  initialQuery = '',
+  openKey = '',
+  initialAdd = false,
+}: TreasureMapCatalogProps) {
   const [maps, setMaps] = useState<TreasureMapDetail[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [detail, setDetail] = useState<TreasureMapDetail | null>(null)
-  const [query, setQuery] = useState('')
+  const [query, setQuery] = useState(initialQuery)
   const [page, setPage] = useState(0)
+  const [openMiss, setOpenMiss] = useState('')
+  const openedKeyRef = useRef('')
   const { sortKey, sortDir, toggleSort, sortRows } = useTableSort<SortKey>()
 
   useEffect(() => {
@@ -46,6 +68,38 @@ export function TreasureMapCatalog({ token }: TreasureMapCatalogProps) {
       alive = false
     }
   }, [token])
+
+  useEffect(() => {
+    if (initialQuery.trim()) setQuery(initialQuery)
+  }, [initialQuery])
+
+  useEffect(() => {
+    if (initialAdd && initialQuery.trim()) setQuery(initialQuery.trim())
+  }, [initialAdd, initialQuery])
+
+  useEffect(() => {
+    const key = openKey.trim()
+    if (!key || loading) return
+    if (openedKeyRef.current === key) return
+    openedKeyRef.current = key
+    const lower = key.toLowerCase()
+    const found = maps.find(
+      (m) =>
+        m.slug === key ||
+        m.name.trim().toLowerCase() === lower ||
+        m.name.trim() === key ||
+        String(m.id) === key,
+    )
+    const label = initialQuery.trim() || key
+    if (initialQuery.trim()) setQuery(initialQuery.trim())
+    if (!found) {
+      setOpenMiss(label)
+      return
+    }
+    setOpenMiss('')
+    setQuery(initialQuery.trim() || found.name)
+    setDetail(found)
+  }, [openKey, loading, maps, initialQuery])
 
   useEffect(() => {
     setPage(0)
@@ -97,6 +151,23 @@ export function TreasureMapCatalog({ token }: TreasureMapCatalogProps) {
         <p className="form-note error" role="alert">
           {error}
         </p>
+      ) : null}
+
+      {openMiss ? (
+        <ConfirmLayer
+          title="확인"
+          message={`「${openMiss}」 지도가 없습니다.`}
+          onCancel={() => setOpenMiss('')}
+          confirmLabel={isAdmin ? '확인' : undefined}
+          onConfirm={
+            isAdmin
+              ? () => {
+                  setQuery(openMiss)
+                  setOpenMiss('')
+                }
+              : undefined
+          }
+        />
       ) : null}
 
       <label className="field catalog-search">

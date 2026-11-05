@@ -102,8 +102,10 @@ export async function listFields() {
 
 export async function getFieldBySlug(slug) {
   const sql = getSql()
+  const key = String(slug || '').trim()
+  if (!key) return null
   const rows = await sql`
-    SELECT * FROM fields WHERE slug = ${slug} AND enabled = TRUE LIMIT 1
+    SELECT * FROM fields WHERE slug = ${key} AND enabled = TRUE LIMIT 1
   `
   return rows[0] ? decorateField(rows[0]) : null
 }
@@ -114,6 +116,22 @@ export async function getFieldById(id) {
   if (!Number.isFinite(fieldId)) return null
   const rows = await sql`
     SELECT * FROM fields WHERE id = ${fieldId} AND enabled = TRUE LIMIT 1
+  `
+  return rows[0] ? decorateField(rows[0]) : null
+}
+
+export async function getFieldByName(name) {
+  const sql = getSql()
+  const key = normalizeFieldName(name)
+  if (!key) return null
+  const rows = await sql`
+    SELECT * FROM fields
+    WHERE enabled = TRUE
+      AND (
+        TRIM(BOTH FROM regexp_replace(name, '\\s+', ' ', 'g')) = ${key}
+        OR TRIM(BOTH FROM regexp_replace(COALESCE(alt_name, ''), '\\s+', ' ', 'g')) = ${key}
+      )
+    LIMIT 1
   `
   return rows[0] ? decorateField(rows[0]) : null
 }

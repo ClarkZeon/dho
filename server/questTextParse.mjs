@@ -20,6 +20,48 @@ function toNum(value) {
   return Number.isFinite(n) ? n : null
 }
 
+const DEST_SEP = /\s*(?:»|>>|›|→|➜|➔|⟶|⇒|->)\s*/
+
+/**
+ * `리마 >> 리마 북동쪽` / `런던 → 옥스포드 → 옥스포드 주점`
+ * / 구분자 빠진 `런던 옥스포드 옥스포드 주점` → `런던 » 옥스포드 » 옥스포드 주점`
+ */
+function normalizeQuestDestination(raw) {
+  const text = String(raw || '')
+    .trim()
+    .replace(/\s+/g, ' ')
+  if (!text) return null
+
+  const segments = text
+    .split(DEST_SEP)
+    .map((s) => s.trim())
+    .filter(Boolean)
+  if (segments.length >= 2) {
+    return segments.join(' » ')
+  }
+
+  const parts = text.split(' ').filter(Boolean)
+  // `런던 옥스포드 옥스포드 주점` — 동일 토큰 연속 = 마지막 도시·육지 머리
+  // cities: [런던, 옥스포드], place: `옥스포드 주점`
+  for (let i = 0; i < parts.length - 1; i++) {
+    if (parts[i] !== parts[i + 1]) continue
+    const cities = parts.slice(0, i + 1)
+    const place = [parts[i], ...parts.slice(i + 2)].join(' ')
+    if (cities.length && place) {
+      return [...cities, place].join(' » ')
+    }
+  }
+  // `리마 리마 북동쪽` / `산토 도밍고 산토 도밍고 외곽`
+  for (let i = 1; i < parts.length; i++) {
+    const city = parts.slice(0, i).join(' ')
+    const place = parts.slice(i).join(' ')
+    if (place === city || place.startsWith(`${city} `)) {
+      return `${city} » ${place}`
+    }
+  }
+  return text
+}
+
 function splitTabs(line) {
   return line.split('\t').map((s) => s.trim())
 }
@@ -49,6 +91,7 @@ function applyQuestMetaLabels(line, state) {
     /목적지/,
     /발견물/,
     /크로노\s*퀘스트/,
+    /특징/,
     /난이도/,
   ])
   if (places) state.requestPlaces = places
@@ -57,24 +100,34 @@ function applyQuestMetaLabels(line, state) {
     /발견물/,
     /의뢰\s*장소/,
     /크로노\s*퀘스트/,
+    /특징/,
   ])
-  if (dest) state.destination = dest
+  if (dest) state.destination = normalizeQuestDestination(dest)
 
+  // 크로노·특징은 분류(questType)와 별도 — 붙이지 않음
   const chrono = pickLabeledValue(line, /크로노\s*퀘스트/, [
+    /특징/,
     /의뢰\s*장소/,
     /목적지/,
     /발견물/,
+    /난이도/,
   ])
-  if (chrono) {
-    state.questType = state.questType
-      ? `${state.questType} · ${chrono}`
-      : chrono
-  }
+  if (chrono) state.chronoQuest = chrono
+
+  const feature = pickLabeledValue(line, /특징/, [
+    /크로노\s*퀘스트/,
+    /의뢰\s*장소/,
+    /목적지/,
+    /발견물/,
+    /난이도/,
+  ])
+  if (feature) state.feature = feature
 
   const disc = pickLabeledValue(line, /발견물/, [
     /목적지/,
     /의뢰\s*장소/,
     /크로노\s*퀘스트/,
+    /특징/,
   ])
   if (disc) {
     // [대형생물] 5성 비단뱀  /  [화석] 3 목이 긴 …
@@ -91,17 +144,139 @@ function applyQuestMetaLabels(line, state) {
   }
 }
 
+/**
+ * 위키는 「종교학 2」와 라벨 「추가」가 별도.
+ * 복붙 시 공백이 빠져 `종교학 2추가 : 프랑스어 1`처럼 보여도
+ * main=`종교학 2`, extra=`프랑스어 1` 로 나눈다.
+ */
+function splitMainAndExtraSkills(raw) {
+  const text = String(raw || '').trim()
+  if (!text) return { main: '', extra: '' }
+  // "종교학 2" + "추가" + "프랑스어 1" (공백 유무 모두)
+  const afterLevel = text.match(
+    /^(.*?)\s+(\d+)\s*추가\s*(?:\([^)]*\)|[?？])?\s*[:：]?\s*(.+)$/u,
+  )
+  if (afterLevel) {
+    return {
+      main: `${afterLevel[1].trim()} ${afterLevel[2]}`.trim(),
+      extra: afterLevel[3].trim(),
+    }
+  }
+  const m = text.match(
+    /^(.*?)(?:\s+추가\s*(?:\([^)]*\)|[?？])?\s*[:：]?\s*)(.+)$/u,
+  )
+  if (m) {
+    return { main: m[1].trim(), extra: m[2].trim() }
+  }
+  return { main: text, extra: '' }
+}
+
+function parseSkillAtom(part) {
+  let cleaned = String(part || '')
+    .replace(/^추가\s*(?:\([^)]*\)|[?？])?\s*[:：]?\s*/u, '')
+    .trim()
+  if (!cleaned || /^추가(?:\s*[?？])?$/.test(cleaned)) return null
+  // 위키 전문 표기: `생태 조사 1*` → 이름 + 레벨, `*` 는 저장하지 않음
+  const withStar = cleaned.match(/^(.+?)\s+(\d+)\s*\*+\s*$/u)
+  if (withStar) {
+    return { name: withStar[1].trim(), level: Number(withStar[2]) }
+  }
+  cleaned = cleaned.replace(/\*+\s*$/u, '').trim()
+  if (!cleaned) return null
+  const m = cleaned.match(/^(.+?)\s+(\d+)\s*$/)
+  if (!m) return { name: cleaned, level: null }
+  return { name: m[1].trim(), level: Number(m[2]) }
+}
+
 function parseSkillList(text) {
   // 생태 조사 1, 생물학 3, 스와힐리어 1
-  return String(text || '')
-    .split(/[,，]/)
-    .map((part) => part.trim())
-    .filter(Boolean)
-    .map((part) => {
-      const m = part.match(/^(.+?)\s+(\d+)\s*$/)
-      if (!m) return { name: part, level: null }
-      return { name: m[1].trim(), level: Number(m[2]) }
-    })
+  /** @type {Array<{ name: string, level: number|null }>} */
+  const out = []
+  for (const part of String(text || '').split(/[,，]/)) {
+    const trimmed = part.trim()
+    if (!trimmed) continue
+    const split = splitMainAndExtraSkills(trimmed)
+    if (split.extra) {
+      const mainSkill = parseSkillAtom(split.main)
+      if (mainSkill) out.push(mainSkill)
+      for (const extraPart of split.extra.split(/[,，]/)) {
+        const extraSkill = parseSkillAtom(extraPart)
+        if (extraSkill) out.push(extraSkill)
+      }
+      continue
+    }
+    const skill = parseSkillAtom(trimmed)
+    if (skill) out.push(skill)
+  }
+  return out
+}
+
+/**
+ * 잘못 저장된 「종교학 2추가 : 프랑스어」(level=1) →
+ * [{종교학,2},{프랑스어,1}]  (「추가」는 구분 라벨일 뿐 스킬명 아님)
+ * @param {Array<{ name?: string, level?: number|null }>|null|undefined} skills
+ */
+export function normalizeQuestSkills(skills) {
+  /** @type {Array<{ name: string, level: number|null }>} */
+  const out = []
+  for (const skill of skills || []) {
+    const name = String(skill?.name || '').trim()
+    let level =
+      skill?.level == null || skill?.level === ''
+        ? null
+        : Number(skill.level)
+    if (!Number.isFinite(level)) level = null
+    if (!name) continue
+
+    const glued = name.match(
+      /^(.*?)\s+(\d+)\s*추가\s*(?:\([^)]*\)|[?？])?\s*[:：]?\s*(.+)$/u,
+    )
+    if (glued) {
+      out.push({ name: glued[1].trim(), level: Number(glued[2]) })
+      const extras = parseSkillList(glued[3])
+      if (!extras.length) {
+        const rest = glued[3].trim()
+        if (rest) out.push({ name: rest, level })
+      } else {
+        extras.forEach((item, idx) => {
+          if (idx === extras.length - 1 && item.level == null && level != null) {
+            out.push({ ...item, level })
+          } else {
+            out.push(item)
+          }
+        })
+      }
+      continue
+    }
+
+    out.push({ name, level })
+  }
+  return out
+}
+
+/** 스킬 행 탭 컬럼 → 본문+추가 스킬 합침 */
+function parseSkillRowCols(cols) {
+  const cells = (cols || []).map((c) => String(c || '').trim())
+  if (!cells.length || cells[0] !== '스킬') return []
+  const addIdx = cells.findIndex((c, i) => i > 0 && c === '추가')
+  let main = ''
+  let extra = ''
+  if (addIdx > 0) {
+    main = cells.slice(1, addIdx).join(' ').trim()
+    extra = cells
+      .slice(addIdx + 1)
+      .filter((c) => c && c !== ':' && c !== '：' && c !== '?' && c !== '？')
+      .join(' ')
+      .trim()
+  } else {
+    const split = splitMainAndExtraSkills(cells.slice(1).join('\t'))
+    main = split.main
+    extra = split.extra
+  }
+  return normalizeQuestSkills([
+    ...parseSkillList(main),
+    ...parseSkillList(extra),
+  ])
 }
 
 function parseItemList(text) {
@@ -141,6 +316,13 @@ function parseChainLine(line) {
     skills: parseSkillList(m[4]),
     places: m[5].trim(),
   }
+}
+
+/** 연결 지도/퀘스트 줄 — [퀘스트] 있으면 quest, 없으면 map. raw에 태그 보존 */
+function parseLinkedChainLine(line) {
+  const raw = String(line || '').trim()
+  const linkKind = QUEST_TAG_RE.test(raw) ? 'quest' : 'map'
+  return { ...parseChainLine(raw), linkKind, raw }
 }
 
 function looksLikeChainEntry(line) {
@@ -241,12 +423,29 @@ function placePrefixFromStep(line) {
   return normalizeLoose(m[1].split(/[,，]/)[0] || '')
 }
 
-function isWalkthroughMapCaption(line, destination, placePrefixes) {
+/** 목적지 전체 + `»`/`→` 단계별 지명 (지도 위젯 제목 ※ 노트) */
+function destinationCaptionNames(destination) {
+  const dest = normalizeLoose(destination || '')
+  if (!dest) return []
+  const names = new Set([dest])
+  for (const part of dest.split(DEST_SEP)) {
+    const p = normalizeLoose(part)
+    if (p) names.add(p)
+  }
+  return [...names]
+}
+
+function isWalkthroughMapCaption(line, destinationNames, placePrefixes) {
   const t = normalizeLoose(line)
   if (!t) return false
   if (/^\d+\./.test(t) || /^[-–—]/.test(t) || /^[（(]/.test(t)) return false
   if (isMapSourceLine(t)) return true
-  if (destination && t === normalizeLoose(destination)) return true
+  if (
+    Array.isArray(destinationNames) &&
+    destinationNames.some((name) => name && t === normalizeLoose(name))
+  ) {
+    return true
+  }
   // 마지막 단계 지명과 같은 지도 위젯 제목 (캘리컷 북쪽, 홍해 서쪽 해안)
   return placePrefixes.some((p) => p && t === p)
 }
@@ -254,7 +453,7 @@ function isWalkthroughMapCaption(line, destination, placePrefixes) {
 /** 위키 지도 위젯 제목·출처 제거 (지도 기능 없음) */
 export function stripWikiMapNoise(text, destination = null) {
   if (text == null || text === '') return text == null ? null : ''
-  const dest = destination ? normalizeLoose(destination) : ''
+  const destinationNames = destinationCaptionNames(destination)
   const rawLines = String(text).split('\n')
   const placePrefixes = rawLines.map(placePrefixFromStep).filter(Boolean)
   const out = []
@@ -269,7 +468,7 @@ export function stripWikiMapNoise(text, destination = null) {
     if (isMapSourceLine(line) || isMapSourceLine(rawLines[i])) continue
     const next = rawLines.slice(i + 1).find((l) => l.trim())
     if (next && isMapSourceLine(next) && !/^\d+\./.test(line.trim())) continue
-    if (isWalkthroughMapCaption(line, dest, placePrefixes)) continue
+    if (isWalkthroughMapCaption(line, destinationNames, placePrefixes)) continue
     out.push(line)
   }
   // 끝쪽에 남은 지도 제목 한 번 더 정리
@@ -279,7 +478,7 @@ export function stripWikiMapNoise(text, destination = null) {
       out.pop()
       continue
     }
-    if (isWalkthroughMapCaption(last, dest, placePrefixes)) {
+    if (isWalkthroughMapCaption(last, destinationNames, placePrefixes)) {
       out.pop()
       continue
     }
@@ -310,16 +509,27 @@ function isLinkedHeadingItem(item) {
 
 function isLinkedQuestItem(item) {
   if (!item || typeof item !== 'object') return false
+  if (item.linkKind === 'quest' || item.linkKind === 'map') return true
   if (item.relation === 'linked') return true
   return QUEST_TAG_RE.test(itemText(item))
 }
 
-function stripLinkedMeta(item) {
+function stripLinkedMeta(item, fallback = 'quest') {
   const next = { ...item }
+  const fromTag = QUEST_TAG_RE.test(itemText(item))
+  // [퀘스트] 태그가 raw 등에 남아 있으면 무조건 퀘스트
+  let linkKind
+  if (fromTag) linkKind = 'quest'
+  else if (next.linkKind === 'quest' || next.linkKind === 'map') {
+    linkKind = next.linkKind
+  } else {
+    linkKind = fallback
+  }
   delete next.relation
   if (typeof next.category === 'string') {
     next.category = next.category.replace(QUEST_TAG_RE, '').trim() || undefined
   }
+  next.linkKind = linkKind
   return next
 }
 
@@ -338,11 +548,13 @@ export function splitChainAndLinked(items) {
     }
     if (isLinkedQuestItem(item)) {
       inLinked = true
-      linkedQuests.push(stripLinkedMeta(item))
+      // [퀘스트]·구데이터(relation)는 퀘스트. 명시적 linkKind:map 만 지도.
+      const fallback = item?.linkKind === 'map' ? 'map' : 'quest'
+      linkedQuests.push(stripLinkedMeta(item, fallback))
       continue
     }
     if (inLinked) {
-      linkedQuests.push(stripLinkedMeta(item))
+      linkedQuests.push(stripLinkedMeta(item, 'map'))
       continue
     }
     chainQuests.push(item)
@@ -401,6 +613,8 @@ export function parseQuestText(text) {
 
   let category = null
   let questType = null
+  let chronoQuest = null
+  let feature = null
   let difficulty = null
   let requestPlaces = null
   let destination = null
@@ -465,19 +679,21 @@ export function parseQuestText(text) {
     }
 
     // 일반: 의뢰 장소 … 목적지 …
-    // 크로노: 크로노 퀘스트 … 의뢰 장소 …
-    //         목적지 … 발견물 …
+    // 크로노: 크로노 퀘스트 … 특징 …
+    //         의뢰 장소 … / 목적지 … 발견물 …
     if (
       mode === 'meta' &&
       (/의뢰\s*장소/.test(line) ||
         /목적지/.test(line) ||
         /발견물/.test(line) ||
-        /크로노\s*퀘스트/.test(line))
+        /크로노\s*퀘스트/.test(line) ||
+        /특징/.test(line))
     ) {
       const meta = {
         requestPlaces,
         destination,
-        questType,
+        chronoQuest,
+        feature,
         discoveryCategory,
         discoveryRank,
         discoveryName,
@@ -485,7 +701,8 @@ export function parseQuestText(text) {
       applyQuestMetaLabels(line, meta)
       requestPlaces = meta.requestPlaces
       destination = meta.destination
-      questType = meta.questType
+      chronoQuest = meta.chronoQuest
+      feature = meta.feature
       discoveryCategory = meta.discoveryCategory
       discoveryRank = meta.discoveryRank
       discoveryName = meta.discoveryName
@@ -516,7 +733,7 @@ export function parseQuestText(text) {
       mode = 'linked'
       const rest = lineAfterLinkedHeading(line)
       if (rest && (looksLikeChainEntry(rest) || QUEST_TAG_RE.test(rest))) {
-        linkedQuests.push(parseChainLine(rest))
+        linkedQuests.push(parseLinkedChainLine(rest))
       }
       continue
     }
@@ -545,7 +762,7 @@ export function parseQuestText(text) {
         continue
       }
       mode = 'linked'
-      linkedQuests.push(parseChainLine(line))
+      linkedQuests.push(parseLinkedChainLine(line))
       continue
     }
 
@@ -567,7 +784,7 @@ export function parseQuestText(text) {
 
       if (cols[0] === '스킬' && cols[1]) {
         collectingPrereq = false
-        skills = parseSkillList(cols[1])
+        skills = parseSkillRowCols(cols)
         continue
       }
 
@@ -619,7 +836,7 @@ export function parseQuestText(text) {
       }
       const rest = lineAfterLinkedHeading(line) || line
       if (looksLikeChainEntry(rest) || QUEST_TAG_RE.test(rest)) {
-        linkedQuests.push(parseChainLine(rest))
+        linkedQuests.push(parseLinkedChainLine(rest))
       }
       continue
     }
@@ -629,7 +846,7 @@ export function parseQuestText(text) {
         mode = 'linked'
         const rest = lineAfterLinkedHeading(line) || line
         if (looksLikeChainEntry(rest) || QUEST_TAG_RE.test(rest)) {
-          linkedQuests.push(parseChainLine(rest))
+          linkedQuests.push(parseLinkedChainLine(rest))
         }
         continue
       }
@@ -638,7 +855,7 @@ export function parseQuestText(text) {
       // 번호 목록 뒤에 오는 번호 없는 항목 = 연결 지도 퀘스트
       if (!numbered && chainSawNumbered && looksLikeChainEntry(line)) {
         mode = 'linked'
-        linkedQuests.push(parseChainLine(line))
+        linkedQuests.push(parseLinkedChainLine(line))
         continue
       }
       if (!looksLikeChainEntry(line) && !numbered) {
@@ -701,6 +918,8 @@ export function parseQuestText(text) {
     description: stripWikiMapNoise(description) || null,
     category,
     questType,
+    chronoQuest,
+    feature,
     difficulty,
     requestPlaces,
     destination,

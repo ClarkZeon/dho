@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useRef,
   useState,
   type FormEvent,
   type KeyboardEvent,
@@ -12,6 +13,7 @@ import {
 } from '../lib/api'
 import { compareIdDesc, useTableSort } from '../lib/tableSort'
 import type { SkillDetail } from '../types'
+import { ConfirmLayer } from './ConfirmLayer'
 import { DetailModal } from './DetailModal'
 import { DucatAmount } from './DucatAmount'
 import { SkillDetailView } from './SkillDetailView'
@@ -23,6 +25,12 @@ type SkillCatalogProps = {
   token: string
   isAdmin?: boolean
   onToast?: (message: string) => void
+  /** 해시 `#/skills?q=` 검색어 */
+  initialQuery?: string
+  /** 해시 `#/skills?open=` 상세 자동 오픈 (slug 또는 이름) */
+  openKey?: string
+  /** 해시 `#/skills?add=1` — 관리자 스킬 추가 폼 오픈 */
+  initialAdd?: boolean
 }
 
 type SkillSortKey = 'name' | 'category' | 'rangeScope' | 'learnCost'
@@ -80,22 +88,30 @@ export function SkillCatalog({
   token,
   isAdmin = false,
   onToast,
+  initialQuery = '',
+  openKey = '',
+  initialAdd = false,
 }: SkillCatalogProps) {
   const [skills, setSkills] = useState<SkillDetail[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [detail, setDetail] = useState<SkillDetail | null>(null)
   const [detailEditMode, setDetailEditMode] = useState(false)
-  const [query, setQuery] = useState('')
+  const [query, setQuery] = useState(initialQuery)
   const [selectedCategories, setSelectedCategories] = useState<Set<string>>(
     () => new Set(),
   )
   const [page, setPage] = useState(0)
-  const [showImport, setShowImport] = useState(false)
+  const canAdd = isAdmin
+  const [showImport, setShowImport] = useState(
+    () => Boolean(canAdd && initialAdd),
+  )
   const [importText, setImportText] = useState('')
   const [importing, setImporting] = useState(false)
   const [importNote, setImportNote] = useState('')
   const [deletingId, setDeletingId] = useState<number | null>(null)
+  const [openMiss, setOpenMiss] = useState('')
+  const openedKeyRef = useRef('')
   const { sortKey, sortDir, toggleSort, sortRows } =
     useTableSort<SkillSortKey>()
 
@@ -121,8 +137,50 @@ export function SkillCatalog({
     void loadSkills()
   }, [loadSkills])
 
+  useEffect(() => {
+    if (initialQuery.trim()) setQuery(initialQuery)
+  }, [initialQuery])
+
+  useEffect(() => {
+    if (!canAdd) {
+      setShowImport(false)
+      return
+    }
+    if (initialAdd) setShowImport(true)
+  }, [canAdd, initialAdd])
+
+  useEffect(() => {
+    const key = openKey.trim()
+    if (!key || loading) return
+    if (openedKeyRef.current === key) return
+    openedKeyRef.current = key
+    const lower = key.toLowerCase()
+    const found = skills.find(
+      (s) =>
+        s.slug === key ||
+        s.name.trim().toLowerCase() === lower ||
+        s.name.trim() === key,
+    )
+    const label = initialQuery.trim() || key
+    if (initialQuery.trim()) setQuery(initialQuery.trim())
+    if (!found) {
+      setOpenMiss(label)
+      return
+    }
+    setOpenMiss('')
+    setQuery(initialQuery.trim() || found.name)
+    setPage(0)
+    setDetailEditMode(false)
+    setDetail(found)
+  }, [openKey, loading, skills, initialQuery])
+
   async function handleImport(e: FormEvent) {
     e.preventDefault()
+    if (!canAdd) {
+      setImportNote('관리자만 스킬을 등록할 수 있습니다.')
+      setShowImport(false)
+      return
+    }
     if (!importText.trim()) {
       setImportNote('텍스트를 붙여넣어 주세요.')
       return
@@ -219,7 +277,7 @@ export function SkillCatalog({
               : '등록된 스킬을 확인하고 상세를 엽니다. 언어는 분류 중 하나입니다.'}
           </p>
         </div>
-        {isAdmin && (
+        {canAdd && (
           <div className="admin-page-actions">
             <button
               type="button"
@@ -243,7 +301,7 @@ export function SkillCatalog({
         )}
       </div>
 
-      {isAdmin && showImport && (
+      {canAdd && showImport && (
         <form className="admin-import-form" onSubmit={handleImport}>
           <label className="field">
             <span>스킬 텍스트</span>
@@ -318,6 +376,24 @@ export function SkillCatalog({
           {error}
         </p>
       )}
+
+      {openMiss ? (
+        <ConfirmLayer
+          title="확인"
+          message={`「${openMiss}」 스킬이 없습니다.`}
+          onCancel={() => setOpenMiss('')}
+          confirmLabel={canAdd ? '등록하러 이동하기' : undefined}
+          onConfirm={
+            canAdd
+              ? () => {
+                  setShowImport(true)
+                  setQuery(openMiss)
+                  setOpenMiss('')
+                }
+              : undefined
+          }
+        />
+      ) : null}
 
       {loading ? (
         <p className="form-note">불러오는 중…</p>
@@ -489,6 +565,8 @@ export function SkillCatalog({
         >
           <SkillDetailView
             skill={detail}
+            token={token}
+            isAdmin={isAdmin}
             editMode={detailEditMode}
             edit={
               isAdmin

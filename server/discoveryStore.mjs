@@ -13,6 +13,7 @@ export async function ensureDiscoveryStore() {
   await runSqlFile('sql/010_discoveries.sql')
   await runSqlFile('sql/011_discovery_categories.sql')
   await runSqlFile('sql/045_user_discovery_completions.sql')
+  await runSqlFile('sql/047_discovery_ornaments.sql')
 }
 
 function normalizeName(name) {
@@ -59,6 +60,20 @@ function decorateDebateCombo(raw) {
   }
 }
 
+function decorateOrnaments(raw) {
+  return asJsonArray(raw)
+    .map((item) => {
+      if (!item || typeof item !== 'object') return null
+      const name = String(item.name || '').trim()
+      if (!name) return null
+      const cards = asJsonArray(item.cards)
+        .map((c) => String(c || '').trim())
+        .filter(Boolean)
+      return { name, cards }
+    })
+    .filter(Boolean)
+}
+
 function decorateDiscovery(row) {
   return {
     id: Number(row.id),
@@ -92,6 +107,7 @@ function decorateDiscovery(row) {
       }
     }),
     debateCombo: decorateDebateCombo(row.debate_combo),
+    ornaments: decorateOrnaments(row.ornaments),
     acquireQuest: null,
     updatedAt: row.updated_at
       ? new Date(/** @type {string|Date} */ (row.updated_at)).toISOString()
@@ -463,6 +479,21 @@ export async function getDiscoveryBySlug(slug, userId = null) {
   return discovery
 }
 
+/** 카탈로그 점프 — 표시 이름으로 조회 */
+export async function getDiscoveryByName(name, userId = null) {
+  const key = normalizeName(name)
+  if (!key) return null
+  const sql = getSql()
+  const rows = await sql`
+    SELECT id FROM discoveries
+    WHERE enabled = TRUE
+      AND TRIM(BOTH FROM regexp_replace(name, '\\s+', ' ', 'g')) = ${key}
+    LIMIT 1
+  `
+  if (!rows[0]) return null
+  return getDiscoveryById(Number(rows[0].id), userId)
+}
+
 /**
  * @param {number} id
  * @param {string | null | undefined} userId
@@ -587,6 +618,7 @@ export async function upsertDiscoveryFromParsed(parsed) {
   const debateJson = parsed.debateCombo
     ? JSON.stringify(parsed.debateCombo)
     : null
+  const ornamentsJson = JSON.stringify(parsed.ornaments || [])
   const category = resolveDiscoveryCategory(parsed.category)
 
   if (existing) {
@@ -606,6 +638,7 @@ export async function upsertDiscoveryFromParsed(parsed) {
         place = ${parsed.place},
         linked_quests = ${linkedJson},
         debate_combo = ${debateJson},
+        ornaments = ${ornamentsJson},
         enabled = TRUE
       WHERE id = ${existing.id}
     `
@@ -638,7 +671,7 @@ export async function upsertDiscoveryFromParsed(parsed) {
       id, slug, name, description, category, rank,
       card_points, discovery_exp, card_exp, report_fame,
       skills, acquire_type, acquire_name, place,
-      linked_quests, debate_combo, enabled, sort_order
+      linked_quests, debate_combo, ornaments, enabled, sort_order
     ) VALUES (
       ${id}, ${slug}, ${name}, ${parsed.description},
       ${category}, ${parsed.rank},
@@ -646,7 +679,7 @@ export async function upsertDiscoveryFromParsed(parsed) {
       ${parsed.cardExp ?? null}, ${parsed.reportFame ?? null},
       ${skillsJson},
       ${parsed.acquireType}, ${parsed.acquireName}, ${parsed.place},
-      ${linkedJson}, ${debateJson},
+      ${linkedJson}, ${debateJson}, ${ornamentsJson},
       TRUE, ${sortOrder}
     )
   `

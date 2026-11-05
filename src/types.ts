@@ -174,6 +174,8 @@ export type QuestChainItem = {
   skills?: QuestSkillReq[]
   places?: string
   raw?: string
+  /** 연결 지도/퀘스트 구분 — 연속 퀘스트에는 없음 */
+  linkKind?: 'quest' | 'map'
 }
 
 /** 필요 → 선행 발견/퀘스트 (발견물 아래 퀘스트는 children) */
@@ -201,6 +203,10 @@ export type QuestDetail = {
   description: string | null
   category: string | null
   questType: string | null
+  /** 크로노 퀘스트 시대 (분류와 별도) */
+  chronoQuest?: string | null
+  /** 특징 (한 번만 가능 등) */
+  feature?: string | null
   difficulty: number | null
   requestPlaces: string | null
   destination: string | null
@@ -732,6 +738,12 @@ export type DiscoveryDebateCombo = {
   cards: string[]
 }
 
+/** 발견물 → 장식품 레시피 (이름 + 필요 발견물 카드) */
+export type DiscoveryOrnament = {
+  name: string
+  cards: string[]
+}
+
 export type SkillPlace = {
   region: string
   city: string
@@ -840,6 +852,7 @@ export type DiscoveryDetail = {
   place: string | null
   linkedQuests: DiscoveryLinkedQuest[]
   debateCombo: DiscoveryDebateCombo | null
+  ornaments: DiscoveryOrnament[]
   acquireQuest: DiscoveryQuestRef | null
   /** 로그인 유저 기준 발견 완료 여부 */
   completed?: boolean

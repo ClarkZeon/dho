@@ -1,16 +1,34 @@
-import { useEffect, useState, type ReactNode } from 'react'
-import { updateSkill } from '../lib/api'
+import {
+  lazy,
+  Suspense,
+  useEffect,
+  useState,
+  type ReactNode,
+} from 'react'
+import { fetchPortByKey, updateSkill } from '../lib/api'
 import { getModuleDef } from '../lib/detailModules'
-import type { SkillDetail } from '../types'
+import type { PortDetail, SkillDetail } from '../types'
+import { CityEdgeLabel } from './CityEdgeLabel'
+import { ConfirmLayer } from './ConfirmLayer'
 import {
   DetailSectionActions,
   DetailSectionHead,
 } from './DetailSectionHead'
+import { DetailModal } from './DetailModal'
 import { DucatAmount, DucatMark } from './DucatAmount'
+import { LoadingOverlay } from './LoadingOverlay'
 import { JobModule } from './modules/JobModule'
+
+/** PortDetailView ↔ SkillDetailView 순환 참조 방지 */
+const PortDetailView = lazy(() =>
+  import('./PortDetailView').then((m) => ({ default: m.PortDetailView })),
+)
 
 type SkillDetailViewProps = {
   skill: SkillDetail
+  /** 카탈로그 점프용 (없으면 edit.token) */
+  token?: string
+  isAdmin?: boolean
   /** 관리자 수정 모드 (토글). false면 사용자 화면처럼 표시 */
   editMode?: boolean
   edit?: {
@@ -95,9 +113,12 @@ function parseOptionalInt(raw: string): number | null {
 
 export function SkillDetailView({
   skill,
+  token,
+  isAdmin = false,
   edit,
   editMode = false,
 }: SkillDetailViewProps) {
+  const authToken = token || edit?.token || ''
   const canEdit = Boolean(edit) && editMode
   const [editing, setEditing] = useState<EditSection | null>(null)
   const [draft, setDraft] = useState(() => cloneSkill(skill))
@@ -106,12 +127,19 @@ export function SkillDetailView({
   )
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [portDetail, setPortDetail] = useState<PortDetail | null>(null)
+  const [portLoading, setPortLoading] = useState(false)
+  const [portMissName, setPortMissName] = useState('')
+  const [portError, setPortError] = useState('')
 
   useEffect(() => {
     setDraft(cloneSkill(skill))
     setJobsDraft((skill.preferredJobs || []).join(', '))
     setEditing(null)
     setError('')
+    setPortDetail(null)
+    setPortMissName('')
+    setPortError('')
   }, [skill])
 
   useEffect(() => {
@@ -141,6 +169,36 @@ export function SkillDetailView({
     setJobsDraft((skill.preferredJobs || []).join(', '))
     setError('')
     setEditing(null)
+  }
+
+  async function openMatchedPort(name: string) {
+    if (!authToken) return
+    const key = name.trim()
+    if (!key) return
+    setPortLoading(true)
+    setPortMissName('')
+    setPortError('')
+    try {
+      const res = await fetchPortByKey(authToken, key)
+      setPortDetail(res.port)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : ''
+      if (/찾을 수 없|없습니다/i.test(message)) {
+        setPortMissName(key)
+      } else {
+        setPortError(message || '도시 상세를 불러오지 못했습니다.')
+      }
+    } finally {
+      setPortLoading(false)
+    }
+  }
+
+  function openPortsAddTab(portName: string) {
+    const params = new URLSearchParams()
+    params.set('q', portName)
+    params.set('add', '1')
+    const url = `${window.location.pathname}${window.location.search}#/ports?${params.toString()}`
+    window.open(url, '_blank', 'noopener,noreferrer')
   }
 
   async function saveSection() {
@@ -610,13 +668,39 @@ export function SkillDetailView({
                   </tr>
                 </thead>
                 <tbody>
-                  {learnPlaces.map((place, index) => (
-                    <tr key={`${place.city}-${index}`}>
-                      <td>{place.region || '-'}</td>
-                      <td>{place.city || '-'}</td>
-                      <td>{place.npc || '-'}</td>
-                    </tr>
-                  ))}
+                  {learnPlaces.map((place, index) => {
+                    const city = place.city?.trim() || ''
+                    const canOpen = Boolean(authToken && city)
+                    return (
+                      <tr key={`${place.city}-${index}`}>
+                        <td>{place.region || '-'}</td>
+                        <td>
+                          {city ? (
+                            <ul className="quest-skill-chips">
+                              <li className="is-city-chip">
+                                <CityEdgeLabel />
+                                {canOpen ? (
+                                  <button
+                                    type="button"
+                                    className="quest-skill-chip-btn"
+                                    disabled={portLoading}
+                                    onClick={() => void openMatchedPort(city)}
+                                  >
+                                    <span>{city}</span>
+                                  </button>
+                                ) : (
+                                  <span>{city}</span>
+                                )}
+                              </li>
+                            </ul>
+                          ) : (
+                            '-'
+                          )}
+                        </td>
+                        <td>{place.npc || '-'}</td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>
@@ -666,12 +750,47 @@ export function SkillDetailView({
                   </tr>
                 </thead>
                 <tbody>
-                  {useCities.map((city, index) => (
-                    <tr key={`${city.city}-${index}`}>
-                      <td>{city.region || '-'}</td>
-                      <td>{city.city || '-'}</td>
-                    </tr>
-                  ))}
+                  {useCities.map((row, index) => {
+                    const cityChips = String(row.city || '')
+                      .split(/[,，、]/)
+                      .map((s) => s.trim())
+                      .filter(Boolean)
+                    return (
+                      <tr key={`${row.city}-${index}`}>
+                        <td>{row.region || '-'}</td>
+                        <td>
+                          {cityChips.length > 0 ? (
+                            <ul className="quest-skill-chips">
+                              {cityChips.map((city) => {
+                                const canOpen = Boolean(authToken && city)
+                                return (
+                                  <li key={city} className="is-city-chip">
+                                    <CityEdgeLabel />
+                                    {canOpen ? (
+                                      <button
+                                        type="button"
+                                        className="quest-skill-chip-btn"
+                                        disabled={portLoading}
+                                        onClick={() =>
+                                          void openMatchedPort(city)
+                                        }
+                                      >
+                                        <span>{city}</span>
+                                      </button>
+                                    ) : (
+                                      <span>{city}</span>
+                                    )}
+                                  </li>
+                                )
+                              })}
+                            </ul>
+                          ) : (
+                            '-'
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>
@@ -681,6 +800,71 @@ export function SkillDetailView({
         </section>
       )}
 
+      {portLoading ? <LoadingOverlay label="도시 불러오는 중…" /> : null}
+
+      {portMissName ? (
+        <ConfirmLayer
+          title="확인"
+          message={`「${portMissName}」 도시가 없습니다.`}
+          stack={1}
+          onCancel={() => setPortMissName('')}
+          confirmLabel={isAdmin ? '등록하러 이동하기' : undefined}
+          onConfirm={
+            isAdmin
+              ? () => {
+                  openPortsAddTab(portMissName)
+                  setPortMissName('')
+                }
+              : undefined
+          }
+        />
+      ) : null}
+
+      {portError ? (
+        <ConfirmLayer
+          title="확인"
+          message={portError}
+          stack={1}
+          onCancel={() => setPortError('')}
+        />
+      ) : null}
+
+      {portDetail ? (
+        <DetailModal
+          title="도시 상세"
+          label={`${portDetail.name} 상세`}
+          onClose={() => {
+            setPortDetail(null)
+            setPortError('')
+          }}
+          stack={1}
+          headerActions={
+            isAdmin ? (
+              <button
+                type="button"
+                className="admin-btn"
+                onClick={() => {
+                  const params = new URLSearchParams()
+                  params.set('q', portDetail.name)
+                  params.set('open', portDetail.slug || portDetail.name)
+                  const url = `${window.location.pathname}${window.location.search}#/ports?${params.toString()}`
+                  window.open(url, '_blank', 'noopener,noreferrer')
+                }}
+              >
+                도시 메뉴로 이동
+              </button>
+            ) : undefined
+          }
+        >
+          <Suspense fallback={<LoadingOverlay label="도시 불러오는 중…" />}>
+            <PortDetailView
+              port={portDetail}
+              token={authToken}
+              isAdmin={isAdmin}
+            />
+          </Suspense>
+        </DetailModal>
+      ) : null}
     </div>
   )
 }
