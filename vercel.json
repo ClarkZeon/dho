@@ -3,7 +3,8 @@
   "outputDirectory": "dist",
   "functions": {
     "api/index.mjs": {
-      "includeFiles": "server/**"
+      "includeFiles": "server/**",
+      "maxDuration": 60
     }
   },
   "headers": [

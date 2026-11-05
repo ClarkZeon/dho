@@ -100,15 +100,26 @@ async function request<T>(
     body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
   })
 
-  const text = await res.text()
+  let text = ''
+  try {
+    text = await res.text()
+  } catch {
+    throw new Error(
+      'API 서버에 연결하지 못했습니다. 잠시 후 다시 시도해 주세요.',
+    )
+  }
   let data: T & { error?: string }
   try {
     data = JSON.parse(text) as T & { error?: string }
   } catch {
+    // Vercel 함수 타임아웃·플랫폼 에러는 HTML/텍스트라 JSON 파싱 실패
+    const timedOut = res.status === 504 || /timed out|TIMEOUT/i.test(text)
     throw new Error(
       res.ok
         ? '서버 응답 형식이 올바르지 않습니다.'
-        : 'API 서버에 연결하지 못했습니다. 배포 설정을 확인해 주세요.',
+        : timedOut
+          ? '서버가 준비되는 중입니다. 잠시 후 다시 시도해 주세요.'
+          : 'API 서버에 연결하지 못했습니다. 배포 설정을 확인해 주세요.',
     )
   }
   if (!res.ok) {

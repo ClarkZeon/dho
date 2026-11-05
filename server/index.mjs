@@ -490,12 +490,50 @@ function decorateMessage(message, users, currentUserId) {
 
 let storeReady = null
 let storeReadyOk = false
+let authReady = null
+
+/** 실패 프로미스를 붙잡지 않음 — 콜드스타트 타임아웃 후 재시도 가능 */
+function trackEnsure(runner) {
+  const p = runner().catch((err) => {
+    throw err
+  })
+  return p
+}
 
 export async function ensureReady() {
-  if (!storeReady) storeReady = ensureStore().then(() => {
-    storeReadyOk = true
-  })
+  if (storeReadyOk) return
+  if (!storeReady) {
+    storeReady = trackEnsure(ensureStore)
+      .then(() => {
+        storeReadyOk = true
+      })
+      .catch((err) => {
+        storeReady = null
+        throw err
+      })
+  }
   await storeReady
+}
+
+/** 로그인·세션만 — 전체 카탈로그 ensure 전에 통과시켜 콜드스타트 타임아웃을 피한다 */
+async function ensureAuthReady() {
+  if (!hasDatabaseUrl()) {
+    throw new Error(
+      'DATABASE_URL 이 없습니다. Vercel Neon을 연결하거나 .env 에 DATABASE_URL 을 설정하세요.',
+    )
+  }
+  if (!authReady) {
+    authReady = trackEnsure(() => ensureStep('user', () => ensureUserStore()))
+      .catch((err) => {
+        authReady = null
+        throw err
+      })
+  }
+  await authReady
+  // 백그라운드로 전체 스키마 워밍 (실패해도 로그인 응답은 유지)
+  void ensureReady().catch((err) => {
+    console.error('DHO API background ensure failed', err)
+  })
 }
 
 export async function handleRequest(req, res) {
@@ -515,10 +553,24 @@ export async function handleRequest(req, res) {
         authDb: hasDatabaseUrl() ? 'configured' : 'missing',
         store: storeReadyOk ? 'ready' : 'warming',
       })
+      // 백그라운드 워밍 트리거
+      void ensureReady().catch((err) => {
+        console.error('DHO API health warm failed', err)
+      })
       return
     }
 
-    await ensureReady()
+    const isAuthPath =
+      pathname === '/api/auth/signup' ||
+      pathname === '/api/auth/login' ||
+      pathname === '/api/auth/me' ||
+      pathname === '/api/auth/logout'
+
+    if (isAuthPath) {
+      await ensureAuthReady()
+    } else {
+      await ensureReady()
+    }
 
     if (req.method === 'POST' && pathname === '/api/auth/signup') {
       if (!requireAuthDb(res)) return
