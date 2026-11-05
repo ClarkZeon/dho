@@ -1,5 +1,9 @@
-import { useEffect, useState } from 'react'
-import { fetchDiscovery, updateQuest } from '../lib/api'
+import { Fragment, useEffect, useState } from 'react'
+import {
+  fetchDiscovery,
+  setDiscoveryCompletion,
+  updateQuest,
+} from '../lib/api'
 import { splitChainAndLinked } from '../lib/questChain'
 import type {
   DiscoveryDetail,
@@ -15,8 +19,13 @@ import {
   DetailSectionActions,
   DetailSectionHead,
 } from './DetailSectionHead'
+import { getModuleDef } from '../lib/detailModules'
 import { DiscoveryDetailView } from './DiscoveryDetailView'
-import { QuestDiscoveryLabel } from './DiscoveryRankMark'
+import {
+  DiscoveryChips,
+  parseDiscoveryLabel,
+} from './modules/DiscoveryChips'
+import { DiscoveryModule } from './modules/DiscoveryModule'
 
 type QuestEditSection =
   | 'basic'
@@ -132,6 +141,138 @@ function placePrefixFromStep(line: string) {
   return m[1].split(/[,，]/)[0].replace(/\s+/g, ' ').trim()
 }
 
+type WalkthroughFlowItem =
+  | {
+      type: 'step'
+      num: string
+      /** 도시/장소 (쉼표 앞) */
+      place: string | null
+      /** 대상/행동. `생선 파는 남자x2` → 생선 파는 남자 */
+      action: string
+      /** `(대장장이와 조선소 사이)` — 반복 첫 칸만 */
+      hint: string | null
+    }
+  | { type: 'note'; body: string }
+
+/**
+ * `마르세이유, 생선 파는 남자x2 (대장장이와 조선소 사이)`
+ * → 장소 유지 + 대상만 x2 반복, 괄호 힌트는 첫 칸만.
+ */
+/** `2/3 지점` → `3분의 2지점` (슬래시가 파서를 깨지 않게) */
+function normalizeWalkthroughFractions(text: string) {
+  return String(text || '')
+    .replace(/(\d+)\s*\/\s*(\d+)\s*지점/g, '$2분의 $1지점')
+    .replace(/(\d+)\s*\/\s*(\d+)/g, '$2분의 $1')
+}
+
+function parseWalkthroughStepBody(raw: string): {
+  place: string | null
+  action: string
+  times: number
+  hint: string | null
+} {
+  let body = normalizeWalkthroughFractions(String(raw || ''))
+    .replace(/\s+/g, ' ')
+    .trim()
+  let hint: string | null = null
+  const hintMatch = body.match(/\s*[（(]\s*([^）)]+?)\s*[）)]\s*$/)
+  if (hintMatch) {
+    hint = normalizeWalkthroughFractions(hintMatch[1]).trim() || null
+    body = body.slice(0, hintMatch.index).trim()
+  }
+
+  let times = 1
+  // 괄호 제거 후 끝의 xN — `남자x2` / `남자 x2` (숫자만 있는 끝은 무시)
+  const multX = body.match(/^(.*?)[x×Ｘｘ]\s*(\d+)\s*$/i)
+  if (multX) {
+    times = Math.min(20, Math.max(1, Number(multX[2]) || 1))
+    body = multX[1].trim()
+  }
+
+  const comma = body.match(/^([^,，]+)[,，]\s*(.+)$/)
+  if (comma) {
+    return {
+      place: comma[1].trim() || null,
+      action: comma[2].trim(),
+      times,
+      hint,
+    }
+  }
+  return { place: null, action: body, times, hint }
+}
+
+function expandWalkthroughFlow(steps: string[]): WalkthroughFlowItem[] {
+  const items: WalkthroughFlowItem[] = []
+  let seq = 0
+  for (const step of steps) {
+    const numbered = step.match(/^(\d+)\.\s*(.*)$/)
+    if (numbered) {
+      const parsed = parseWalkthroughStepBody(numbered[2])
+      for (let i = 0; i < parsed.times; i += 1) {
+        seq += 1
+        items.push({
+          type: 'step',
+          num: String(seq),
+          place: parsed.place,
+          action: parsed.action,
+          hint: i === 0 ? parsed.hint : null,
+        })
+      }
+      continue
+    }
+    items.push({
+      type: 'note',
+      body: normalizeWalkthroughFractions(
+        step.replace(/^[-–—•]\s*/, ''),
+      ).trim(),
+    })
+  }
+  return items
+}
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+/** 마지막 공략 문장에서 필요 스킬 이름을 칩으로 뽑고 본문에서는 제거 */
+function extractWalkthroughSkills(
+  action: string,
+  skills: QuestSkillReq[],
+): { action: string; skills: QuestSkillReq[] } {
+  let rest = String(action || '').trim()
+  if (!rest || skills.length === 0) return { action: rest, skills: [] }
+
+  const matched: QuestSkillReq[] = []
+  const sorted = [...skills]
+    .filter((s) => s.name?.trim())
+    .sort((a, b) => b.name.trim().length - a.name.trim().length)
+
+  for (const skill of sorted) {
+    const name = skill.name.trim()
+    const compact = name.replace(/\s+/g, '')
+    const patterns = [name, compact].filter(
+      (v, i, arr) => v && arr.indexOf(v) === i,
+    )
+    let hit = false
+    for (const pattern of patterns) {
+      const re = new RegExp(escapeRegExp(pattern), 'i')
+      if (!re.test(rest)) continue
+      rest = rest.replace(re, ' ')
+      hit = true
+    }
+    if (hit) matched.push(skill)
+  }
+
+  rest = rest
+    .replace(/\s{2,}/g, ' ')
+    .replace(/\s*[,，、/|]+\s*/g, ' ')
+    .replace(/^[,，、\s]+|[,，、\s]+$/g, '')
+    .replace(/\s+(에서|으로|로|에)\s*$/g, '')
+    .trim()
+
+  return { action: rest, skills: matched }
+}
+
 function isWalkthroughMapCaption(
   line: string,
   destination: string,
@@ -191,6 +332,8 @@ type QuestDetailViewProps = {
   token?: string
   completionBusy?: boolean
   onToggleCompleted?: (completed: boolean) => void
+  /** 관리자 수정 모드 (토글). false면 사용자 화면처럼 표시 */
+  editMode?: boolean
   /** 어드민만: 섹션별 연필로 퀘스트 수정 (일반 편집 권한으로도 사용) */
   walkthroughEdit?: {
     token: string
@@ -255,21 +398,25 @@ function QuestRelatedList({
 
 function PrerequisiteLabel({ item }: { item: QuestPrerequisite }) {
   if (item.kind === 'discovery') {
-    const head = [
-      item.discoveryCategory ? `[${item.discoveryCategory}]` : null,
-      item.discoveryRank != null ? String(item.discoveryRank) : null,
-      item.discoveryName,
-    ]
-      .filter(Boolean)
-      .join(' ')
+    const fromRaw = parseDiscoveryLabel(
+      String(item.raw || '')
+        .replace(/\s*<[^>]*>\s*$/, '')
+        .trim(),
+    )
+    const name = item.discoveryName?.trim() || fromRaw?.name || ''
+    const chip = name
+      ? {
+          name,
+          category: item.discoveryCategory ?? fromRaw?.category ?? null,
+          rank: item.discoveryRank ?? fromRaw?.rank ?? null,
+        }
+      : null
+
     return (
-      <span>
-        {head || item.raw}
+      <span className="quest-prereq-discovery">
+        {chip ? <DiscoveryChips items={[chip]} /> : item.raw}
         {item.nested ? (
-          <>
-            {' '}
-            <em>&lt;{item.nested}&gt;</em>
-          </>
+          <em className="quest-prereq-nested">&lt;{item.nested}&gt;</em>
         ) : null}
       </span>
     )
@@ -619,10 +766,11 @@ export function QuestDetailView({
   token,
   completionBusy = false,
   onToggleCompleted,
+  editMode = false,
   walkthroughEdit,
 }: QuestDetailViewProps) {
   const authToken = token || walkthroughEdit?.token || ''
-  const canEdit = Boolean(walkthroughEdit)
+  const canEdit = Boolean(walkthroughEdit) && editMode
 
   const [editing, setEditing] = useState<QuestEditSection | null>(null)
   const [draft, setDraft] = useState<QuestDraft>(() => makeDraft(quest))
@@ -633,12 +781,21 @@ export function QuestDetailView({
   )
   const [discoveryLoading, setDiscoveryLoading] = useState(false)
   const [discoveryError, setDiscoveryError] = useState('')
+  const [discoveryCompletionBusy, setDiscoveryCompletionBusy] = useState(false)
 
   useEffect(() => {
     setDraft(makeDraft(quest))
     setEditing(null)
     setError('')
   }, [quest])
+
+  useEffect(() => {
+    if (!canEdit) {
+      setDraft(makeDraft(quest))
+      setEditing(null)
+      setError('')
+    }
+  }, [canEdit, quest])
 
   useEffect(() => {
     setDiscoveryDetail(null)
@@ -676,6 +833,36 @@ export function QuestDetailView({
       )
     } finally {
       setDiscoveryLoading(false)
+    }
+  }
+
+  async function toggleDiscoveryCompleted(next: boolean) {
+    if (!authToken || !discoveryDetail || discoveryCompletionBusy) return
+    setDiscoveryCompletionBusy(true)
+    setDiscoveryError('')
+    try {
+      const res = await setDiscoveryCompletion(
+        authToken,
+        discoveryDetail.id,
+        next,
+      )
+      setDiscoveryDetail((prev) =>
+        prev
+          ? {
+              ...prev,
+              completed: res.completed,
+              completedAt: res.completedAt,
+            }
+          : prev,
+      )
+    } catch (err) {
+      setDiscoveryError(
+        err instanceof Error
+          ? err.message
+          : '발견물 완료 상태 저장에 실패했습니다.',
+      )
+    } finally {
+      setDiscoveryCompletionBusy(false)
     }
   }
 
@@ -778,6 +965,11 @@ export function QuestDetailView({
   )
     .split('\n')
     .filter((line) => line.trim().length > 0)
+  const walkthroughFlow = expandWalkthroughFlow(walkthroughSteps)
+  const walkthroughLastStepIdx = walkthroughFlow.reduce(
+    (acc, cur, i) => (cur.type === 'step' ? i : acc),
+    -1,
+  )
 
   // 1. / 1-1. / 2-1. 등 모두 동일 레벨 진행 단계로 분리
   const progressBlocks = dropMapSource(quest.progress || '', quest.destination)
@@ -788,11 +980,33 @@ export function QuestDetailView({
   const showSkills = canEdit || quest.skills.length > 0
   const showPrerequisites =
     canEdit || (quest.prerequisites || []).length > 0
+  const showRewards =
+    canEdit ||
+    quest.rewardDucat != null ||
+    quest.rewardAdvance != null ||
+    quest.expDiscovery != null ||
+    quest.expCard != null ||
+    quest.expReport != null ||
+    quest.fameReport != null ||
+    quest.rewardItems.length > 0
+  const showRewardDucat =
+    canEdit || quest.rewardDucat != null || quest.rewardAdvance != null
+  const showRewardExp =
+    canEdit ||
+    quest.expDiscovery != null ||
+    quest.expCard != null ||
+    quest.expReport != null ||
+    quest.fameReport != null
+  const showRewardItems = canEdit || quest.rewardItems.length > 0
   const showChain = canEdit || chainQuests.length > 0
   const showLinked = canEdit || linkedQuests.length > 0
   const showWalkthrough = canEdit || walkthroughSteps.length > 0
   const showProgress = canEdit || progressBlocks.length > 0
   const showDescription = canEdit || Boolean(description)
+  const requestPlaceChips = (quest.requestPlaces || '')
+    .split(/[,，、]/)
+    .map((s) => s.trim())
+    .filter(Boolean)
 
   const sectionActions = (
     <DetailSectionActions
@@ -804,13 +1018,20 @@ export function QuestDetailView({
 
   return (
     <div className="quest-detail">
-      <header className="quest-detail-hero">
+      <header
+        className={`quest-detail-hero${quest.completed ? ' is-completed' : ''}`}
+      >
         <div className="quest-detail-hero-top">
-          <span className="quest-badge">
-            {quest.category
-              ? `[${quest.category}] ${quest.questType || ''}`.trim()
-              : '퀘스트'}
-          </span>
+          <div className="quest-detail-hero-chips">
+            <span className="quest-badge">
+              {quest.category
+                ? `[${quest.category}] ${quest.questType || ''}`.trim()
+                : (getModuleDef('quest')?.title ?? '퀘스트')}
+            </span>
+            {quest.completed ? (
+              <span className="quest-badge quest-badge-done">완료</span>
+            ) : null}
+          </div>
           <DifficultyStars value={quest.difficulty} />
         </div>
         <h2>{quest.name}</h2>
@@ -967,36 +1188,37 @@ export function QuestDetailView({
             </div>
             <div>
               <span>의뢰 장소</span>
-              <strong>{quest.requestPlaces || '-'}</strong>
+              {requestPlaceChips.length > 0 ? (
+                <ul className="quest-skill-chips">
+                  {requestPlaceChips.map((place) => (
+                    <li key={place}>
+                      <span>{place}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <strong>-</strong>
+              )}
             </div>
             <div>
               <span>목적지</span>
               <strong>{quest.destination || '-'}</strong>
             </div>
-            <div className="quest-kv-wide">
-              <span>발견물</span>
-              <strong>
-                <QuestDiscoveryLabel
-                  quest={quest}
-                  onOpenDiscovery={
-                    authToken && quest.discoveryRef
-                      ? (ref) => void openMatchedDiscovery(ref)
-                      : undefined
-                  }
-                />
-              </strong>
-              {discoveryLoading ? (
-                <p className="form-note">발견물 불러오는 중…</p>
-              ) : null}
-              {discoveryError ? (
-                <p className="form-note error" role="alert">
-                  {discoveryError}
-                </p>
-              ) : null}
-            </div>
           </div>
         )}
       </section>
+
+      <DiscoveryModule
+        quest={quest}
+        canEdit={canEdit}
+        discoveryLoading={discoveryLoading}
+        discoveryError={discoveryError}
+        onOpenDiscovery={
+          authToken
+            ? (ref) => void openMatchedDiscovery(ref)
+            : undefined
+        }
+      />
 
       {showSkills && (
         <section className="quest-detail-section">
@@ -1061,151 +1283,159 @@ export function QuestDetailView({
         </section>
       )}
 
-      <section className="quest-detail-section">
-        <DetailSectionHead
-          title="보상"
-          canEdit={canEdit}
-          editing={editing === 'rewards'}
-          onEdit={() => startEdit('rewards')}
-        />
-        {editing === 'rewards' ? (
-          <>
-            <div className="quest-kv-grid">
-              <label className="field">
-                <span>보상금</span>
-                <input
-                  inputMode="numeric"
-                  value={numOrEmpty(draft.rewardDucat)}
-                  onChange={(e) =>
-                    patchDraft({ rewardDucat: parseOptionalInt(e.target.value) })
-                  }
-                  disabled={saving}
-                />
-              </label>
-              <label className="field">
-                <span>선금</span>
-                <input
-                  inputMode="numeric"
-                  value={numOrEmpty(draft.rewardAdvance)}
-                  onChange={(e) =>
-                    patchDraft({
-                      rewardAdvance: parseOptionalInt(e.target.value),
-                    })
-                  }
-                  disabled={saving}
-                />
-              </label>
-              <label className="field">
-                <span>발견 경험치</span>
-                <input
-                  inputMode="numeric"
-                  value={numOrEmpty(draft.expDiscovery)}
-                  onChange={(e) =>
-                    patchDraft({
-                      expDiscovery: parseOptionalInt(e.target.value),
-                    })
-                  }
-                  disabled={saving}
-                />
-              </label>
-              <label className="field">
-                <span>카드 경험치</span>
-                <input
-                  inputMode="numeric"
-                  value={numOrEmpty(draft.expCard)}
-                  onChange={(e) =>
-                    patchDraft({ expCard: parseOptionalInt(e.target.value) })
-                  }
-                  disabled={saving}
-                />
-              </label>
-              <label className="field">
-                <span>보고 경험치</span>
-                <input
-                  inputMode="numeric"
-                  value={numOrEmpty(draft.expReport)}
-                  onChange={(e) =>
-                    patchDraft({ expReport: parseOptionalInt(e.target.value) })
-                  }
-                  disabled={saving}
-                />
-              </label>
-              <label className="field">
-                <span>보고 명성</span>
-                <input
-                  inputMode="numeric"
-                  value={numOrEmpty(draft.fameReport)}
-                  onChange={(e) =>
-                    patchDraft({ fameReport: parseOptionalInt(e.target.value) })
-                  }
-                  disabled={saving}
-                />
-              </label>
-              <div className="quest-kv-wide">
-                <span>보상 아이템</span>
-                <EditRewardItems
-                  items={draft.rewardItems}
-                  onChange={(rewardItems) => patchDraft({ rewardItems })}
-                  disabled={saving}
-                />
+      {showRewards && (
+        <section className="quest-detail-section">
+          <DetailSectionHead
+            title="보상"
+            canEdit={canEdit}
+            editing={editing === 'rewards'}
+            onEdit={() => startEdit('rewards')}
+          />
+          {editing === 'rewards' ? (
+            <>
+              <div className="quest-kv-grid">
+                <label className="field">
+                  <span>보상금</span>
+                  <input
+                    inputMode="numeric"
+                    value={numOrEmpty(draft.rewardDucat)}
+                    onChange={(e) =>
+                      patchDraft({ rewardDucat: parseOptionalInt(e.target.value) })
+                    }
+                    disabled={saving}
+                  />
+                </label>
+                <label className="field">
+                  <span>선금</span>
+                  <input
+                    inputMode="numeric"
+                    value={numOrEmpty(draft.rewardAdvance)}
+                    onChange={(e) =>
+                      patchDraft({
+                        rewardAdvance: parseOptionalInt(e.target.value),
+                      })
+                    }
+                    disabled={saving}
+                  />
+                </label>
+                <label className="field">
+                  <span>발견 경험치</span>
+                  <input
+                    inputMode="numeric"
+                    value={numOrEmpty(draft.expDiscovery)}
+                    onChange={(e) =>
+                      patchDraft({
+                        expDiscovery: parseOptionalInt(e.target.value),
+                      })
+                    }
+                    disabled={saving}
+                  />
+                </label>
+                <label className="field">
+                  <span>카드 경험치</span>
+                  <input
+                    inputMode="numeric"
+                    value={numOrEmpty(draft.expCard)}
+                    onChange={(e) =>
+                      patchDraft({ expCard: parseOptionalInt(e.target.value) })
+                    }
+                    disabled={saving}
+                  />
+                </label>
+                <label className="field">
+                  <span>보고 경험치</span>
+                  <input
+                    inputMode="numeric"
+                    value={numOrEmpty(draft.expReport)}
+                    onChange={(e) =>
+                      patchDraft({ expReport: parseOptionalInt(e.target.value) })
+                    }
+                    disabled={saving}
+                  />
+                </label>
+                <label className="field">
+                  <span>보고 명성</span>
+                  <input
+                    inputMode="numeric"
+                    value={numOrEmpty(draft.fameReport)}
+                    onChange={(e) =>
+                      patchDraft({ fameReport: parseOptionalInt(e.target.value) })
+                    }
+                    disabled={saving}
+                  />
+                </label>
+                <div className="quest-kv-wide">
+                  <span>보상 아이템</span>
+                  <EditRewardItems
+                    items={draft.rewardItems}
+                    onChange={(rewardItems) => patchDraft({ rewardItems })}
+                    disabled={saving}
+                  />
+                </div>
               </div>
-            </div>
-            {sectionActions}
-          </>
-        ) : (
-          <div className="quest-reward-grid">
-            <article>
-              <p>두캇</p>
-              <dl>
-                <div>
-                  <dt>보상금</dt>
-                  <dd>{formatNum(quest.rewardDucat)}</dd>
-                </div>
-                <div>
-                  <dt>선금</dt>
-                  <dd>{formatNum(quest.rewardAdvance)}</dd>
-                </div>
-              </dl>
-            </article>
-            <article>
-              <p>경험치 · 명성</p>
-              <dl>
-                <div>
-                  <dt>발견</dt>
-                  <dd>{formatNum(quest.expDiscovery)}</dd>
-                </div>
-                <div>
-                  <dt>카드</dt>
-                  <dd>{formatNum(quest.expCard)}</dd>
-                </div>
-                <div>
-                  <dt>보고</dt>
-                  <dd>{formatNum(quest.expReport)}</dd>
-                </div>
-                <div>
-                  <dt>명성</dt>
-                  <dd>{formatNum(quest.fameReport)}</dd>
-                </div>
-              </dl>
-            </article>
-            <article className="quest-reward-items">
-              <p>아이템</p>
-              {quest.rewardItems.length ? (
-                <ul>
-                  {quest.rewardItems.map((item, idx) => (
-                    <li key={`${item.name}-${item.qty}-${idx}`}>
-                      <span>{item.name}</span>
-                      <strong>{item.qty != null ? `×${item.qty}` : ''}</strong>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="quest-muted">없음</p>
+              {sectionActions}
+            </>
+          ) : (
+            <div className="quest-reward-grid">
+              {showRewardDucat && (
+                <article>
+                  <p>두캇</p>
+                  <dl>
+                    <div>
+                      <dt>보상금</dt>
+                      <dd>{formatNum(quest.rewardDucat)}</dd>
+                    </div>
+                    <div>
+                      <dt>선금</dt>
+                      <dd>{formatNum(quest.rewardAdvance)}</dd>
+                    </div>
+                  </dl>
+                </article>
               )}
-            </article>
-          </div>
-        )}
-      </section>
+              {showRewardExp && (
+                <article>
+                  <p>경험치 · 명성</p>
+                  <dl>
+                    <div>
+                      <dt>발견</dt>
+                      <dd>{formatNum(quest.expDiscovery)}</dd>
+                    </div>
+                    <div>
+                      <dt>카드</dt>
+                      <dd>{formatNum(quest.expCard)}</dd>
+                    </div>
+                    <div>
+                      <dt>보고</dt>
+                      <dd>{formatNum(quest.expReport)}</dd>
+                    </div>
+                    <div>
+                      <dt>명성</dt>
+                      <dd>{formatNum(quest.fameReport)}</dd>
+                    </div>
+                  </dl>
+                </article>
+              )}
+              {showRewardItems && (
+                <article className="quest-reward-items">
+                  <p>아이템</p>
+                  {quest.rewardItems.length ? (
+                    <ul className="quest-skill-chips">
+                      {quest.rewardItems.map((item, idx) => (
+                        <li key={`${item.name}-${item.qty}-${idx}`}>
+                          <span>{item.name}</span>
+                          {item.qty != null && <em>×{item.qty}</em>}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="quest-muted">없음</p>
+                  )}
+                </article>
+              )}
+            </div>
+          )}
+        </section>
+      )}
 
       {showChain && (
         <section className="quest-detail-section">
@@ -1287,21 +1517,74 @@ export function QuestDetailView({
               />
               {sectionActions}
             </>
-          ) : walkthroughSteps.length > 0 ? (
-            <ol className="quest-steps">
-              {walkthroughSteps.map((step, idx) => {
-                const cleaned = step.replace(/^\d+\.\s*/, '')
-                const isNote = cleaned.startsWith('-') || !/^\d+\./.test(step)
-                if (isNote && !/^\d+\./.test(step)) {
-                  return (
-                    <li key={idx} className="is-note">
-                      {cleaned.replace(/^-\s*/, '')}
-                    </li>
+          ) : walkthroughFlow.length > 0 ? (
+            <div className="quest-steps-flow" role="list">
+              {walkthroughFlow.map((item, idx) => {
+                const prev = idx > 0 ? walkthroughFlow[idx - 1] : null
+                const showArrow =
+                  item.type === 'step' && prev?.type === 'step'
+                const isLastStep =
+                  item.type === 'step' && idx === walkthroughLastStepIdx
+                const lastSkills =
+                  isLastStep && item.type === 'step'
+                    ? extractWalkthroughSkills(item.action, quest.skills)
+                    : null
+                const tile =
+                  item.type === 'step' ? (
+                    <div
+                      role="listitem"
+                      className={`quest-step${isLastStep ? ' is-last' : ''}`}
+                    >
+                      <span className="quest-step-num" aria-hidden="true">
+                        {item.num}
+                      </span>
+                      <div className="quest-step-body">
+                        {item.place ? (
+                          <span className="quest-step-place">{item.place}</span>
+                        ) : null}
+                        {(lastSkills?.action ||
+                          (!lastSkills && item.action)) && (
+                          <span className="quest-step-action">
+                            {lastSkills ? lastSkills.action : item.action}
+                          </span>
+                        )}
+                        {lastSkills && lastSkills.skills.length > 0 ? (
+                          <ul className="quest-skill-chips quest-step-skill-chips">
+                            {lastSkills.skills.map((skill, skillIdx) => (
+                              <li
+                                key={`${skill.name}-${skill.level}-${skillIdx}`}
+                              >
+                                <span>{skill.name}</span>
+                                {skill.level != null && (
+                                  <em>Lv.{skill.level}</em>
+                                )}
+                              </li>
+                            ))}
+                          </ul>
+                        ) : null}
+                        {item.hint ? (
+                          <span className="quest-step-hint">{item.hint}</span>
+                        ) : null}
+                      </div>
+                    </div>
+                  ) : (
+                    <div role="listitem" className="quest-step is-note">
+                      <span className="quest-step-note-mark" aria-hidden="true">
+                        ※
+                      </span>
+                      <p className="quest-step-body">{item.body}</p>
+                    </div>
                   )
-                }
-                return <li key={idx}>{cleaned}</li>
+                return (
+                  <Fragment key={`${item.type}-${idx}`}>
+                    {showArrow ? (
+                      <span className="quest-step-arrow" aria-hidden="true" />
+                    ) : null}
+                    {tile}
+                  </Fragment>
+                )
               })}
-            </ol>
+            </div>
           ) : (
             <p className="quest-muted">공략이 없습니다.</p>
           )}
@@ -1386,7 +1669,13 @@ export function QuestDetailView({
           }}
           stack={1}
         >
-          <DiscoveryDetailView discovery={discoveryDetail} />
+          <DiscoveryDetailView
+            discovery={discoveryDetail}
+            completionBusy={discoveryCompletionBusy}
+            onToggleCompleted={(completed) =>
+              void toggleDiscoveryCompleted(completed)
+            }
+          />
         </DetailModal>
       ) : null}
     </div>

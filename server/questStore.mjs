@@ -4,6 +4,7 @@ import {
 } from './adminStats.mjs'
 import {
   lookupDiscoveriesByNames,
+  setUserDiscoveryCompleted,
   syncDiscoveryAcquireFromQuests,
 } from './discoveryStore.mjs'
 import { getSql, hasDatabaseUrl, runSqlFile } from './db.mjs'
@@ -144,6 +145,9 @@ export async function listQuestsPage(userId = null, opts = {}) {
     .trim()
     .slice(0, 80)
     .replace(/[%_]/g, '')
+  const completionRaw = String(opts.completion || 'all').trim().toLowerCase()
+  const completion =
+    completionRaw === 'done' || completionRaw === 'open' ? completionRaw : 'all'
   const limit = Math.min(100, Math.max(1, Number(opts.limit) || 15))
   const offset = Math.max(0, Number(opts.offset) || 0)
   const order = questOrderClause(opts.sort, opts.dir)
@@ -161,6 +165,20 @@ export async function listQuestsPage(userId = null, opts = {}) {
       OR COALESCE(category, '') ILIKE ${p}
       OR COALESCE(quest_type, '') ILIKE ${p}
     )`
+  }
+  if (userId && completion !== 'all') {
+    params.push(userId)
+    const userP = `$${params.length}`
+    where +=
+      completion === 'done'
+        ? ` AND EXISTS (
+            SELECT 1 FROM user_quest_completions c
+            WHERE c.quest_id = quests.id AND c.user_id = ${userP}
+          )`
+        : ` AND NOT EXISTS (
+            SELECT 1 FROM user_quest_completions c
+            WHERE c.quest_id = quests.id AND c.user_id = ${userP}
+          )`
   }
 
   const countRows = await sql.query(
@@ -244,7 +262,9 @@ export async function listQuests(userId = null) {
 export async function setUserQuestCompleted(userId, questId, completed) {
   const sql = getSql()
   const existing = await sql`
-    SELECT id FROM quests WHERE id = ${questId} AND enabled = TRUE LIMIT 1
+    SELECT id, discovery_name FROM quests
+    WHERE id = ${questId} AND enabled = TRUE
+    LIMIT 1
   `
   if (!existing[0]) throw new Error('퀘스트를 찾을 수 없습니다.')
 
@@ -255,6 +275,19 @@ export async function setUserQuestCompleted(userId, questId, completed) {
       ON CONFLICT (user_id, quest_id) DO UPDATE SET
         completed_at = EXCLUDED.completed_at
     `
+    // 퀘스트 완료 시 연결 발견물도 함께 발견 완료
+    const discoveryName = normalizeDiscoveryName(existing[0].discovery_name)
+    if (discoveryName) {
+      const map = await lookupDiscoveriesByNames([discoveryName])
+      const ref = map.get(discoveryName)
+      if (ref?.id) {
+        try {
+          await setUserDiscoveryCompleted(userId, ref.id, true)
+        } catch {
+          // 발견물 매칭/저장 실패는 퀘스트 완료를 막지 않음
+        }
+      }
+    }
   } else {
     await sql`
       DELETE FROM user_quest_completions

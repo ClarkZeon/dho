@@ -1,10 +1,11 @@
 /**
  * 로컬 API 개발 러너
  * - server/ 변경 시 debounce 후 자식 프로세스 재시작
- * - node --watch 가 Windows에서 연속 재시작하다 멈추는 문제 완화
+ * - Windows 에서 child.kill() 만으로는 자식 트리가 안 죽어
+ *   포트/Neon 연결이 겹치며 ensure 가 멈추는 문제를 taskkill /T 로 완화
  */
 
-import { spawn } from 'node:child_process'
+import { spawn, execFile } from 'node:child_process'
 import { watch } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -12,8 +13,9 @@ import { fileURLToPath } from 'node:url'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const root = path.resolve(__dirname, '..')
 const entry = path.join(__dirname, 'index.mjs')
-const DEBOUNCE_MS = 500
-const KILL_WAIT_MS = 400
+const DEBOUNCE_MS = 600
+const KILL_WAIT_MS = 500
+const isWin = process.platform === 'win32'
 
 /** @type {import('node:child_process').ChildProcess | null} */
 let child = null
@@ -21,6 +23,7 @@ let child = null
 let debounceTimer = null
 let restartQueued = false
 let shuttingDown = false
+let starting = false
 
 function log(msg) {
   console.log(`[dev-api] ${msg}`)
@@ -31,11 +34,44 @@ function shouldWatch(filename) {
   const base = filename.replace(/\\/g, '/')
   if (base.includes('node_modules/')) return false
   if (/(^|\/)dev-api\.mjs$/i.test(base)) return false
+  if (/(^|\/)scripts\//i.test(base)) return false
   return /\.(mjs|js|cjs|sql|env)$/i.test(base) || /(^|\/)\.env(\.|$)/i.test(base)
 }
 
+function treeKill(pid) {
+  return new Promise((resolve) => {
+    if (!pid || pid <= 0) {
+      resolve()
+      return
+    }
+    if (!isWin) {
+      try {
+        process.kill(pid, 'SIGTERM')
+      } catch {
+        // ignore
+      }
+      setTimeout(() => {
+        try {
+          process.kill(pid, 'SIGKILL')
+        } catch {
+          // ignore
+        }
+        resolve()
+      }, 800)
+      return
+    }
+    execFile(
+      'taskkill',
+      ['/pid', String(pid), '/T', '/F'],
+      { windowsHide: true },
+      () => resolve(),
+    )
+  })
+}
+
 function startChild() {
-  if (shuttingDown || child) return
+  if (shuttingDown || child || starting) return
+  starting = true
   log('starting API…')
   child = spawn(process.execPath, [entry], {
     cwd: root,
@@ -44,6 +80,7 @@ function startChild() {
     windowsHide: true,
   })
   const current = child
+  starting = false
   current.on('exit', (code, signal) => {
     if (child === current) child = null
     if (shuttingDown) return
@@ -64,29 +101,16 @@ function startChild() {
   })
 }
 
-function stopChild() {
-  if (!child) return Promise.resolve()
+async function stopChild() {
   const current = child
-  return new Promise((resolve) => {
-    const done = () => resolve()
-    current.once('exit', done)
-    try {
-      current.kill()
-    } catch {
-      done()
-      return
-    }
-    setTimeout(() => {
-      if (child === current) {
-        try {
-          current.kill('SIGKILL')
-        } catch {
-          // ignore
-        }
-      }
-      done()
-    }, 2500)
-  })
+  if (!current?.pid) {
+    child = null
+    return
+  }
+  const pid = current.pid
+  child = null
+  await treeKill(pid)
+  await new Promise((r) => setTimeout(r, KILL_WAIT_MS))
 }
 
 function queueRestart(reason) {
@@ -96,18 +120,13 @@ function queueRestart(reason) {
   debounceTimer = setTimeout(() => {
     debounceTimer = null
     void (async () => {
-      if (child) {
-        restartQueued = true
-        log('restarting…')
-        await stopChild()
-        // stopChild exit handler starts next when restartQueued
-        if (!child && restartQueued) {
-          restartQueued = false
-          setTimeout(startChild, KILL_WAIT_MS)
-        }
-        return
+      restartQueued = true
+      log('restarting…')
+      await stopChild()
+      if (restartQueued) {
+        restartQueued = false
+        startChild()
       }
-      startChild()
     })()
   }, DEBOUNCE_MS)
 }

@@ -1,6 +1,5 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useState } from 'react'
 import { updateDiscovery } from '../lib/api'
-import { formatDiscoveryAcquire } from '../lib/discoveryAcquire'
 import type {
   DiscoveryDetail,
   DiscoveryQuestRef,
@@ -9,10 +8,15 @@ import {
   DetailSectionActions,
   DetailSectionHead,
 } from './DetailSectionHead'
+import { getModuleDef } from '../lib/detailModules'
+import { DiscoveryRankMark } from './DiscoveryRankMark'
+import { QuestModule } from './modules/QuestModule'
 
 type DiscoveryDetailViewProps = {
   discovery: DiscoveryDetail
   onOpenQuest?: (quest: DiscoveryQuestRef) => void
+  completionBusy?: boolean
+  onToggleCompleted?: (completed: boolean) => void
   /** 관리자: 기본 정보(난이도) 수정 */
   basicInfoEdit?: {
     token: string
@@ -44,37 +48,11 @@ function formatNum(n: number | null) {
   return n.toLocaleString('ko-KR')
 }
 
-function stars(rank: number | null) {
-  if (rank == null || rank <= 0) return null
-  return '★'.repeat(Math.min(rank, 10))
-}
-
-function QuestRefButton({
-  quest,
-  children,
-  onOpenQuest,
-}: {
-  quest: DiscoveryQuestRef
-  children: ReactNode
-  onOpenQuest?: (quest: DiscoveryQuestRef) => void
-}) {
-  if (!onOpenQuest) {
-    return <span className="discovery-quest-link is-static">{children}</span>
-  }
-  return (
-    <button
-      type="button"
-      className="discovery-quest-link"
-      onClick={() => onOpenQuest(quest)}
-    >
-      {children}
-    </button>
-  )
-}
-
 export function DiscoveryDetailView({
   discovery,
   onOpenQuest,
+  completionBusy = false,
+  onToggleCompleted,
   basicInfoEdit,
 }: DiscoveryDetailViewProps) {
   const canEdit = Boolean(basicInfoEdit)
@@ -85,10 +63,7 @@ export function DiscoveryDetailView({
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
 
-  const linked = discovery.linkedQuests || []
   const debate = discovery.debateCombo
-  const acquireQuest = discovery.acquireQuest
-  const acquireLabel = formatDiscoveryAcquire(discovery)
 
   useEffect(() => {
     setEditing(false)
@@ -124,15 +99,18 @@ export function DiscoveryDetailView({
 
   return (
     <div className="quest-detail">
-      <header className="quest-detail-hero">
+      <header
+        className={`quest-detail-hero${discovery.completed ? ' is-completed' : ''}`}
+      >
         <div className="quest-detail-hero-top">
-          <span className="quest-badge">발견물</span>
-          {discovery.category ? (
-            <span className="quest-badge">[{discovery.category}]</span>
-          ) : null}
-          {discovery.rank != null ? (
-            <span className="quest-badge">{discovery.rank}성</span>
-          ) : null}
+          <div className="quest-detail-hero-chips">
+            <span className="quest-badge">
+              {getModuleDef('discovery')?.title ?? '발견물'}
+            </span>
+            {discovery.completed ? (
+              <span className="quest-badge quest-badge-done">완료</span>
+            ) : null}
+          </div>
         </div>
         <h2>{discovery.name}</h2>
         {discovery.description ? <p>{discovery.description}</p> : null}
@@ -195,11 +173,18 @@ export function DiscoveryDetailView({
               value={discovery.category}
               hideEmpty={!canEdit}
             />
-            <Row
-              label="난이도"
-              value={stars(discovery.rank)}
-              hideEmpty={!canEdit}
-            />
+            {canEdit || discovery.rank != null ? (
+              <div>
+                <span>난이도</span>
+                <strong>
+                  {discovery.rank != null ? (
+                    <DiscoveryRankMark rank={discovery.rank} />
+                  ) : (
+                    '-'
+                  )}
+                </strong>
+              </div>
+            ) : null}
             <Row
               label="카드 포인트"
               value={formatNum(discovery.cardPoints)}
@@ -220,27 +205,6 @@ export function DiscoveryDetailView({
               value={formatNum(discovery.reportFame)}
               hideEmpty={!canEdit}
             />
-            {canEdit ||
-            acquireQuest ||
-            Boolean(acquireLabel?.trim()) ? (
-              <div className="quest-kv-wide">
-                <span>발견 방법</span>
-                <strong>
-                  {acquireQuest ? (
-                    <QuestRefButton
-                      quest={acquireQuest}
-                      onOpenQuest={onOpenQuest}
-                    >
-                      {acquireLabel}
-                    </QuestRefButton>
-                  ) : acquireLabel?.trim() ? (
-                    acquireLabel
-                  ) : (
-                    '-'
-                  )}
-                </strong>
-              </div>
-            ) : null}
             {canEdit || discovery.place?.trim() ? (
               <div className="quest-kv-wide">
                 <span>장소</span>
@@ -253,40 +217,11 @@ export function DiscoveryDetailView({
         )}
       </section>
 
-      {(canEdit || linked.length > 0) && (
-        <section className="quest-detail-section">
-          <h3>연결 지도/퀘스트</h3>
-          {linked.length > 0 ? (
-            <ol className="quest-chain is-linked">
-              {linked.map((item, index) => {
-                const label = item.tag
-                  ? `[${item.tag}] ${item.quest?.name || item.title}`
-                  : item.quest?.name || item.raw
-                return (
-                  <li key={`${item.raw}-${index}`}>
-                    <div>
-                      <strong>
-                        {item.quest ? (
-                          <QuestRefButton
-                            quest={item.quest}
-                            onOpenQuest={onOpenQuest}
-                          >
-                            {label}
-                          </QuestRefButton>
-                        ) : (
-                          label
-                        )}
-                      </strong>
-                    </div>
-                  </li>
-                )
-              })}
-            </ol>
-          ) : (
-            <p className="quest-muted">없음</p>
-          )}
-        </section>
-      )}
+      <QuestModule
+        discovery={discovery}
+        canEdit={canEdit}
+        onOpenQuest={onOpenQuest}
+      />
 
       {(canEdit || debate) && (
         <section className="quest-detail-section">
@@ -314,6 +249,30 @@ export function DiscoveryDetailView({
             <p className="quest-muted">없음</p>
           )}
         </section>
+      )}
+
+      {onToggleCompleted && (
+        <div className="quest-complete-actions">
+          {discovery.completed ? (
+            <button
+              type="button"
+              className="admin-btn"
+              disabled={completionBusy}
+              onClick={() => onToggleCompleted(false)}
+            >
+              {completionBusy ? '저장 중…' : '완료 취소'}
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="admin-btn admin-btn-primary"
+              disabled={completionBusy}
+              onClick={() => onToggleCompleted(true)}
+            >
+              {completionBusy ? '저장 중…' : '완료'}
+            </button>
+          )}
+        </div>
       )}
     </div>
   )

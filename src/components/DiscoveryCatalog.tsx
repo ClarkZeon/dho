@@ -9,6 +9,7 @@ import {
   deleteDiscovery,
   fetchDiscoveries,
   importDiscoveryText,
+  setDiscoveryCompletion,
   updateDiscovery,
 } from '../lib/api'
 import { formatDiscoveryAcquire } from '../lib/discoveryAcquire'
@@ -25,10 +26,100 @@ type DiscoveryCatalogProps = {
   onToast?: (message: string) => void
 }
 
-type DiscoverySortKey = 'name' | 'category' | 'rank' | 'cardPoints' | 'acquire'
+type DiscoverySortKey =
+  | 'name'
+  | 'category'
+  | 'rank'
+  | 'cardPoints'
+  | 'acquireKind'
+  | 'acquire'
+  | 'acquirePlaces'
 
 function acquireLabel(discovery: DiscoveryDetail) {
   return formatDiscoveryAcquire(discovery)
+}
+
+/** `[퀘스트] 모험 | 이름 (스킬) - 의뢰장소` → 종류 / 발견방법 / 의뢰장소 */
+function splitAcquireLabel(label: string | null | undefined): {
+  kind: string | null
+  detail: string
+  places: string | null
+} {
+  const raw = String(label || '').trim()
+  if (!raw) return { kind: null, detail: '', places: null }
+
+  let body = raw
+  let kind: string | null = null
+  const pipeParts = body.split(/\s*\|\s*/)
+  if (pipeParts.length >= 2) {
+    kind = pipeParts[0].trim() || null
+    body = pipeParts.slice(1).join(' | ').trim()
+  }
+
+  let places: string | null = null
+  const dash = body.match(/^(.*?)\s+-\s+(.+)$/)
+  if (dash) {
+    body = dash[1].trim()
+    places = dash[2].trim() || null
+  }
+
+  return { kind, detail: body, places }
+}
+
+function acquirePlaces(discovery: DiscoveryDetail) {
+  const fromQuest = discovery.acquireQuest?.requestPlaces?.trim()
+  if (fromQuest) return fromQuest
+  return splitAcquireLabel(acquireLabel(discovery)).places
+}
+
+/** 분류: `생물 » 대형생물` — 대괄호 없이 앞은 작게, 뒤는 강조 */
+function DiscoveryCategoryCell({
+  category,
+}: {
+  category: string | null | undefined
+}) {
+  const raw = String(category || '').trim()
+  if (!raw) return '-'
+
+  const parts = raw
+    .split(/\s*[»›>]\s*/)
+    .map((s) => s.trim())
+    .filter(Boolean)
+
+  if (parts.length >= 2) {
+    return (
+      <span className="quest-cat-label">
+        <em className="quest-cat-bracket">{parts[0]}</em>
+        <span className="quest-cat-type">{parts.slice(1).join(' » ')}</span>
+      </span>
+    )
+  }
+
+  return <span className="quest-cat-type">{raw}</span>
+}
+
+/** `[퀘스트] 모험` */
+function DiscoveryAcquireKindCell({
+  kind,
+}: {
+  kind: string | null | undefined
+}) {
+  const raw = String(kind || '').trim()
+  if (!raw) return '-'
+
+  const matched = raw.match(/^\[([^\]]+)\]\s*(.*)$/)
+  if (matched) {
+    const head = matched[1].trim()
+    const type = matched[2].trim()
+    return (
+      <span className="quest-cat-label">
+        <em className="quest-cat-bracket">[{head}]</em>
+        {type ? <span className="quest-cat-type">{type}</span> : null}
+      </span>
+    )
+  }
+
+  return <span className="quest-cat-label">{raw}</span>
 }
 
 export function DiscoveryCatalog({
@@ -47,6 +138,7 @@ export function DiscoveryCatalog({
   const [importNote, setImportNote] = useState('')
   const [deletingId, setDeletingId] = useState<number | null>(null)
   const [busyRankId, setBusyRankId] = useState<number | null>(null)
+  const [busyId, setBusyId] = useState<number | null>(null)
   const { sortKey, sortDir, toggleSort, sortRows } =
     useTableSort<DiscoverySortKey>()
 
@@ -76,6 +168,47 @@ export function DiscoveryCatalog({
       prev.map((d) => (d.id === discovery.id ? discovery : d)),
     )
     setDetail((prev) => (prev?.id === discovery.id ? discovery : prev))
+  }
+
+  async function toggleCompleted(discovery: DiscoveryDetail, next: boolean) {
+    if (busyId === discovery.id) return
+    setBusyId(discovery.id)
+    setError('')
+    try {
+      const res = await setDiscoveryCompletion(token, discovery.id, next)
+      setDiscoveries((prev) =>
+        prev.map((item) =>
+          item.id === discovery.id
+            ? {
+                ...item,
+                completed: res.completed,
+                completedAt: res.completedAt,
+              }
+            : item,
+        ),
+      )
+      if (res.completed) {
+        setDetail(null)
+      } else {
+        setDetail((prev) =>
+          prev && prev.id === discovery.id
+            ? {
+                ...prev,
+                completed: res.completed,
+                completedAt: res.completedAt,
+              }
+            : prev,
+        )
+      }
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : '완료 상태 저장에 실패했습니다.',
+      )
+    } finally {
+      setBusyId(null)
+    }
   }
 
   async function handleImport(e: FormEvent) {
@@ -160,24 +293,42 @@ export function DiscoveryCatalog({
   const rows = sortRows(
     filtered,
     (item, key) => {
-      if (key === 'acquire') return acquireLabel(item)
+      if (
+        key === 'acquire' ||
+        key === 'acquireKind' ||
+        key === 'acquirePlaces'
+      ) {
+        const parts = splitAcquireLabel(acquireLabel(item))
+        if (key === 'acquireKind') return parts.kind
+        if (key === 'acquirePlaces') return acquirePlaces(item)
+        return parts.detail
+      }
       return item[key]
     },
     (a, b) => a.id - b.id,
     compareIdDesc,
   )
 
-  const colCount = isAdmin ? 6 : 5
+  const colCount = isAdmin ? 9 : 8
+  const completedCount = discoveries.filter((d) => d.completed).length
+  const countLabel = !loading
+    ? query.trim()
+      ? `검색 ${rows.length}개 · 전체 완료 ${completedCount}`
+      : discoveries.length > 0
+        ? `완료 ${completedCount}/${discoveries.length}`
+        : ''
+    : ''
 
   return (
-    <section className="tool-page">
+    <section className="tool-page discovery-catalog">
       <div className="messages-head">
         <div>
           <h1>발견물</h1>
           <p>
             {isAdmin
               ? '위키 텍스트로 추가·갱신합니다. 같은 이름이면 내용을 덮어씁니다.'
-              : '등록된 발견물을 확인하고 상세를 엽니다.'}
+              : '등록된 발견물을 확인하고 상세에서 완료를 표시합니다.'}
+            {countLabel ? ` (${countLabel})` : ''}
           </p>
         </div>
         {isAdmin && (
@@ -297,20 +448,40 @@ export function DiscoveryCatalog({
                 />
                 <SortableTh
                   className="col-desk"
+                  label="종류"
+                  sortKey="acquireKind"
+                  activeKey={sortKey}
+                  dir={sortDir}
+                  onSort={toggleSort}
+                />
+                <SortableTh
+                  className="col-desk"
                   label={isAdmin ? '발견 방법' : '획득'}
                   sortKey="acquire"
                   activeKey={sortKey}
                   dir={sortDir}
                   onSort={toggleSort}
                 />
+                <SortableTh
+                  className="col-desk"
+                  label="의뢰 장소"
+                  sortKey="acquirePlaces"
+                  activeKey={sortKey}
+                  dir={sortDir}
+                  onSort={toggleSort}
+                />
+                <th className="col-quest-done">완료</th>
                 {isAdmin && <th className="col-desk">삭제</th>}
               </tr>
             </thead>
             <tbody>
-              {rows.map((item, index) => (
+              {rows.map((item, index) => {
+                const acquireParts = splitAcquireLabel(acquireLabel(item))
+                const places = acquirePlaces(item)
+                return (
                 <tr
                   key={item.id}
-                  className={`admin-row-clickable${index % 2 === 0 ? ' is-even' : ' is-odd'}`}
+                  className={`admin-row-clickable${item.completed ? ' is-quest-done' : ''}${index % 2 === 0 ? ' is-even' : ' is-odd'}`}
                   tabIndex={0}
                   onClick={() => setDetail(item)}
                   onKeyDown={(event: KeyboardEvent<HTMLTableRowElement>) => {
@@ -321,7 +492,9 @@ export function DiscoveryCatalog({
                   }}
                 >
                   <td>{item.name}</td>
-                  <td className="col-desk">{item.category || '-'}</td>
+                  <td className="col-desk">
+                    <DiscoveryCategoryCell category={item.category} />
+                  </td>
                   <td
                     className={`col-desk${isAdmin ? ' admin-cell-control col-diff' : ''}`}
                     onClick={isAdmin ? (e) => e.stopPropagation() : undefined}
@@ -353,7 +526,24 @@ export function DiscoveryCatalog({
                     )}
                   </td>
                   <td className="col-desk">{item.cardPoints ?? '-'}</td>
-                  <td className="col-desk">{acquireLabel(item) || '-'}</td>
+                  <td className="col-desk">
+                    <DiscoveryAcquireKindCell kind={acquireParts.kind} />
+                  </td>
+                  <td className="col-desk">
+                    {acquireParts.detail || '-'}
+                  </td>
+                  <td className="col-desk">{places || '-'}</td>
+                  <td className="col-quest-done">
+                    {item.completed ? (
+                      <span
+                        className="quest-done-check"
+                        aria-label="완료"
+                        title="완료"
+                      >
+                        ✓
+                      </span>
+                    ) : null}
+                  </td>
                   {isAdmin && (
                     <td
                       className="admin-cell-control col-desk"
@@ -371,7 +561,8 @@ export function DiscoveryCatalog({
                     </td>
                   )}
                 </tr>
-              ))}
+                )
+              })}
               {rows.length === 0 && (
                 <tr>
                   <td colSpan={colCount}>
@@ -394,6 +585,10 @@ export function DiscoveryCatalog({
         >
           <DiscoveryDetailView
             discovery={detail}
+            completionBusy={busyId === detail.id}
+            onToggleCompleted={(completed) =>
+              void toggleCompleted(detail, completed)
+            }
             basicInfoEdit={
               isAdmin
                 ? {

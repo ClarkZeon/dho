@@ -1,8 +1,19 @@
-﻿import { useEffect, useState, type KeyboardEvent } from 'react'
-import { fetchSkills } from '../lib/api'
+import {
+  useCallback,
+  useEffect,
+  useState,
+  type FormEvent,
+  type KeyboardEvent,
+} from 'react'
+import {
+  deleteSkill,
+  fetchSkills,
+  importSkillText,
+} from '../lib/api'
 import { compareIdDesc, useTableSort } from '../lib/tableSort'
 import type { SkillDetail } from '../types'
 import { DetailModal } from './DetailModal'
+import { DucatAmount } from './DucatAmount'
 import { SkillDetailView } from './SkillDetailView'
 import { SortableTh } from './SortableTh'
 
@@ -10,9 +21,11 @@ const PAGE_SIZE = 15
 
 type SkillCatalogProps = {
   token: string
+  isAdmin?: boolean
+  onToast?: (message: string) => void
 }
 
-type SkillSortKey = 'name' | 'category' | 'rangeScope' | 'learnCost' | 'useCities'
+type SkillSortKey = 'name' | 'category' | 'rangeScope' | 'learnCost'
 
 function matchesSkill(skill: SkillDetail, query: string) {
   const q = query.trim().toLowerCase()
@@ -47,12 +60,6 @@ function matchesSkill(skill: SkillDetail, query: string) {
   return haystack.includes(q)
 }
 
-function useCitiesLabel(skill: SkillDetail) {
-  return skill.useCities?.length
-    ? skill.useCities.map((c) => c.city).join(', ')
-    : ''
-}
-
 function skillCategory(skill: SkillDetail) {
   return String(skill.category || '').trim() || '언어'
 }
@@ -69,44 +76,91 @@ function matchesSkillCategory(skill: SkillDetail, categories: Set<string>) {
 }
 
 /** 유저 사이트 스킬 목록 (분류: 언어 등) */
-export function SkillCatalog({ token }: SkillCatalogProps) {
+export function SkillCatalog({
+  token,
+  isAdmin = false,
+  onToast,
+}: SkillCatalogProps) {
   const [skills, setSkills] = useState<SkillDetail[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [detail, setDetail] = useState<SkillDetail | null>(null)
+  const [detailEditMode, setDetailEditMode] = useState(false)
   const [query, setQuery] = useState('')
   const [selectedCategories, setSelectedCategories] = useState<Set<string>>(
     () => new Set(),
   )
   const [page, setPage] = useState(0)
+  const [showImport, setShowImport] = useState(false)
+  const [importText, setImportText] = useState('')
+  const [importing, setImporting] = useState(false)
+  const [importNote, setImportNote] = useState('')
+  const [deletingId, setDeletingId] = useState<number | null>(null)
   const { sortKey, sortDir, toggleSort, sortRows } =
     useTableSort<SkillSortKey>()
 
-  useEffect(() => {
-    let alive = true
-    ;(async () => {
-      try {
-        setLoading(true)
-        setError('')
-        const res = await fetchSkills(token)
-        if (!alive) return
-        setSkills(res.skills)
-        setPage(0)
-      } catch (err) {
-        if (!alive) return
-        setError(
-          err instanceof Error
-            ? err.message
-            : '스킬 목록을 불러오지 못했습니다.',
-        )
-      } finally {
-        if (alive) setLoading(false)
-      }
-    })()
-    return () => {
-      alive = false
+  const loadSkills = useCallback(async () => {
+    setLoading(true)
+    setError('')
+    try {
+      const res = await fetchSkills(token)
+      setSkills(res.skills)
+      setPage(0)
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : '스킬 목록을 불러오지 못했습니다.',
+      )
+    } finally {
+      setLoading(false)
     }
   }, [token])
+
+  useEffect(() => {
+    void loadSkills()
+  }, [loadSkills])
+
+  async function handleImport(e: FormEvent) {
+    e.preventDefault()
+    if (!importText.trim()) {
+      setImportNote('텍스트를 붙여넣어 주세요.')
+      return
+    }
+    setImporting(true)
+    setImportNote('')
+    try {
+      const res = await importSkillText(token, importText)
+      setImportText('')
+      setShowImport(false)
+      setImportNote(
+        `「${res.skill.name}」을(를) 저장했습니다. (동일 이름이면 내용이 갱신됩니다)`,
+      )
+      onToast?.(`스킬 「${res.skill.name}」 저장 완료`)
+      await loadSkills()
+    } catch (err) {
+      setImportNote(
+        err instanceof Error ? err.message : '저장에 실패했습니다.',
+      )
+    } finally {
+      setImporting(false)
+    }
+  }
+
+  async function handleDelete(skill: SkillDetail) {
+    if (!window.confirm(`「${skill.name}」 스킬을 삭제할까요?`)) return
+    setDeletingId(skill.id)
+    try {
+      await deleteSkill(token, skill.id)
+      setSkills((prev) => prev.filter((s) => s.id !== skill.id))
+      if (detail?.id === skill.id) setDetail(null)
+      onToast?.(`스킬 「${skill.name}」을(를) 삭제했습니다.`)
+    } catch (err) {
+      onToast?.(err instanceof Error ? err.message : '삭제에 실패했습니다.')
+    } finally {
+      setDeletingId(null)
+    }
+  }
 
   const categories = collectCategories(skills)
 
@@ -126,8 +180,6 @@ export function SkillCatalog({ token }: SkillCatalogProps) {
           return skill.rangeScope
         case 'learnCost':
           return skill.learnCost
-        case 'useCities':
-          return useCitiesLabel(skill)
       }
     },
     (a, b) => a.id - b.id,
@@ -149,6 +201,7 @@ export function SkillCatalog({ token }: SkillCatalogProps) {
     safePage * PAGE_SIZE,
     safePage * PAGE_SIZE + PAGE_SIZE,
   )
+  const colCount = 4 + (isAdmin ? 1 : 0)
 
   function handleSort(key: SkillSortKey) {
     toggleSort(key)
@@ -160,9 +213,70 @@ export function SkillCatalog({ token }: SkillCatalogProps) {
       <div className="messages-head">
         <div>
           <h1>스킬</h1>
-          <p>등록된 스킬을 확인하고 상세를 엽니다. 언어는 분류 중 하나입니다.</p>
+          <p>
+            {isAdmin
+              ? '위키 텍스트로 추가·갱신합니다. 같은 이름이면 내용을 덮어씁니다.'
+              : '등록된 스킬을 확인하고 상세를 엽니다. 언어는 분류 중 하나입니다.'}
+          </p>
         </div>
+        {isAdmin && (
+          <div className="admin-page-actions">
+            <button
+              type="button"
+              className="btn-admin"
+              onClick={() => void loadSkills()}
+              disabled={loading}
+            >
+              새로고침
+            </button>
+            <button
+              type="button"
+              className="btn-admin btn-admin-primary"
+              onClick={() => {
+                setShowImport((v) => !v)
+                setImportNote('')
+              }}
+            >
+              {showImport ? '닫기' : '스킬 추가'}
+            </button>
+          </div>
+        )}
       </div>
+
+      {isAdmin && showImport && (
+        <form className="admin-import-form" onSubmit={handleImport}>
+          <label className="field">
+            <span>스킬 텍스트</span>
+            <textarea
+              className="quest-import-textarea"
+              rows={16}
+              value={importText}
+              onChange={(e) => setImportText(e.target.value)}
+              placeholder={`스킬생태 조사\n동식물의 생태를 연구하고 발견한다.\n\n분류\t모험\t부관담당\t감시\n행동력\t5\t범위\t자신\n습득 비용\t3,000두캇\t연성 효과\t발견 시 피로 회복\n우대 직업\t궁정 정원사*, 레인저, 바이킹, 브리더, 사냥꾼*, 생물학자\n습득 조건\n종류\t내용\n레벨\t모험 Lv3\n스킬 습득\n지역\t도시\t도시 인물\n유럽 북부\t런던\t모험가 조합 마스터`}
+              disabled={importing}
+            />
+          </label>
+          <div className="form-actions">
+            <button
+              type="submit"
+              className="btn-admin btn-admin-primary"
+              disabled={importing}
+            >
+              {importing ? '저장 중…' : '저장'}
+            </button>
+          </div>
+        </form>
+      )}
+
+      {importNote && (
+        <p
+          className={`form-note${
+            /실패|못|오류|에러|중복/.test(importNote) ? ' error' : ''
+          }`}
+        >
+          {importNote}
+        </p>
+      )}
 
       {!loading && categories.length > 0 && (
         <div
@@ -244,14 +358,7 @@ export function SkillCatalog({ token }: SkillCatalogProps) {
                     dir={sortDir}
                     onSort={handleSort}
                   />
-                  <SortableTh
-                    className="col-desk"
-                    label="사용 도시"
-                    sortKey="useCities"
-                    activeKey={sortKey}
-                    dir={sortDir}
-                    onSort={handleSort}
-                  />
+                  {isAdmin && <th className="col-desk col-action">삭제</th>}
                 </tr>
               </thead>
               <tbody>
@@ -260,10 +367,14 @@ export function SkillCatalog({ token }: SkillCatalogProps) {
                     key={skill.id}
                     className={`admin-row-clickable${index % 2 === 0 ? ' is-even' : ' is-odd'}`}
                     tabIndex={0}
-                    onClick={() => setDetail(skill)}
+                    onClick={() => {
+                      setDetailEditMode(false)
+                      setDetail(skill)
+                    }}
                     onKeyDown={(event: KeyboardEvent<HTMLTableRowElement>) => {
                       if (event.key === 'Enter' || event.key === ' ') {
                         event.preventDefault()
+                        setDetailEditMode(false)
                         setDetail(skill)
                       }
                     }}
@@ -273,17 +384,30 @@ export function SkillCatalog({ token }: SkillCatalogProps) {
                     <td className="col-desk">{skill.rangeScope || '-'}</td>
                     <td className="col-desk">
                       {skill.learnCost != null
-                        ? `${skill.learnCost.toLocaleString('ko-KR')}두캇`
+                        ? <DucatAmount value={skill.learnCost} />
                         : '-'}
                     </td>
-                    <td className="admin-table-wrap-cell col-desk">
-                      {useCitiesLabel(skill) || '-'}
-                    </td>
+                    {isAdmin && (
+                      <td
+                        className="col-desk col-action admin-cell-control"
+                        onClick={(e) => e.stopPropagation()}
+                        onKeyDown={(e) => e.stopPropagation()}
+                      >
+                        <button
+                          type="button"
+                          className="btn-admin"
+                          disabled={deletingId === skill.id}
+                          onClick={() => void handleDelete(skill)}
+                        >
+                          {deletingId === skill.id ? '삭제 중…' : '삭제'}
+                        </button>
+                      </td>
+                    )}
                   </tr>
                 ))}
                 {filtered.length === 0 && (
                   <tr>
-                    <td colSpan={5}>
+                    <td colSpan={colCount}>
                       {skills.length === 0
                         ? '등록된 스킬이 없습니다.'
                         : '검색 결과가 없습니다.'}
@@ -332,9 +456,55 @@ export function SkillCatalog({ token }: SkillCatalogProps) {
         <DetailModal
           title="스킬 상세"
           label={`${detail.name} 상세`}
-          onClose={() => setDetail(null)}
+          onClose={() => {
+            setDetail(null)
+            setDetailEditMode(false)
+          }}
+          headerActions={
+            isAdmin ? (
+              <div
+                className="detail-mode-toggle"
+                role="group"
+                aria-label="상세 모드"
+              >
+                <button
+                  type="button"
+                  className={!detailEditMode ? 'active' : ''}
+                  aria-pressed={!detailEditMode}
+                  onClick={() => setDetailEditMode(false)}
+                >
+                  사용자 모드
+                </button>
+                <button
+                  type="button"
+                  className={detailEditMode ? 'active' : ''}
+                  aria-pressed={detailEditMode}
+                  onClick={() => setDetailEditMode(true)}
+                >
+                  수정 모드
+                </button>
+              </div>
+            ) : undefined
+          }
         >
-          <SkillDetailView skill={detail} />
+          <SkillDetailView
+            skill={detail}
+            editMode={detailEditMode}
+            edit={
+              isAdmin
+                ? {
+                    token,
+                    onSaved: (skill) => {
+                      setSkills((prev) =>
+                        prev.map((s) => (s.id === skill.id ? skill : s)),
+                      )
+                      setDetail(skill)
+                    },
+                    onToast,
+                  }
+                : undefined
+            }
+          />
         </DetailModal>
       )}
     </section>

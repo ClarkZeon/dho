@@ -7,6 +7,7 @@ import type {
   SeaAreaNpc,
   SeaAreaPlace,
 } from '../types'
+import { DiscoveryChips } from './modules/DiscoveryChips'
 
 type SeaAreaDetailViewProps = {
   seaArea: SeaAreaDetail
@@ -805,7 +806,13 @@ export function SeaAreaDetailView({ seaArea, edit }: SeaAreaDetailViewProps) {
                     <tbody>
                       {items.map((item, idx) => (
                         <tr key={`${source}-${item.discovery}-${idx}`}>
-                          <td>{item.discovery || '-'}</td>
+                          <td>
+                            {item.discovery?.trim() ? (
+                              <DiscoveryChips items={[item.discovery]} />
+                            ) : (
+                              '-'
+                            )}
+                          </td>
                           <td>{item.content || '-'}</td>
                         </tr>
                       ))}

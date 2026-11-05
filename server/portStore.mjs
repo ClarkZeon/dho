@@ -2,12 +2,29 @@ import {
   bumpCatalogStat,
   bumpCatalogStatIfGrew,
 } from './adminStats.mjs'
+import {
+  ensureLocalFlagPath,
+  resolveCountryFlagFromCategory,
+} from './cityFlagAssets.mjs'
 import { getSql, hasDatabaseUrl, runSqlFile } from './db.mjs'
 
 export async function ensurePortStore() {
   if (!hasDatabaseUrl()) throw new Error('DATABASE_URL 이 없습니다.')
   await runSqlFile('sql/009_ports.sql')
   await runSqlFile('sql/027_port_detail_extra.sql')
+  await runSqlFile('sql/043_port_flag_image.sql')
+}
+
+async function mirrorFlagImage(flagImage) {
+  const local = String(flagImage || '').trim()
+  if (!local) return null
+  return ensureLocalFlagPath(local)
+}
+
+async function resolvePortFlagImage(flagImage, category) {
+  const mirrored = flagImage ? await mirrorFlagImage(flagImage) : null
+  if (mirrored) return mirrored
+  return resolveCountryFlagFromCategory(category)
 }
 
 function normalizePortName(name) {
@@ -90,6 +107,7 @@ function decoratePort(row) {
     language: row.language == null ? null : String(row.language),
     facilities: row.facilities == null ? null : String(row.facilities),
     flagQuest: row.flag_quest == null ? null : String(row.flag_quest),
+    flagImage: row.flag_image == null ? null : String(row.flag_image),
     rewards: asJsonArray(row.rewards).map((item) => ({
       kind: String(item?.kind || ''),
       amount: String(item?.amount || ''),
@@ -109,6 +127,10 @@ function decoratePort(row) {
     productions: asJsonArray(row.productions).map((item) => ({
       tab: String(item?.tab || '장식품 제작'),
       maker: String(item?.maker || ''),
+      rank:
+        item?.rank == null || item?.rank === ''
+          ? null
+          : Number(item.rank),
       items: String(item?.items || ''),
     })),
     destinations: asJsonArray(row.destinations).map((item) => ({
@@ -193,6 +215,10 @@ function normalizeProductions(list) {
   return list.map((item) => ({
     tab: String(item?.tab || '장식품 제작'),
     maker: String(item?.maker || ''),
+    rank:
+      item?.rank == null || item?.rank === ''
+        ? null
+        : Number(item.rank),
     items: String(item?.items || ''),
   }))
 }
@@ -247,8 +273,12 @@ export async function updatePortFields(id, patch) {
     'language',
     'facilities',
     'flagQuest',
+    'flagImage',
   ]) {
     if (key in patch) next[key] = asNullableText(patch[key])
+  }
+  if ('flagImage' in patch || 'category' in patch) {
+    next.flagImage = await resolvePortFlagImage(next.flagImage, next.category)
   }
   if ('coordX' in patch) next.coordX = asOptionalNumber(patch.coordX)
   if ('coordY' in patch) next.coordY = asOptionalNumber(patch.coordY)
@@ -288,6 +318,7 @@ export async function updatePortFields(id, patch) {
       language = ${next.language},
       facilities = ${next.facilities},
       flag_quest = ${next.flagQuest},
+      flag_image = ${next.flagImage},
       rewards = ${rewardsJson},
       collect_items = ${collectJson},
       linked_places = ${linkedJson},
@@ -352,6 +383,10 @@ export async function upsertPortFromParsed(parsed) {
 
   const existing = await findPortIdByName(sql, name)
   const bundle = parsedJsonBundle(parsed)
+  const flagImage = await resolvePortFlagImage(
+    parsed.flagImage,
+    parsed.category,
+  )
 
   if (existing) {
     await sql`
@@ -369,6 +404,7 @@ export async function upsertPortFromParsed(parsed) {
         language = ${parsed.language},
         facilities = ${parsed.facilities ?? null},
         flag_quest = ${parsed.flagQuest ?? null},
+        flag_image = COALESCE(${flagImage}, flag_image),
         rewards = ${bundle.rewardsJson},
         collect_items = ${bundle.collectJson},
         linked_places = ${bundle.linkedJson},
@@ -406,6 +442,7 @@ export async function upsertPortFromParsed(parsed) {
     INSERT INTO ports (
       id, slug, name, alt_name, description, category, region, sea_area,
       coord_x, coord_y, entry_permit, culture, language, facilities, flag_quest,
+      flag_image,
       rewards, collect_items, linked_places, characters, productions,
       destinations, sale_items, enabled, sort_order
     ) VALUES (
@@ -414,6 +451,7 @@ export async function upsertPortFromParsed(parsed) {
       ${parsed.coordX}, ${parsed.coordY}, ${parsed.entryPermit},
       ${parsed.culture}, ${parsed.language}, ${parsed.facilities ?? null},
       ${parsed.flagQuest ?? null},
+      ${flagImage},
       ${bundle.rewardsJson}, ${bundle.collectJson}, ${bundle.linkedJson},
       ${bundle.charactersJson}, ${bundle.productionsJson},
       ${bundle.destinationsJson}, ${bundle.saleJson},

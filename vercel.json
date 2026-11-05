@@ -21,7 +21,7 @@
     { "source": "/api", "destination": "/api?__p=/api" },
     { "source": "/api/(.*)", "destination": "/api?__p=/api/$1" },
     {
-      "source": "/((?!api/|robots\\.txt|favicon\\.svg|icons\\.svg).*)",
+      "source": "/((?!api/|cities/|robots\\.txt|favicon\\.svg|icons\\.svg).*)",
       "destination": "/index.html"
     }
   ]

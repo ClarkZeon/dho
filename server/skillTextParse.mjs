@@ -1,9 +1,10 @@
-﻿/**
+/**
  * 위키형 스킬 텍스트 → DB용 객체
  *
  * 스킬중국어 / 스킬 | 생태 조사
  * …
- * 스킬 습득 / 사용 도시 / 부관 / 효과 아이템 / 습득 조건
+ * 스킬 습득 / 사용 도시 / 습득 조건
+ * (부관·장비품·효과 아이템 섹션은 무시)
  */
 
 import { createHash } from 'node:crypto'
@@ -161,19 +162,13 @@ function isConditionHeader(cols) {
   )
 }
 
-function isOfficerHeader(cols) {
+/** 스킬 상세에서 쓰지 않는 위키 섹션 — 내용 전부 스킵 */
+function isIgnoredSkillSection(line) {
+  const t = String(line || '').trim()
   return (
-    cols.length >= 2 &&
-    /^부관$/.test(cols[0] || '') &&
-    /^직업$/.test(cols[1] || '')
-  )
-}
-
-function isEffectHeader(cols) {
-  return (
-    cols.length >= 2 &&
-    /^종류$/.test(cols[0] || '') &&
-    /^아이템$/.test(cols[1] || '')
+    /^부관$/.test(t) ||
+    /^장비품$/.test(t) ||
+    /^효과\s*아이템/.test(t)
   )
 }
 
@@ -196,8 +191,7 @@ export function parseSkillText(text) {
       /^사용\s*도시/.test(line) ||
       /^습득\s*조건/.test(line) ||
       /^우대\s*직업/.test(line) ||
-      /^부관$/.test(line) ||
-      /^효과\s*아이템/.test(line)
+      isIgnoredSkillSection(line)
     ) {
       continue
     }
@@ -251,13 +245,9 @@ export function parseSkillText(text) {
     learnPlaces: [],
     /** @type {Array<{ region: string, city: string }>} */
     useCities: [],
-    /** @type {Array<{ name: string, job: string|null, adventure: string|null, trade: string|null, battle: string|null, trait: string|null }>} */
-    officers: [],
-    /** @type {Array<{ kind: string, item: string }>} */
-    effectItems: [],
   }
 
-  /** @type {null | 'meta' | 'learn' | 'use' | 'conditions' | 'officers' | 'effects'} */
+  /** @type {null | 'meta' | 'learn' | 'use' | 'conditions' | 'skip'} */
   let mode = null
   let lastLearnRegion = ''
 
@@ -277,16 +267,17 @@ export function parseSkillText(text) {
       mode = 'conditions'
       continue
     }
-    if (/^부관$/.test(line)) {
-      mode = 'officers'
-      continue
-    }
-    if (/^효과\s*아이템/.test(line)) {
-      mode = 'effects'
+    if (isIgnoredSkillSection(line)) {
+      mode = 'skip'
       continue
     }
 
     const cols = splitTabs(line)
+
+    if (mode === 'skip') {
+      // 다른 유효 섹션/메타가 나오기 전까지 무시
+      continue
+    }
 
     if (mode === 'learn') {
       if (isLearnHeader(cols) || isUseHeader(cols)) continue
@@ -330,32 +321,6 @@ export function parseSkillText(text) {
       continue
     }
 
-    if (mode === 'officers') {
-      if (isOfficerHeader(cols)) continue
-      if (cols[0] && cols[0] !== '부관') {
-        state.officers.push({
-          name: cols[0],
-          job: emptyCell(cols[1]),
-          adventure: emptyCell(cols[2]),
-          trade: emptyCell(cols[3]),
-          battle: emptyCell(cols[4]),
-          trait: emptyCell(cols[5]),
-        })
-      }
-      continue
-    }
-
-    if (mode === 'effects') {
-      if (isEffectHeader(cols)) continue
-      if (cols[0] && cols[1] && cols[0] !== '종류') {
-        state.effectItems.push({
-          kind: cols[0],
-          item: cols.slice(1).join('\t').trim(),
-        })
-      }
-      continue
-    }
-
     if (/^우대\s*직업$/.test(cols[0] || '')) {
       applyMetaCols(state, cols)
       mode = 'meta'
@@ -383,14 +348,18 @@ export function parseSkillText(text) {
       .join(', ')
   }
 
+  const category = state.category || '언어'
+  const rangeScope =
+    category === '언어' ? '함대' : state.rangeScope
+
   return {
     name,
     slug: slugify(name),
     altName: state.altName,
     description: state.description || null,
-    category: state.category,
+    category,
     officerDuty: state.officerDuty,
-    rangeScope: state.rangeScope,
+    rangeScope,
     actionPower: state.actionPower,
     autoEffect: state.autoEffect,
     refineEffect: state.refineEffect,
@@ -400,8 +369,10 @@ export function parseSkillText(text) {
     preferredJobs: state.preferredJobs,
     acquireConditions: state.acquireConditions,
     learnPlaces: state.learnPlaces,
-    useCities: state.useCities,
-    officers: state.officers,
-    effectItems: state.effectItems,
+    // 사용 도시는 언어 스킬만
+    useCities: category === '언어' ? state.useCities : [],
+    officers: [],
+    effectItems: [],
+    equipmentItems: [],
   }
 }

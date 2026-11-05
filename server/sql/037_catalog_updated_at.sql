@@ -69,3 +69,13 @@ ALTER TABLE ship_materials ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ;
 UPDATE ship_materials SET updated_at = NOW() WHERE updated_at IS NULL;
 ALTER TABLE ship_materials ALTER COLUMN updated_at SET DEFAULT NOW();
 ALTER TABLE ship_materials ALTER COLUMN updated_at SET NOT NULL;
+
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ;
+UPDATE jobs SET updated_at = COALESCE(created_at, NOW()) WHERE updated_at IS NULL;
+ALTER TABLE jobs ALTER COLUMN updated_at SET DEFAULT NOW();
+ALTER TABLE jobs ALTER COLUMN updated_at SET NOT NULL;
+
+ALTER TABLE refines ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ;
+UPDATE refines SET updated_at = COALESCE(created_at, NOW()) WHERE updated_at IS NULL;
+ALTER TABLE refines ALTER COLUMN updated_at SET DEFAULT NOW();
+ALTER TABLE refines ALTER COLUMN updated_at SET NOT NULL;

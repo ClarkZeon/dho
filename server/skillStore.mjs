@@ -1,4 +1,4 @@
-﻿import {
+import {
   bumpCatalogStat,
   bumpCatalogStatIfGrew,
 } from './adminStats.mjs'
@@ -42,6 +42,31 @@ export async function ensureSkillStore() {
   await runSqlFile('sql/021_skill_extra_fields.sql')
   await runSqlFile('sql/022_rename_library_languages_to_skills.sql')
   await runSqlFile('sql/029_skill_detail_extra.sql')
+  await runSqlFile('sql/040_language_range_fleet.sql')
+  await runSqlFile('sql/041_non_language_clear_use_cities.sql')
+  await runSqlFile('sql/042_skill_equipment_items.sql')
+}
+
+function rangeScopeForCategory(category, rangeScope) {
+  if (String(category || '').trim() === '언어') return '함대'
+  return rangeScope == null || rangeScope === '' ? null : String(rangeScope)
+}
+
+/** 위키 장비품 안내/목록이 부관 JSON에 섞인 경우 */
+function isEquipmentMistakenAsOfficer(item) {
+  const name = String(item?.name || '').trim()
+  const job = String(item?.job || '').trim()
+  if (name === '장비품') return true
+  if (/표시가 제한|연동되어 표시/.test(name) || /표시가 제한|연동되어 표시/.test(job)) {
+    return true
+  }
+  const hasStats =
+    item?.adventure != null ||
+    item?.trade != null ||
+    item?.battle != null ||
+    item?.trait != null
+  if (!hasStats && job && /[＋+]/.test(job)) return true
+  return false
 }
 
 function normalizeName(name) {
@@ -107,6 +132,31 @@ function normalizeEffectItems(list) {
   }))
 }
 
+function asEquipText(value) {
+  if (value == null || value === '') return null
+  const t = String(value).trim()
+  return t ? t : null
+}
+
+function normalizeEquipmentItems(list) {
+  if (!Array.isArray(list)) {
+    throw new Error('장비품 형식이 올바르지 않습니다.')
+  }
+  return list.map((item) => {
+    const legacyEffect = asEquipText(item?.effect ?? item?.item)
+    return {
+      slot: String(item?.slot || '도구').trim() || '도구',
+      name: String(item?.name || item?.kind || ''),
+      durability: asEquipText(item?.durability),
+      attack: asEquipText(item?.attack),
+      defense: asEquipText(item?.defense),
+      useEffect: asEquipText(item?.useEffect),
+      skills: asEquipText(item?.skills) || legacyEffect,
+      equipEffect: asEquipText(item?.equipEffect),
+    }
+  })
+}
+
 function decorateSkill(row) {
   return {
     id: Number(row.id),
@@ -117,7 +167,12 @@ function decorateSkill(row) {
     category: row.category == null ? null : String(row.category),
     officerDuty:
       row.officer_duty == null ? null : String(row.officer_duty),
-    rangeScope: row.range_scope == null ? null : String(row.range_scope),
+    rangeScope:
+      String(row.category || '').trim() === '언어'
+        ? '함대'
+        : row.range_scope == null
+          ? null
+          : String(row.range_scope),
     actionPower: row.action_power == null ? null : String(row.action_power),
     autoEffect: row.auto_effect == null ? null : String(row.auto_effect),
     refineEffect:
@@ -136,22 +191,17 @@ function decorateSkill(row) {
       city: String(item?.city || ''),
       npc: item?.npc == null || item?.npc === '' ? null : String(item.npc),
     })),
-    useCities: asJsonArray(row.use_cities).map((item) => ({
-      region: String(item?.region || ''),
-      city: String(item?.city || ''),
-    })),
-    officers: asJsonArray(row.officers).map((item) => ({
-      name: String(item?.name || ''),
-      job: asNullableText(item?.job),
-      adventure: asNullableText(item?.adventure),
-      trade: asNullableText(item?.trade),
-      battle: asNullableText(item?.battle),
-      trait: asNullableText(item?.trait),
-    })),
-    effectItems: asJsonArray(row.effect_items).map((item) => ({
-      kind: String(item?.kind || ''),
-      item: String(item?.item || ''),
-    })),
+    useCities:
+      String(row.category || '').trim() === '언어'
+        ? asJsonArray(row.use_cities).map((item) => ({
+            region: String(item?.region || ''),
+            city: String(item?.city || ''),
+          }))
+        : [],
+    // 스킬 상세에서 부관·장비품·효과 아이템은 사용하지 않음
+    officers: [],
+    effectItems: [],
+    equipmentItems: [],
     updatedAt: row.updated_at
       ? new Date(/** @type {string|Date} */ (row.updated_at)).toISOString()
       : null,
@@ -217,6 +267,10 @@ export async function updateSkillFields(id, patch) {
   ]) {
     if (key in patch) next[key] = asNullableText(patch[key])
   }
+  next.rangeScope = rangeScopeForCategory(next.category, next.rangeScope)
+  if (String(next.category || '').trim() !== '언어') {
+    next.useCities = []
+  }
   if ('autoEffect' in patch) next.autoEffect = asAutoEffect(patch.autoEffect)
   if ('learnCost' in patch) next.learnCost = asOptionalNumber(patch.learnCost)
   if ('equipCost' in patch) next.equipCost = asOptionalNumber(patch.equipCost)
@@ -259,6 +313,9 @@ export async function updateSkillFields(id, patch) {
   if ('effectItems' in patch) {
     next.effectItems = normalizeEffectItems(patch.effectItems)
   }
+  if ('equipmentItems' in patch) {
+    next.equipmentItems = normalizeEquipmentItems(patch.equipmentItems)
+  }
 
   await sql`
     UPDATE skills SET
@@ -279,7 +336,8 @@ export async function updateSkillFields(id, patch) {
       learn_places = ${JSON.stringify(next.learnPlaces)},
       use_cities = ${JSON.stringify(next.useCities)},
       officers = ${JSON.stringify(next.officers)},
-      effect_items = ${JSON.stringify(next.effectItems)}
+      effect_items = ${JSON.stringify(next.effectItems)},
+      equipment_items = ${JSON.stringify(next.equipmentItems || [])}
     WHERE id = ${skillId}
   `
   return getSkillById(skillId)
@@ -323,13 +381,17 @@ export async function upsertSkillFromParsed(parsed) {
     String(parsed.category || '')
       .trim()
       .replace(/\s+/g, ' ') || '언어'
+  const rangeScope = rangeScopeForCategory(category, parsed.rangeScope)
 
   const learnPlacesJson = JSON.stringify(parsed.learnPlaces || [])
-  const useCitiesJson = JSON.stringify(parsed.useCities || [])
+  const useCitiesJson = JSON.stringify(
+    category === '언어' ? parsed.useCities || [] : [],
+  )
   const preferredJobsJson = JSON.stringify(parsed.preferredJobs || [])
   const acquireConditionsJson = JSON.stringify(parsed.acquireConditions || [])
   const officersJson = JSON.stringify(parsed.officers || [])
   const effectItemsJson = JSON.stringify(parsed.effectItems || [])
+  const equipmentItemsJson = JSON.stringify(parsed.equipmentItems || [])
   const autoEffect = asAutoEffect(parsed.autoEffect)
   const existing = await findIdByName(sql, name)
 
@@ -341,7 +403,7 @@ export async function upsertSkillFromParsed(parsed) {
         description = ${parsed.description ?? null},
         category = ${category},
         officer_duty = ${parsed.officerDuty ?? null},
-        range_scope = ${parsed.rangeScope ?? null},
+        range_scope = ${rangeScope},
         action_power = ${parsed.actionPower ?? null},
         auto_effect = ${autoEffect},
         refine_effect = ${parsed.refineEffect ?? null},
@@ -354,6 +416,7 @@ export async function upsertSkillFromParsed(parsed) {
         use_cities = ${useCitiesJson},
         officers = ${officersJson},
         effect_items = ${effectItemsJson},
+        equipment_items = ${equipmentItemsJson},
         enabled = TRUE
       WHERE id = ${existing.id}
     `
@@ -387,15 +450,17 @@ export async function upsertSkillFromParsed(parsed) {
       id, slug, name, alt_name, description, category, officer_duty, range_scope,
       action_power, auto_effect, refine_effect, learn_cost, equip_cost, prerequisite,
       preferred_jobs, acquire_conditions,
-      learn_places, use_cities, officers, effect_items, enabled, sort_order
+      learn_places, use_cities, officers, effect_items, equipment_items,
+      enabled, sort_order
     ) VALUES (
       ${id}, ${slug}, ${name}, ${parsed.altName ?? null}, ${parsed.description ?? null},
-      ${category}, ${parsed.officerDuty ?? null}, ${parsed.rangeScope ?? null},
+      ${category}, ${parsed.officerDuty ?? null}, ${rangeScope},
       ${parsed.actionPower ?? null}, ${autoEffect},
       ${parsed.refineEffect ?? null},
       ${parsed.learnCost ?? null}, ${parsed.equipCost ?? null}, ${parsed.prerequisite ?? null},
       ${preferredJobsJson}, ${acquireConditionsJson},
       ${learnPlacesJson}, ${useCitiesJson}, ${officersJson}, ${effectItemsJson},
+      ${equipmentItemsJson},
       TRUE, ${sortOrder}
     )
   `

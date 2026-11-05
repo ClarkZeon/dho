@@ -137,6 +137,7 @@ import {
   getDiscoveryBySlug,
   listDiscoveries,
   listDiscoveryCategoryTree,
+  setUserDiscoveryCompleted,
   updateDiscoveryFields,
   upsertDiscoveryFromParsed,
 } from './discoveryStore.mjs'
@@ -158,6 +159,18 @@ import {
   upsertTitleFromParsed,
 } from './titleStore.mjs'
 import { parseTitleText } from './titleTextParse.mjs'
+import {
+  deleteJob,
+  ensureJobStore,
+  listJobs,
+  upsertJobFromText,
+} from './jobStore.mjs'
+import {
+  deleteRefine,
+  ensureRefineStore,
+  listRefines,
+  upsertRefineFromText,
+} from './refineStore.mjs'
 import {
   deleteTreasureMap,
   ensureTreasureMapStore,
@@ -213,32 +226,55 @@ const DAILY_LOGIN_XP = 20
  * }} Message
  */
 
+async function ensureStep(label, run) {
+  const t0 = Date.now()
+  process.stdout.write(`DHO API ensure ${label}… `)
+  try {
+    await run()
+    console.log(`ok (${Date.now() - t0}ms)`)
+  } catch (err) {
+    console.log(`FAIL (${Date.now() - t0}ms)`)
+    throw err
+  }
+}
+
 async function ensureStore() {
   if (!hasDatabaseUrl()) {
     throw new Error(
       'DATABASE_URL 이 없습니다. Vercel Neon을 연결하거나 .env 에 DATABASE_URL 을 설정하세요.',
     )
   }
-  await ensureUserStore()
-  await ensureBoardStore()
-  await ensureMessageStore()
-  await ensureNotificationStore()
-  await ensureShipStore()
-  await ensureQuestStore()
-  await ensurePortStore()
-  await ensureRegionStore()
-  await ensureEntryPermitStore()
-  await ensureDiscoveryStore()
-  await ensureSkillStore()
-  await ensureTitleStore()
-  await ensureFieldStore()
-  await ensureSeaAreaStore()
-  await ensureConsumableStore()
-  await ensureEquipmentStore()
-  await ensureMemorialAlbumStore()
-  await ensureTreasureMapStore()
-  await ensureCatalogStats()
-  await ensureCatalogUpdatedAt()
+  // 서로 독립인 스키마는 묶어 병렬화 — Neon 왕복 대기 시간을 줄인다.
+  await ensureStep('user', () => ensureUserStore())
+  await ensureStep('core', () =>
+    Promise.all([
+      ensureBoardStore(),
+      ensureMessageStore(),
+      ensureNotificationStore(),
+    ]),
+  )
+  await ensureStep('ship', () => ensureShipStore())
+  await ensureStep('catalogs', () =>
+    Promise.all([
+      ensureQuestStore(),
+      ensurePortStore(),
+      ensureRegionStore(),
+      ensureEntryPermitStore(),
+      ensureDiscoveryStore(),
+      ensureSkillStore(),
+      ensureTitleStore(),
+      ensureFieldStore(),
+      ensureSeaAreaStore(),
+      ensureConsumableStore(),
+      ensureEquipmentStore(),
+      ensureMemorialAlbumStore(),
+      ensureTreasureMapStore(),
+      ensureJobStore(),
+      ensureRefineStore(),
+    ]),
+  )
+  await ensureStep('stats', () => ensureCatalogStats())
+  await ensureStep('updatedAt', () => ensureCatalogUpdatedAt())
 }
 
 function requireAuthDb(res) {
@@ -441,16 +477,17 @@ function decorateMessage(message, users, currentUserId) {
 }
 
 let storeReady = null
+let storeReadyOk = false
 
 export async function ensureReady() {
-  if (!storeReady) storeReady = ensureStore()
+  if (!storeReady) storeReady = ensureStore().then(() => {
+    storeReadyOk = true
+  })
   await storeReady
 }
 
 export async function handleRequest(req, res) {
   try {
-    await ensureReady()
-
     if (req.method === 'OPTIONS') {
       sendJson(res, 204, {})
       return
@@ -459,13 +496,17 @@ export async function handleRequest(req, res) {
     const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`)
     const { pathname } = url
 
+    // 부팅(ensure) 중에도 health 는 응답 — Vite 프록시 ECONNREFUSED 방지
     if (req.method === 'GET' && pathname === '/api/health') {
       sendJson(res, 200, {
         ok: true,
         authDb: hasDatabaseUrl() ? 'configured' : 'missing',
+        store: storeReadyOk ? 'ready' : 'warming',
       })
       return
     }
+
+    await ensureReady()
 
     if (req.method === 'POST' && pathname === '/api/auth/signup') {
       if (!requireAuthDb(res)) return
@@ -1033,12 +1074,14 @@ export async function handleRequest(req, res) {
       const q = String(url.searchParams.get('q') || '')
       const sort = url.searchParams.get('sort') || ''
       const dir = url.searchParams.get('dir') || ''
+      const completion = url.searchParams.get('completion') || 'all'
       const limit = url.searchParams.get('limit')
       const offset = url.searchParams.get('offset')
       const page = await listQuestsPage(authUser.id, {
         q,
         sort,
         dir,
+        completion,
         limit: limit == null || limit === '' ? 15 : Number(limit),
         offset: offset == null || offset === '' ? 0 : Number(offset),
       })
@@ -1932,8 +1975,44 @@ export async function handleRequest(req, res) {
         sendJson(res, 401, { error: '로그인이 필요합니다.' })
         return
       }
-      const discoveries = await listDiscoveries()
+      const discoveries = await listDiscoveries(authUser.id)
       sendJson(res, 200, { discoveries })
+      return
+    }
+
+    const discoveryCompletionMatch = pathname.match(
+      /^\/api\/discoveries\/([^/]+)\/completion$/,
+    )
+    if (discoveryCompletionMatch && req.method === 'PUT') {
+      const authUser = await getAuthUser(req)
+      if (!authUser) {
+        sendJson(res, 401, { error: '로그인이 필요합니다.' })
+        return
+      }
+      const discoveryId = Number(
+        decodeURIComponent(discoveryCompletionMatch[1]),
+      )
+      if (!Number.isFinite(discoveryId)) {
+        sendJson(res, 400, { error: '잘못된 발견물 ID입니다.' })
+        return
+      }
+      const body = await readBody(req)
+      const completed = Boolean(body.completed)
+      try {
+        const result = await setUserDiscoveryCompleted(
+          authUser.id,
+          discoveryId,
+          completed,
+        )
+        sendJson(res, 200, result)
+      } catch (err) {
+        sendJson(res, 400, {
+          error:
+            err instanceof Error
+              ? err.message
+              : '발견물 완료 상태 저장에 실패했습니다.',
+        })
+      }
       return
     }
 
@@ -1980,7 +2059,7 @@ export async function handleRequest(req, res) {
         return
       }
       const slug = decodeURIComponent(discoveryMatch[1])
-      const discovery = await getDiscoveryBySlug(slug)
+      const discovery = await getDiscoveryBySlug(slug, authUser.id)
       if (!discovery) {
         sendJson(res, 404, { error: '발견물을 찾을 수 없습니다.' })
         return
@@ -2017,7 +2096,8 @@ export async function handleRequest(req, res) {
         return
       }
       try {
-        const discovery = await updateDiscoveryFields(discoveryId, patch)
+        await updateDiscoveryFields(discoveryId, patch)
+        const discovery = await getDiscoveryById(discoveryId, authUser.id)
         sendJson(res, 200, { discovery })
       } catch (err) {
         sendJson(res, 400, {
@@ -2138,6 +2218,130 @@ export async function handleRequest(req, res) {
       } catch (err) {
         const message =
           err instanceof Error ? err.message : '스킬 삭제에 실패했습니다.'
+        sendJson(
+          res,
+          message.includes('찾을 수 없') ? 404 : 400,
+          { error: message },
+        )
+      }
+      return
+    }
+
+    if (req.method === 'GET' && pathname === '/api/jobs') {
+      const authUser = await getAuthUser(req)
+      if (!authUser) {
+        sendJson(res, 401, { error: '로그인이 필요합니다.' })
+        return
+      }
+      const jobs = await listJobs()
+      sendJson(res, 200, { jobs })
+      return
+    }
+
+    if (req.method === 'POST' && pathname === '/api/jobs/import-text') {
+      const authUser = await getAuthUser(req)
+      if (!authUser) {
+        sendJson(res, 401, { error: '로그인이 필요합니다.' })
+        return
+      }
+      if (!requireAdmin(authUser, res)) return
+      const body = await readBody(req)
+      const text = typeof body.text === 'string' ? body.text : ''
+      try {
+        const { job } = await upsertJobFromText(text)
+        sendJson(res, 201, { job })
+      } catch (err) {
+        sendJson(res, 400, {
+          error:
+            err instanceof Error
+              ? err.message
+              : '직업 텍스트 파싱에 실패했습니다.',
+        })
+      }
+      return
+    }
+
+    const jobMatch = pathname.match(/^\/api\/jobs\/([^/]+)$/)
+    if (jobMatch && req.method === 'DELETE') {
+      const authUser = await getAuthUser(req)
+      if (!authUser) {
+        sendJson(res, 401, { error: '로그인이 필요합니다.' })
+        return
+      }
+      if (!requireAdmin(authUser, res)) return
+      const jobId = Number(decodeURIComponent(jobMatch[1]))
+      if (!Number.isFinite(jobId)) {
+        sendJson(res, 400, { error: '잘못된 직업 ID입니다.' })
+        return
+      }
+      try {
+        await deleteJob(jobId)
+        sendJson(res, 200, { ok: true })
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : '직업 삭제에 실패했습니다.'
+        sendJson(
+          res,
+          message.includes('찾을 수 없') ? 404 : 400,
+          { error: message },
+        )
+      }
+      return
+    }
+
+    if (req.method === 'GET' && pathname === '/api/refines') {
+      const authUser = await getAuthUser(req)
+      if (!authUser) {
+        sendJson(res, 401, { error: '로그인이 필요합니다.' })
+        return
+      }
+      const refines = await listRefines()
+      sendJson(res, 200, { refines })
+      return
+    }
+
+    if (req.method === 'POST' && pathname === '/api/refines/import-text') {
+      const authUser = await getAuthUser(req)
+      if (!authUser) {
+        sendJson(res, 401, { error: '로그인이 필요합니다.' })
+        return
+      }
+      if (!requireAdmin(authUser, res)) return
+      const body = await readBody(req)
+      const text = typeof body.text === 'string' ? body.text : ''
+      try {
+        const { refine } = await upsertRefineFromText(text)
+        sendJson(res, 201, { refine })
+      } catch (err) {
+        sendJson(res, 400, {
+          error:
+            err instanceof Error
+              ? err.message
+              : '연성 텍스트 파싱에 실패했습니다.',
+        })
+      }
+      return
+    }
+
+    const refineMatch = pathname.match(/^\/api\/refines\/([^/]+)$/)
+    if (refineMatch && req.method === 'DELETE') {
+      const authUser = await getAuthUser(req)
+      if (!authUser) {
+        sendJson(res, 401, { error: '로그인이 필요합니다.' })
+        return
+      }
+      if (!requireAdmin(authUser, res)) return
+      const refineId = Number(decodeURIComponent(refineMatch[1]))
+      if (!Number.isFinite(refineId)) {
+        sendJson(res, 400, { error: '잘못된 연성 ID입니다.' })
+        return
+      }
+      try {
+        await deleteRefine(refineId)
+        sendJson(res, 200, { ok: true })
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : '연성 삭제에 실패했습니다.'
         sendJson(
           res,
           message.includes('찾을 수 없') ? 404 : 400,
@@ -2604,8 +2808,15 @@ export async function handleRequest(req, res) {
 
 if (!process.env.VERCEL) {
   console.log('DHO API boot…')
-  await ensureReady()
-  console.log('DHO API store ready')
+  // listen 을 ensure 보다 먼저 — 스키마 워밍이 길어도 포트는 즉시 연다.
+  const warming = ensureReady()
+    .then(() => {
+      console.log('DHO API store ready')
+    })
+    .catch((err) => {
+      console.error('DHO API store init failed', err)
+      process.exit(1)
+    })
 
   const maxListenAttempts = 25
   for (let attempt = 1; attempt <= maxListenAttempts; attempt++) {
@@ -2646,4 +2857,6 @@ if (!process.env.VERCEL) {
       process.exit(1)
     }
   }
+
+  await warming
 }

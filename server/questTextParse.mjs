@@ -730,6 +730,9 @@ export function parseQuestText(text) {
 function cleanWalkthrough(text) {
   return String(text || '')
     .replace(/\n×\n[\d,\s]+(?:\n\+)?(?:\n-)?/g, '\n')
+    // `2/3 지점` → `3분의 2지점` (슬래시 파싱 충돌 방지)
+    .replace(/(\d+)\s*\/\s*(\d+)\s*지점/g, '$2분의 $1지점')
+    .replace(/(\d+)\s*\/\s*(\d+)/g, '$2분의 $1')
     .replace(/\n{3,}/g, '\n\n')
     .trim()
 }

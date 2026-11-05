@@ -259,7 +259,11 @@ export type PortCharacter = {
 
 export type PortProduction = {
   tab: string
+  /** 장식품 제작 · 고정 레시피 책 */
   maker: string
+  /** 일반 건조 · 특수 건조 */
+  rank: number | null
+  /** 장식품 / 레시피 / 선박 목록 */
   items: string
 }
 
@@ -297,6 +301,7 @@ export type PortDetail = {
   language: string | null
   facilities: string | null
   flagQuest: string | null
+  flagImage: string | null
   rewards: PortReward[]
   collectItems: PortCollectItem[]
   linkedPlaces: PortLinkedPlace[]
@@ -419,6 +424,42 @@ export type TitleDetail = {
   description: string | null
   effect: string | null
   requirement: string | null
+}
+
+export type JobRequirement = {
+  kind: string
+  content: string
+}
+
+export type JobResearch = {
+  name: string
+  major: string | null
+  skill: string | null
+}
+
+export type JobDetail = {
+  id: number
+  slug: string
+  name: string
+  altName: string | null
+  description: string | null
+  category: string | null
+  recommendation: string | null
+  cost: string | null
+  preferredSkills: string[]
+  requirements: JobRequirement[]
+  researches: JobResearch[]
+  updatedAt: string | null
+}
+
+export type RefineDetail = {
+  id: number
+  slug: string
+  name: string
+  description: string | null
+  actionPower: string | null
+  skills: string[]
+  updatedAt: string | null
 }
 
 export type FieldSurveyTask = {
@@ -721,6 +762,18 @@ export type SkillEffectItem = {
   item: string
 }
 
+export type SkillEquipmentItem = {
+  /** 도구 | 머리 | 몸 | 팔 | 다리 | 장신구 */
+  slot: string
+  name: string
+  durability: string | null
+  attack: string | null
+  defense: string | null
+  useEffect: string | null
+  skills: string | null
+  equipEffect: string | null
+}
+
 export type SkillDetail = {
   id: number
   slug: string
@@ -742,6 +795,7 @@ export type SkillDetail = {
   useCities: SkillCity[]
   officers: SkillOfficer[]
   effectItems: SkillEffectItem[]
+  equipmentItems: SkillEquipmentItem[]
 }
 
 export type ShipMaterialEffect = {
@@ -787,4 +841,7 @@ export type DiscoveryDetail = {
   linkedQuests: DiscoveryLinkedQuest[]
   debateCombo: DiscoveryDebateCombo | null
   acquireQuest: DiscoveryQuestRef | null
+  /** 로그인 유저 기준 발견 완료 여부 */
+  completed?: boolean
+  completedAt?: string | null
 }

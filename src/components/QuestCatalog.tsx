@@ -15,11 +15,13 @@ import {
 import { useTableSort } from '../lib/tableSort'
 import type { QuestDetail } from '../types'
 import { DetailModal } from './DetailModal'
-import { QuestDiscoveryLabel } from './DiscoveryRankMark'
+import { DiscoveryChips } from './modules/DiscoveryChips'
 import { QuestDetailView } from './QuestDetailView'
 import { SortableTh } from './SortableTh'
 
 const PAGE_SIZE = 15
+
+type QuestCompletionFilter = 'all' | 'done' | 'open'
 
 type QuestCatalogProps = {
   token: string
@@ -35,10 +37,26 @@ type QuestSortKey =
   | 'destination'
   | 'discovery'
 
-function categoryLabel(quest: QuestDetail) {
-  return quest.category
-    ? `[${quest.category}] ${quest.questType || ''}`.trim()
-    : ''
+function QuestCategoryCell({ quest }: { quest: QuestDetail }) {
+  const category = quest.category?.trim()
+  const questType = quest.questType?.trim()
+  if (!category && !questType) return '-'
+
+  const tone =
+    category === '모험'
+      ? 'is-adventure'
+      : category === '교역'
+        ? 'is-trade'
+        : category === '전투'
+          ? 'is-battle'
+          : ''
+
+  return (
+    <span className={`quest-cat-label${tone ? ` ${tone}` : ''}`}>
+      {category ? <em className="quest-cat-bracket">[{category}]</em> : null}
+      {questType ? <span className="quest-cat-type">{questType}</span> : null}
+    </span>
+  )
 }
 
 export function QuestCatalog({
@@ -52,8 +70,11 @@ export function QuestCatalog({
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [detail, setDetail] = useState<QuestDetail | null>(null)
+  const [detailEditMode, setDetailEditMode] = useState(false)
   const [query, setQuery] = useState('')
   const [debouncedQuery, setDebouncedQuery] = useState('')
+  const [completionFilter, setCompletionFilter] =
+    useState<QuestCompletionFilter>('all')
   const [page, setPage] = useState(0)
   const [busyId, setBusyId] = useState<number | null>(null)
   const [busyDiffId, setBusyDiffId] = useState<number | null>(null)
@@ -86,6 +107,7 @@ export function QuestCatalog({
           offset: page * PAGE_SIZE,
           sort: sortKey,
           dir: sortKey ? sortDir : undefined,
+          completion: completionFilter,
         })
         setQuests(res.quests)
         setTotal(res.total)
@@ -100,7 +122,7 @@ export function QuestCatalog({
         setLoading(false)
       }
     },
-    [token, debouncedQuery, page, sortKey, sortDir],
+    [token, debouncedQuery, completionFilter, page, sortKey, sortDir],
   )
 
   useEffect(() => {
@@ -125,8 +147,15 @@ export function QuestCatalog({
     setError('')
     try {
       const res = await setQuestCompletion(token, quest.id, next)
-      setQuests((prev) =>
-        prev.map((item) =>
+      const matchesFilter =
+        completionFilter === 'all' ||
+        (completionFilter === 'done' && res.completed) ||
+        (completionFilter === 'open' && !res.completed)
+      setQuests((prev) => {
+        if (!matchesFilter) {
+          return prev.filter((item) => item.id !== quest.id)
+        }
+        return prev.map((item) =>
           item.id === quest.id
             ? {
                 ...item,
@@ -134,17 +163,25 @@ export function QuestCatalog({
                 completedAt: res.completedAt,
               }
             : item,
-        ),
-      )
-      setDetail((prev) =>
-        prev && prev.id === quest.id
-          ? {
-              ...prev,
-              completed: res.completed,
-              completedAt: res.completedAt,
-            }
-          : prev,
-      )
+        )
+      })
+      if (!matchesFilter) {
+        setTotal((n) => Math.max(0, n - 1))
+      }
+      if (res.completed || !matchesFilter) {
+        setDetail(null)
+        setDetailEditMode(false)
+      } else {
+        setDetail((prev) =>
+          prev && prev.id === quest.id
+            ? {
+                ...prev,
+                completed: res.completed,
+                completedAt: res.completedAt,
+              }
+            : prev,
+        )
+      }
       setCompletedCount((n) => {
         if (res.completed && !quest.completed) return n + 1
         if (!res.completed && quest.completed) return Math.max(0, n - 1)
@@ -231,14 +268,14 @@ export function QuestCatalog({
   }
 
   const countLabel = !loading
-    ? debouncedQuery
-      ? `검색 ${total}개`
+    ? debouncedQuery || completionFilter !== 'all'
+      ? `${completionFilter === 'done' ? '완료' : completionFilter === 'open' ? '미완료' : '검색'} ${total}개 · 전체 완료 ${completedCount}`
       : total > 0
         ? `완료 ${completedCount}/${total}`
         : ''
     : ''
 
-  const colCount = isAdmin ? 7 : 6
+  const colCount = isAdmin ? 8 : 7
 
   return (
     <section className="tool-page quest-catalog">
@@ -322,6 +359,33 @@ export function QuestCatalog({
         />
       </label>
 
+      <div
+        className="detail-mode-toggle quest-completion-filter"
+        role="group"
+        aria-label="완료 여부 필터"
+      >
+        {(
+          [
+            ['all', '전체'],
+            ['open', '미완료'],
+            ['done', '완료'],
+          ] as const
+        ).map(([value, label]) => (
+          <button
+            key={value}
+            type="button"
+            className={completionFilter === value ? 'active' : ''}
+            aria-pressed={completionFilter === value}
+            onClick={() => {
+              setCompletionFilter(value)
+              setPage(0)
+            }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
       {error && (
         <p className="form-note error" role="alert">
           {error}
@@ -383,6 +447,7 @@ export function QuestCatalog({
                     dir={sortDir}
                     onSort={handleSort}
                   />
+                  <th className="col-quest-done">완료</th>
                   {isAdmin && <th className="col-desk col-action">삭제</th>}
                 </tr>
               </thead>
@@ -401,7 +466,9 @@ export function QuestCatalog({
                     }}
                   >
                     <td>{quest.name}</td>
-                    <td className="col-desk">{categoryLabel(quest) || '-'}</td>
+                    <td className="col-desk">
+                      <QuestCategoryCell quest={quest} />
+                    </td>
                     <td
                       className={`col-desk col-diff${isAdmin ? ' admin-cell-control' : ''}`}
                       onClick={isAdmin ? (e) => e.stopPropagation() : undefined}
@@ -433,7 +500,32 @@ export function QuestCatalog({
                     <td className="col-desk">{quest.requestPlaces || '-'}</td>
                     <td className="col-desk">{quest.destination || '-'}</td>
                     <td className="col-desk">
-                      <QuestDiscoveryLabel quest={quest} />
+                      {quest.discoveryName?.trim() ? (
+                        <DiscoveryChips
+                          items={[
+                            {
+                              name: quest.discoveryName,
+                              category: quest.discoveryCategory,
+                              rank: quest.discoveryRank,
+                              id: quest.discoveryRef?.id,
+                              slug: quest.discoveryRef?.slug,
+                            },
+                          ]}
+                        />
+                      ) : (
+                        '-'
+                      )}
+                    </td>
+                    <td className="col-quest-done">
+                      {quest.completed ? (
+                        <span
+                          className="quest-done-check"
+                          aria-label="완료"
+                          title="완료"
+                        >
+                          ✓
+                        </span>
+                      ) : null}
                     </td>
                     {isAdmin && (
                       <td
@@ -499,11 +591,41 @@ export function QuestCatalog({
         <DetailModal
           title="퀘스트 상세"
           label={`${detail.name} 상세`}
-          onClose={() => setDetail(null)}
+          onClose={() => {
+            setDetail(null)
+            setDetailEditMode(false)
+          }}
+          headerActions={
+            isAdmin ? (
+              <div
+                className="detail-mode-toggle"
+                role="group"
+                aria-label="상세 모드"
+              >
+                <button
+                  type="button"
+                  className={!detailEditMode ? 'active' : ''}
+                  aria-pressed={!detailEditMode}
+                  onClick={() => setDetailEditMode(false)}
+                >
+                  사용자 모드
+                </button>
+                <button
+                  type="button"
+                  className={detailEditMode ? 'active' : ''}
+                  aria-pressed={detailEditMode}
+                  onClick={() => setDetailEditMode(true)}
+                >
+                  수정 모드
+                </button>
+              </div>
+            ) : undefined
+          }
         >
           <QuestDetailView
             quest={detail}
             token={token}
+            editMode={detailEditMode}
             completionBusy={busyId === detail.id}
             onToggleCompleted={(completed) =>
               void toggleCompleted(detail, completed)

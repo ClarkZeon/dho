@@ -12,6 +12,7 @@ export async function ensureDiscoveryStore() {
   if (!hasDatabaseUrl()) throw new Error('DATABASE_URL 이 없습니다.')
   await runSqlFile('sql/010_discoveries.sql')
   await runSqlFile('sql/011_discovery_categories.sql')
+  await runSqlFile('sql/045_user_discovery_completions.sql')
 }
 
 function normalizeName(name) {
@@ -292,7 +293,59 @@ export async function listDiscoveryCategoryTree() {
   }))
 }
 
-export async function listDiscoveries() {
+/**
+ * @param {Array<Record<string, unknown>>} discoveries
+ * @param {string | null | undefined} userId
+ */
+async function withUserCompletions(discoveries, userId = null) {
+  if (!userId || !discoveries.length) {
+    return discoveries.map((discovery) => ({
+      ...discovery,
+      completed: Boolean(discovery.completed),
+      completedAt: discovery.completedAt ?? null,
+    }))
+  }
+  const sql = getSql()
+  const ids = discoveries
+    .map((d) => Number(d.id))
+    .filter((id) => Number.isFinite(id))
+  if (!ids.length) {
+    return discoveries.map((discovery) => ({
+      ...discovery,
+      completed: false,
+      completedAt: null,
+    }))
+  }
+  const rows = await sql`
+    SELECT discovery_id, completed_at
+    FROM user_discovery_completions
+    WHERE user_id = ${userId}
+      AND discovery_id = ANY(${ids})
+  `
+  /** @type {Map<number, string>} */
+  const completedAtById = new Map()
+  for (const row of rows) {
+    const discoveryId = Number(row.discovery_id)
+    if (!Number.isFinite(discoveryId)) continue
+    completedAtById.set(
+      discoveryId,
+      new Date(/** @type {string|Date} */ (row.completed_at)).toISOString(),
+    )
+  }
+  return discoveries.map((discovery) => {
+    const completedAt = completedAtById.get(Number(discovery.id)) || null
+    return {
+      ...discovery,
+      completed: Boolean(completedAt),
+      completedAt,
+    }
+  })
+}
+
+/**
+ * @param {string | null | undefined} userId
+ */
+export async function listDiscoveries(userId = null) {
   const sql = getSql()
   const rows = await sql`
     SELECT
@@ -312,7 +365,55 @@ export async function listDiscoveries() {
     WHERE d.enabled = TRUE
     ORDER BY d.updated_at DESC NULLS LAST, d.id DESC
   `
-  return withQuestLinksMany(rows.map(decorateDiscovery))
+  const linked = await withQuestLinksMany(rows.map(decorateDiscovery))
+  return withUserCompletions(linked, userId)
+}
+
+/**
+ * @param {string} userId
+ * @param {number} discoveryId
+ * @param {boolean} completed
+ */
+export async function setUserDiscoveryCompleted(
+  userId,
+  discoveryId,
+  completed,
+) {
+  const sql = getSql()
+  const id = Number(discoveryId)
+  if (!Number.isFinite(id)) throw new Error('잘못된 발견물 ID입니다.')
+  const existing = await sql`
+    SELECT id FROM discoveries WHERE id = ${id} AND enabled = TRUE LIMIT 1
+  `
+  if (!existing[0]) throw new Error('발견물을 찾을 수 없습니다.')
+
+  if (completed) {
+    await sql`
+      INSERT INTO user_discovery_completions (user_id, discovery_id, completed_at)
+      VALUES (${userId}, ${id}, NOW())
+      ON CONFLICT (user_id, discovery_id) DO UPDATE SET
+        completed_at = EXCLUDED.completed_at
+    `
+  } else {
+    await sql`
+      DELETE FROM user_discovery_completions
+      WHERE user_id = ${userId} AND discovery_id = ${id}
+    `
+  }
+
+  const rows = await sql`
+    SELECT completed_at FROM user_discovery_completions
+    WHERE user_id = ${userId} AND discovery_id = ${id}
+    LIMIT 1
+  `
+  const completedAt = rows[0]
+    ? new Date(/** @type {string|Date} */ (rows[0].completed_at)).toISOString()
+    : null
+  return {
+    discoveryId: id,
+    completed: Boolean(completedAt),
+    completedAt,
+  }
 }
 
 /** @param {number} id */
@@ -330,7 +431,11 @@ export async function deleteDiscovery(id) {
   return { ok: true }
 }
 
-export async function getDiscoveryBySlug(slug) {
+/**
+ * @param {string} slug
+ * @param {string | null | undefined} userId
+ */
+export async function getDiscoveryBySlug(slug, userId = null) {
   const sql = getSql()
   const rows = await sql`
     SELECT
@@ -350,10 +455,19 @@ export async function getDiscoveryBySlug(slug) {
     WHERE d.slug = ${slug} AND d.enabled = TRUE
     LIMIT 1
   `
-  return rows[0] ? withQuestLinks(decorateDiscovery(rows[0])) : null
+  if (!rows[0]) return null
+  const [discovery] = await withUserCompletions(
+    [await withQuestLinks(decorateDiscovery(rows[0]))],
+    userId,
+  )
+  return discovery
 }
 
-export async function getDiscoveryById(id) {
+/**
+ * @param {number} id
+ * @param {string | null | undefined} userId
+ */
+export async function getDiscoveryById(id, userId = null) {
   const sql = getSql()
   const discoveryId = Number(id)
   if (!Number.isFinite(discoveryId)) return null
@@ -375,7 +489,12 @@ export async function getDiscoveryById(id) {
     WHERE d.id = ${discoveryId} AND d.enabled = TRUE
     LIMIT 1
   `
-  return rows[0] ? withQuestLinks(decorateDiscovery(rows[0])) : null
+  if (!rows[0]) return null
+  const [discovery] = await withUserCompletions(
+    [await withQuestLinks(decorateDiscovery(rows[0]))],
+    userId,
+  )
+  return discovery
 }
 
 /**

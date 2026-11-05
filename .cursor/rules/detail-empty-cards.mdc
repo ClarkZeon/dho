@@ -1,0 +1,28 @@
+---
+description: 상세 뷰 — 사용자 모드는 빈 카드 숨김, 수정 모드는 전부 표시
+alwaysApply: true
+---
+
+# 상세 뷰 빈 카드 (사용자 / 수정 모드)
+
+## 규칙
+
+- **사용자 모드** (`!canEdit` / `!editMode`): 데이터가 없는 섹션·모듈·서브카드는 **렌더하지 않음**. `-` / 「없음」만 있는 빈 카드 금지.
+- **수정 모드** (`canEdit`): 빈 섹션도 **전부 표시**해서 편집·추가할 수 있게 함.
+
+```ts
+const showX = canEdit || hasContent
+// {showX && <section>...</section>}
+```
+
+공유 모듈은 컴포넌트 안에서:
+
+```ts
+if (!canEdit && empty) return null
+```
+
+## 적용 대상
+
+`*DetailView.tsx`, `components/modules/*Module.tsx` 등 사용자/수정 모드가 있는 상세 UI.
+
+새 섹션·모듈을 추가할 때 `show*` / early-return 게이트를 **빠뜨리지 말 것**.

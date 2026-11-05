@@ -8,6 +8,7 @@
  */
 
 import { createHash } from 'node:crypto'
+import { extractFlagFromText } from './cityFlagAssets.mjs'
 
 const PRODUCTION_TABS = [
   '장식품 제작',
@@ -16,12 +17,21 @@ const PRODUCTION_TABS = [
   '특수 건조',
 ]
 
+const SHIPBUILD_PRODUCTION_TABS = ['일반 건조', '특수 건조']
+
+function isShipbuildProductionTab(tab) {
+  return SHIPBUILD_PRODUCTION_TABS.includes(String(tab || ''))
+}
+
 const DEST_TABS = ['보물지도', '퀘스트']
 
 const SALE_VENDORS = [
-  '교역소주인',
-  '대장장이',
   '도구점 주인',
+  '교역소주인',
+  '거래상인',
+  '대상인',
+  '돛제작자',
+  '대장장이',
   '무기장인',
   '번역가',
   '제재소장인',
@@ -43,6 +53,90 @@ function slugify(name) {
 
 function splitTabs(line) {
   return line.split('\t').map((s) => s.trim())
+}
+
+/** 연결 장소 항목에서 `(도시명)` 접미사 제거 */
+function stripCityParenFromItems(content, cityName) {
+  const raw = String(content || '').trim()
+  const city = String(cityName || '').trim()
+  if (!raw) return ''
+  const esc = city
+    ? city.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    : ''
+  const re = esc ? new RegExp(`\\s*\\(${esc}\\)`, 'g') : null
+  return raw
+    .split(/[,，]/)
+    .map((part) => {
+      let s = part.trim()
+      if (re) s = s.replace(re, '').trim()
+      return s
+    })
+    .filter(Boolean)
+    .join(', ')
+}
+
+/** `고등어(교환)`, `복어(방생)` → 이름 + 교환/방생 플래그 */
+function parseCollectTaggedName(raw, { fishing = false } = {}) {
+  let name = String(raw || '').trim()
+  let canExchange = null
+  let canRelease = null
+  while (true) {
+    const m = name.match(/^(.*)\((교환|방생)\)\s*$/)
+    if (!m) break
+    name = m[1].trim()
+    if (m[2] === '교환') canExchange = true
+    if (m[2] === '방생') canRelease = true
+  }
+  if (canExchange === true || canRelease === true) {
+    if (canExchange !== true) canExchange = false
+    if (canRelease !== true) canRelease = false
+  } else if (fishing) {
+    // 낚시: (방생)만 방생, 나머지는 교환
+    canExchange = true
+    canRelease = false
+  }
+  return { name, canExchange, canRelease }
+}
+
+function splitCollectNames(raw, opts) {
+  return String(raw || '')
+    .split(/[,，]/)
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((part) => parseCollectTaggedName(part, opts))
+    .filter((item) => item.name)
+}
+
+/** 위키에서 붙은 `소비품항해` / `소비품 » 항해` → `소비품 » 항해` */
+const SALE_CATEGORY_ROOTS = [
+  '소비품',
+  '교역품',
+  '장비품',
+  '레시피책',
+  '레시피',
+  '발견물',
+  '선박재료',
+  '선박',
+]
+
+function normalizeSaleCategory(raw) {
+  const s = String(raw || '').trim()
+  if (!s) return ''
+  if (/[»›>]/.test(s)) {
+    return s
+      .split(/\s*[»›>]\s*/)
+      .map((part) => part.trim())
+      .filter(Boolean)
+      .join(' » ')
+  }
+  for (const root of SALE_CATEGORY_ROOTS) {
+    if (s === root) return root
+    if (s.startsWith(root) && s.length > root.length) {
+      const rest = s.slice(root.length).replace(/^[\s·\-_/／]+/, '').trim()
+      if (rest) return `${root} » ${rest}`
+    }
+  }
+  return s
 }
 
 function pickLabeledValue(line, labelRe, nextLabelRes = []) {
@@ -208,10 +302,23 @@ export function parsePortText(text) {
   let productionTab = PRODUCTION_TABS[0]
   let destSource = DEST_TABS[0]
   let saleVendor = SALE_VENDORS[0]
+  const flagFromText = extractFlagFromText(raw)
+  let flagImage = flagFromText?.localPath || null
 
   for (let i = nameIdx + 1; i < lines.length; i++) {
     const line = lines[i].replace(/^[\uFEFF\u200B\u200C\u200D]+/, '').trim()
     if (!line) continue
+    // 깃발 img / CDN URL 줄은 설명에 넣지 않음
+    if (
+      /<img\b/i.test(line) ||
+      /static\.papayaplay\.co\.kr\/static\/dho\/(?:cities|countries)\//i.test(
+        line,
+      )
+    ) {
+      const hit = extractFlagFromText(line)
+      if (hit) flagImage = hit.localPath
+      continue
+    }
 
     if (/^보상$/.test(line)) {
       mode = 'reward'
@@ -237,7 +344,7 @@ export function parsePortText(text) {
     }
     if (/^판매\s*아이템/.test(line)) {
       mode = 'sale'
-      saleVendor = SALE_VENDORS[0]
+      saleVendor = ''
       continue
     }
     if (/^수집\s*아이템/.test(line)) {
@@ -269,7 +376,10 @@ export function parsePortText(text) {
       if (cols.length >= 2 && cols[0] && !/^(종류|내용)$/.test(cols[0])) {
         linkedPlaces.push({
           kind: cols[0],
-          content: cols.slice(1).join('\t').trim(),
+          content: stripCityParenFromItems(
+            cols.slice(1).join('\t').trim(),
+            name,
+          ),
         })
       }
       continue
@@ -303,11 +413,22 @@ export function parsePortText(text) {
         continue
       }
       if (/^제작자(\t|$)/.test(line)) continue
+      if (/^랭크(\t|$)/.test(line) && /선박|항목|내용/.test(line)) continue
       const cols = splitTabs(line)
-      if (cols.length >= 2 && cols[0] && cols[0] !== '제작자') {
+      if (!(cols.length >= 2 && cols[0])) continue
+      if (isShipbuildProductionTab(productionTab)) {
+        if (!/^\d+$/.test(cols[0]) || cols[0] === '랭크') continue
+        productions.push({
+          tab: productionTab,
+          maker: '',
+          rank: Number(cols[0]),
+          items: cols.slice(1).join('\t').trim(),
+        })
+      } else if (cols[0] !== '제작자') {
         productions.push({
           tab: productionTab,
           maker: cols[0],
+          rank: null,
           items: cols.slice(1).join('\t').trim(),
         })
       }
@@ -356,8 +477,8 @@ export function parsePortText(text) {
       }
       if (cols.length >= 2 && cols[0] && cols[0] !== '분류') {
         saleItems.push({
-          vendor: saleVendor,
-          category: cols[0] || '',
+          vendor: saleVendor || packed[0] || '거래상인',
+          category: normalizeSaleCategory(cols[0] || ''),
           item: cols[1] || '',
           development: emptyCell(cols[2]),
           investment: emptyCell(cols[3]),
@@ -379,28 +500,39 @@ export function parsePortText(text) {
       }
       // 신형: 이름 / 랭크 / 추천지점 …
       if (cols.length >= 2 && !/^\d+$/.test(cols[0])) {
+        const source = collectSource || '탐색'
+        const tagged = parseCollectTaggedName(cols[0], {
+          fishing: source === '낚시',
+        })
         collectItems.push({
-          source: collectSource || '탐색',
-          name: cols[0],
+          source,
+          name: tagged.name,
           rank: cols[1] && /^\d+$/.test(cols[1]) ? Number(cols[1]) : null,
           type: null,
           recommendSpot: emptyCell(cols[2]),
-          canExchange: null,
-          canRelease: null,
+          canExchange: tagged.canExchange,
+          canRelease: tagged.canRelease,
         })
         continue
       }
-      // 구형: 랭크 / 종류 / 아이템
+      // 구형: 랭크 / 종류 / 아이템(콤마 구분, (교환)/(방생) 태그)
       if (cols.length >= 3 && /^\d+$/.test(cols[0])) {
-        collectItems.push({
-          source: collectSource || '기타',
-          name: cols.slice(2).join('\t').trim(),
-          rank: Number(cols[0]),
-          type: cols[1] || null,
-          recommendSpot: null,
-          canExchange: null,
-          canRelease: null,
-        })
+        const rank = Number(cols[0])
+        const type = cols[1] || null
+        const source = collectSource || '기타'
+        for (const tagged of splitCollectNames(cols.slice(2).join('\t'), {
+          fishing: source === '낚시',
+        })) {
+          collectItems.push({
+            source,
+            name: tagged.name,
+            rank,
+            type,
+            recommendSpot: null,
+            canExchange: tagged.canExchange,
+            canRelease: tagged.canRelease,
+          })
+        }
       }
       continue
     }
@@ -439,6 +571,7 @@ export function parsePortText(text) {
     language: fields.language,
     facilities: fields.facilities,
     flagQuest: fields.flagQuest,
+    flagImage,
     rewards,
     collectItems,
     linkedPlaces,
@@ -449,4 +582,9 @@ export function parsePortText(text) {
   }
 }
 
-export { PRODUCTION_TABS, DEST_TABS, SALE_VENDORS }
+export {
+  PRODUCTION_TABS,
+  SHIPBUILD_PRODUCTION_TABS,
+  DEST_TABS,
+  SALE_VENDORS,
+}

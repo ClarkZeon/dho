@@ -18,35 +18,20 @@
 
 import { createHash } from 'node:crypto'
 
+import {
+  DISCOVERY_CATEGORY_GROUPS,
+  DISCOVERY_CATEGORY_LEAVES,
+} from './discoveryCategories.mjs'
+
 /**
  * 위키 표기용 대분류 접두 (인게임 분류 아님).
- * 저장 분류는 항상 리프만 (예: 대형생물).
+ * 저장 분류는 항상 리프만 (예: 대형생물, 해양생물).
  */
-const CATEGORY_GROUPS = ['지리·천문', '기상·전승', '유물', '보물', '생물']
+const CATEGORY_GROUPS = [...DISCOVERY_CATEGORY_GROUPS]
 
-const CATEGORY_LEAVES = [
-  '종교건축물',
-  '역사유물',
-  '종교유물',
-  '소형생물',
-  '중형생물',
-  '대형생물',
-  '해양생물',
-  '항구·마을',
-  '항구-마을',
-  '기상 현상',
-  '기상현상',
-  '사적',
-  '미술품',
-  '보물',
-  '화석',
-  '식물',
-  '곤충',
-  '조류',
-  '지리',
-  '천문',
-  '전승',
-].sort((a, b) => b.length - a.length)
+const CATEGORY_LEAVES = [...DISCOVERY_CATEGORY_LEAVES].sort(
+  (a, b) => b.length - a.length,
+)
 
 const FIELD_LABELS = [
   { key: 'category', re: /^(분류|종류)$/ },

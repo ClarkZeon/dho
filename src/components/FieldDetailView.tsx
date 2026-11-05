@@ -11,6 +11,7 @@ import type {
   FieldSurveyTask,
 } from '../types'
 import { DetailSectionActions, DetailSectionHead } from './DetailSectionHead'
+import { DiscoveryChips } from './modules/DiscoveryChips'
 
 type FieldEditConfig = {
   token: string
@@ -1323,7 +1324,17 @@ export function FieldDetailView({
                 <tbody>
                   {viewDestRows.map((item, idx) => (
                     <tr key={`${destTab}-${item.discovery}-${idx}`}>
-                      <td>{item.discovery || '-'}</td>
+                      <td>
+                        {item.discovery?.trim() ? (
+                          destTab === '퀘스트' ? (
+                            item.discovery
+                          ) : (
+                            <DiscoveryChips items={[item.discovery]} />
+                          )
+                        ) : (
+                          '-'
+                        )}
+                      </td>
                       <td>{item.content || '-'}</td>
                     </tr>
                   ))}

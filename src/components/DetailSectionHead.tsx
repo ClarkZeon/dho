@@ -52,29 +52,40 @@ export function DetailSectionActions({
   busy,
   onCancel,
   onSave,
+  leading,
 }: {
   busy: boolean
   onCancel: () => void
   onSave: () => void
+  leading?: ReactNode
 }) {
   return (
-    <div className="quest-walkthrough-actions">
-      <button
-        type="button"
-        className="btn-admin"
-        disabled={busy}
-        onClick={onCancel}
-      >
-        취소
-      </button>
-      <button
-        type="button"
-        className="btn-admin btn-admin-primary"
-        disabled={busy}
-        onClick={onSave}
-      >
-        {busy ? '저장 중…' : '저장'}
-      </button>
+    <div
+      className={`quest-walkthrough-actions${
+        leading ? ' has-leading' : ''
+      }`}
+    >
+      {leading ? (
+        <div className="quest-walkthrough-leading">{leading}</div>
+      ) : null}
+      <div className="quest-walkthrough-trailing">
+        <button
+          type="button"
+          className="btn-admin"
+          disabled={busy}
+          onClick={onCancel}
+        >
+          취소
+        </button>
+        <button
+          type="button"
+          className="btn-admin btn-admin-primary"
+          disabled={busy}
+          onClick={onSave}
+        >
+          {busy ? '저장 중…' : '저장'}
+        </button>
+      </div>
     </div>
   )
 }

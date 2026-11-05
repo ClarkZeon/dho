@@ -28,6 +28,25 @@ function splitTabs(line) {
   return line.split('\t').map((s) => s.trim())
 }
 
+/** `고등어(교환)`, `복어(방생)` → 이름 + 교환/방생 플래그 */
+function parseCollectTaggedName(raw) {
+  let name = String(raw || '').trim()
+  let canExchange = null
+  let canRelease = null
+  while (true) {
+    const m = name.match(/^(.*)\((교환|방생)\)\s*$/)
+    if (!m) break
+    name = m[1].trim()
+    if (m[2] === '교환') canExchange = true
+    if (m[2] === '방생') canRelease = true
+  }
+  if (canExchange === true || canRelease === true) {
+    if (canExchange !== true) canExchange = false
+    if (canRelease !== true) canRelease = false
+  }
+  return { name, canExchange, canRelease }
+}
+
 function pickLabeledValue(line, labelRe, nextLabelRes = []) {
   const next =
     nextLabelRes.length > 0
@@ -420,14 +439,15 @@ export function parseFieldText(text) {
           .map((s) => s.trim())
           .filter(Boolean)
         for (const itemName of names) {
+          const tagged = parseCollectTaggedName(itemName)
           collectItems.push({
             source: collectSource || '기타',
-            name: itemName,
+            name: tagged.name,
             rank,
             type,
             recommendSpot: null,
-            canExchange: null,
-            canRelease: null,
+            canExchange: tagged.canExchange,
+            canRelease: tagged.canRelease,
           })
         }
       }

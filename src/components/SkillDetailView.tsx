@@ -1,13 +1,18 @@
-﻿import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { updateSkill } from '../lib/api'
-import type { SkillDetail, SkillOfficer } from '../types'
+import { getModuleDef } from '../lib/detailModules'
+import type { SkillDetail } from '../types'
 import {
   DetailSectionActions,
   DetailSectionHead,
 } from './DetailSectionHead'
+import { DucatAmount, DucatMark } from './DucatAmount'
+import { JobModule } from './modules/JobModule'
 
 type SkillDetailViewProps = {
   skill: SkillDetail
+  /** 관리자 수정 모드 (토글). false면 사용자 화면처럼 표시 */
+  editMode?: boolean
   edit?: {
     token: string
     onSaved: (skill: SkillDetail) => void
@@ -21,8 +26,6 @@ type EditSection =
   | 'conditions'
   | 'learn'
   | 'useCities'
-  | 'officers'
-  | 'effects'
 
 const SKILL_CATEGORIES = ['언어', '모험', '교역', '전투', '기타']
 const RANGE_SCOPES = ['함대', '자신', '적', '아군', '기타']
@@ -33,21 +36,31 @@ function Row({
   hideEmpty,
 }: {
   label: string
-  value: string | null
+  value: ReactNode
   hideEmpty?: boolean
 }) {
-  if (hideEmpty && !value?.trim()) return null
+  const empty =
+    value == null ||
+    value === '' ||
+    (typeof value === 'string' && !value.trim())
+  if (hideEmpty && empty) return null
   return (
     <div>
       <span>{label}</span>
-      <strong>{value?.trim() ? value : '-'}</strong>
+      <strong>{empty ? '-' : value}</strong>
     </div>
   )
 }
 
-function formatCost(n: number | null, unit = '두캇') {
+function formatCost(n: number | null, unit: '두캇' | '학점' = '두캇') {
   if (n == null) return null
-  return `${n.toLocaleString('ko-KR')}${unit}`
+  if (unit === '두캇') return <DucatAmount value={n} />
+  return (
+    <>
+      {n.toLocaleString('ko-KR')}
+      <span className="port-unit">학점</span>
+    </>
+  )
 }
 
 function formatAutoEffect(value: string | null) {
@@ -63,8 +76,9 @@ function cloneSkill(skill: SkillDetail): SkillDetail {
     acquireConditions: (skill.acquireConditions || []).map((c) => ({ ...c })),
     learnPlaces: (skill.learnPlaces || []).map((p) => ({ ...p })),
     useCities: (skill.useCities || []).map((c) => ({ ...c })),
-    officers: (skill.officers || []).map((o) => ({ ...o })),
-    effectItems: (skill.effectItems || []).map((e) => ({ ...e })),
+    officers: [],
+    effectItems: [],
+    equipmentItems: [],
   }
 }
 
@@ -79,8 +93,12 @@ function parseOptionalInt(raw: string): number | null {
   return Number.isFinite(n) ? n : null
 }
 
-export function SkillDetailView({ skill, edit }: SkillDetailViewProps) {
-  const canEdit = Boolean(edit)
+export function SkillDetailView({
+  skill,
+  edit,
+  editMode = false,
+}: SkillDetailViewProps) {
+  const canEdit = Boolean(edit) && editMode
   const [editing, setEditing] = useState<EditSection | null>(null)
   const [draft, setDraft] = useState(() => cloneSkill(skill))
   const [jobsDraft, setJobsDraft] = useState(
@@ -96,12 +114,19 @@ export function SkillDetailView({ skill, edit }: SkillDetailViewProps) {
     setError('')
   }, [skill])
 
+  useEffect(() => {
+    if (!canEdit) {
+      setDraft(cloneSkill(skill))
+      setJobsDraft((skill.preferredJobs || []).join(', '))
+      setEditing(null)
+      setError('')
+    }
+  }, [canEdit, skill])
+
   const learnPlaces = skill.learnPlaces || []
   const useCities = skill.useCities || []
   const preferredJobs = skill.preferredJobs || []
   const acquireConditions = skill.acquireConditions || []
-  const officers = skill.officers || []
-  const effectItems = skill.effectItems || []
   const autoEffectOn = draft.autoEffect != null
 
   function startEdit(section: EditSection) {
@@ -165,18 +190,6 @@ export function SkillDetailView({ skill, edit }: SkillDetailViewProps) {
             (c) => c.region.trim() || c.city.trim(),
           ),
         }
-      } else if (editing === 'officers') {
-        patch = {
-          officers: draft.officers.filter(
-            (o) => o.name.trim() || o.job || o.adventure || o.trade || o.battle,
-          ),
-        }
-      } else if (editing === 'effects') {
-        patch = {
-          effectItems: draft.effectItems.filter(
-            (e) => e.kind.trim() || e.item.trim(),
-          ),
-        }
       }
       const res = await updateSkill(edit.token, skill.id, patch)
       edit.onSaved(res.skill)
@@ -192,12 +205,12 @@ export function SkillDetailView({ skill, edit }: SkillDetailViewProps) {
     }
   }
 
+  const isLanguage =
+    String(draft.category || skill.category || '').trim() === '언어'
   const showJobs = canEdit || preferredJobs.length > 0
   const showConditions = canEdit || acquireConditions.length > 0
   const showLearn = canEdit || learnPlaces.length > 0
-  const showUse = canEdit || useCities.length > 0
-  const showOfficers = canEdit || officers.length > 0
-  const showEffects = canEdit || effectItems.length > 0
+  const showUse = isLanguage && (canEdit || useCities.length > 0)
 
   const categoryOptions =
     skill.category && !SKILL_CATEGORIES.includes(skill.category)
@@ -209,10 +222,12 @@ export function SkillDetailView({ skill, edit }: SkillDetailViewProps) {
       : RANGE_SCOPES
 
   return (
-    <div className="quest-detail">
+    <div className="quest-detail" data-module-host="skill">
       <header className="quest-detail-hero">
         <div className="quest-detail-hero-top">
-          <span className="quest-badge">스킬</span>
+          <span className="quest-badge">
+            {getModuleDef('skill')?.title ?? '스킬'}
+          </span>
           {skill.category ? (
             <span className="quest-badge">{skill.category}</span>
           ) : null}
@@ -250,10 +265,15 @@ export function SkillDetailView({ skill, edit }: SkillDetailViewProps) {
                   value={draft.category || ''}
                   disabled={saving}
                   onChange={(e) =>
-                    setDraft((prev) => ({
-                      ...prev,
-                      category: e.target.value || null,
-                    }))
+                    setDraft((prev) => {
+                      const category = e.target.value || null
+                      return {
+                        ...prev,
+                        category,
+                        rangeScope:
+                          category === '언어' ? '함대' : prev.rangeScope,
+                      }
+                    })
                   }
                 >
                   <option value="">선택</option>
@@ -368,7 +388,7 @@ export function SkillDetailView({ skill, edit }: SkillDetailViewProps) {
                       }))
                     }
                   />
-                  <span className="port-unit">두캇</span>
+                  <DucatMark />
                 </div>
               </label>
               <label className="field">
@@ -468,9 +488,9 @@ export function SkillDetailView({ skill, edit }: SkillDetailViewProps) {
       </section>
 
       {showJobs && (
-        <section className="quest-detail-section">
+        <section className="quest-detail-section" data-module="job">
           <DetailSectionHead
-            title="우대 직업"
+            title={getModuleDef('job')?.title ?? '직업'}
             canEdit={canEdit}
             editing={editing === 'jobs'}
             onEdit={() => startEdit('jobs')}
@@ -492,11 +512,11 @@ export function SkillDetailView({ skill, edit }: SkillDetailViewProps) {
               />
             </>
           ) : (
-            <p>
-              {preferredJobs.length
-                ? preferredJobs.join(', ')
-                : '등록된 우대 직업이 없습니다.'}
-            </p>
+            <JobModule
+              jobs={preferredJobs.map((name) => ({ name }))}
+              canEdit={canEdit}
+              showTitle={false}
+            />
           )}
         </section>
       )}
@@ -661,217 +681,7 @@ export function SkillDetailView({ skill, edit }: SkillDetailViewProps) {
         </section>
       )}
 
-      {showOfficers && (
-        <section className="quest-detail-section">
-          <DetailSectionHead
-            title="부관"
-            canEdit={canEdit}
-            editing={editing === 'officers'}
-            onEdit={() => startEdit('officers')}
-          />
-          {editing === 'officers' ? (
-            <>
-              <EditOfficers
-                officers={draft.officers}
-                disabled={saving}
-                onChange={(next) =>
-                  setDraft((prev) => ({ ...prev, officers: next }))
-                }
-              />
-              <DetailSectionActions
-                busy={saving}
-                onCancel={cancelEdit}
-                onSave={() => void saveSection()}
-              />
-            </>
-          ) : officers.length > 0 ? (
-            <div className="admin-table-wrap">
-              <table className="admin-table">
-                <thead>
-                  <tr>
-                    <th>부관</th>
-                    <th>직업</th>
-                    <th>모험</th>
-                    <th>교역</th>
-                    <th>전투</th>
-                    <th>특성</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {officers.map((row, index) => (
-                    <tr key={`${row.name}-${index}`}>
-                      <td>{row.name}</td>
-                      <td>{row.job || '-'}</td>
-                      <td>{row.adventure || '-'}</td>
-                      <td>{row.trade || '-'}</td>
-                      <td>{row.battle || '-'}</td>
-                      <td>{row.trait || '-'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <p className="form-note">등록된 부관이 없습니다.</p>
-          )}
-        </section>
-      )}
-
-      {showEffects && (
-        <section className="quest-detail-section">
-          <DetailSectionHead
-            title="효과 아이템"
-            canEdit={canEdit}
-            editing={editing === 'effects'}
-            onEdit={() => startEdit('effects')}
-          />
-          {editing === 'effects' ? (
-            <>
-              <EditKvTable
-                rows={draft.effectItems}
-                disabled={saving}
-                colA="종류"
-                colB="아이템"
-                onChange={(next) =>
-                  setDraft((prev) => ({ ...prev, effectItems: next }))
-                }
-                emptyRow={() => ({ kind: '', item: '' })}
-                getA={(r) => r.kind}
-                getB={(r) => r.item}
-                setA={(r, v) => ({ ...r, kind: v })}
-                setB={(r, v) => ({ ...r, item: v })}
-              />
-              <DetailSectionActions
-                busy={saving}
-                onCancel={cancelEdit}
-                onSave={() => void saveSection()}
-              />
-            </>
-          ) : effectItems.length > 0 ? (
-            <div className="admin-table-wrap">
-              <table className="admin-table">
-                <thead>
-                  <tr>
-                    <th>종류</th>
-                    <th>아이템</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {effectItems.map((row, index) => (
-                    <tr key={`${row.item}-${index}`}>
-                      <td>{row.kind || '-'}</td>
-                      <td>{row.item || '-'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <p className="form-note">등록된 효과 아이템이 없습니다.</p>
-          )}
-        </section>
-      )}
     </div>
-  )
-}
-
-function EditOfficers({
-  officers,
-  onChange,
-  disabled,
-}: {
-  officers: SkillOfficer[]
-  onChange: (officers: SkillOfficer[]) => void
-  disabled?: boolean
-}) {
-  return (
-    <>
-      <div className="admin-table-wrap">
-        <table className="admin-table">
-          <thead>
-            <tr>
-              <th>부관</th>
-              <th>직업</th>
-              <th>모험</th>
-              <th>교역</th>
-              <th>전투</th>
-              <th>특성</th>
-              <th className="col-action">삭제</th>
-            </tr>
-          </thead>
-          <tbody>
-            {officers.map((row, idx) => (
-              <tr key={`off-${idx}`}>
-                {(
-                  [
-                    'name',
-                    'job',
-                    'adventure',
-                    'trade',
-                    'battle',
-                    'trait',
-                  ] as const
-                ).map((key) => (
-                  <td key={key}>
-                    <input
-                      value={row[key] || ''}
-                      disabled={disabled}
-                      onChange={(e) =>
-                        onChange(
-                          officers.map((o, i) =>
-                            i === idx
-                              ? {
-                                  ...o,
-                                  [key]:
-                                    key === 'name'
-                                      ? e.target.value
-                                      : e.target.value || null,
-                                }
-                              : o,
-                          ),
-                        )
-                      }
-                    />
-                  </td>
-                ))}
-                <td className="col-action">
-                  <button
-                    type="button"
-                    className="admin-danger-btn"
-                    disabled={disabled}
-                    onClick={() =>
-                      onChange(officers.filter((_, i) => i !== idx))
-                    }
-                  >
-                    삭제
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <button
-        type="button"
-        className="admin-btn"
-        disabled={disabled}
-        onClick={() =>
-          onChange([
-            ...officers,
-            {
-              name: '',
-              job: null,
-              adventure: null,
-              trade: null,
-              battle: null,
-              trait: null,
-            },
-          ])
-        }
-      >
-        추가
-      </button>
-    </>
   )
 }
 

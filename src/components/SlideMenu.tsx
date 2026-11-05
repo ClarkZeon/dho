@@ -12,9 +12,49 @@ export type MenuTarget =
   | { name: 'ship-materials' }
   | { name: 'discoveries' }
   | { name: 'quests' }
+  | { name: 'skills' }
+  | { name: 'jobs' }
+  | { name: 'refine' }
+  | { name: 'ports' }
   | { name: 'users' }
 
-type MenuSectionId = 'community' | 'ships' | 'records' | 'manage'
+type MenuSectionId =
+  | 'community'
+  | 'ships'
+  | 'records'
+  | 'character'
+  | 'world'
+  | 'manage'
+
+const MENU_SECTIONS_KEY = 'dho.slideMenu.sections'
+const MENU_SECTION_IDS: MenuSectionId[] = [
+  'community',
+  'ships',
+  'records',
+  'character',
+  'world',
+  'manage',
+]
+
+function loadOpenSections(): Set<MenuSectionId> {
+  try {
+    const raw = localStorage.getItem(MENU_SECTIONS_KEY)
+    if (!raw) return new Set()
+    const parsed = JSON.parse(raw) as unknown
+    if (!Array.isArray(parsed)) return new Set()
+    return new Set(
+      parsed.filter((id): id is MenuSectionId =>
+        MENU_SECTION_IDS.includes(id as MenuSectionId),
+      ),
+    )
+  } catch {
+    return new Set()
+  }
+}
+
+function saveOpenSections(sections: Set<MenuSectionId>) {
+  localStorage.setItem(MENU_SECTIONS_KEY, JSON.stringify([...sections]))
+}
 
 type SlideMenuProps = {
   open: boolean
@@ -24,21 +64,6 @@ type SlideMenuProps = {
   onClose: () => void
   onNavigate: (target: MenuTarget) => void
   onLogout: () => void
-}
-
-function sectionForActive(active: MenuTarget): MenuSectionId | null {
-  if (active.name === 'board') return 'community'
-  if (
-    active.name === 'ship-info' ||
-    active.name === 'ship-accel' ||
-    active.name === 'ship-compare' ||
-    active.name === 'ship-materials'
-  ) {
-    return 'ships'
-  }
-  if (active.name === 'discoveries' || active.name === 'quests') return 'records'
-  if (active.name === 'users') return 'manage'
-  return null
 }
 
 function MenuSection({
@@ -92,34 +117,23 @@ export function SlideMenu({
   onLogout,
 }: SlideMenuProps) {
   const [openSections, setOpenSections] = useState<Set<MenuSectionId>>(
-    () => new Set(),
+    loadOpenSections,
   )
   const isAdmin = user.role === 'admin'
 
   useEffect(() => {
     if (!open) return
-    const prev = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-
     function onKey(event: KeyboardEvent) {
       if (event.key === 'Escape') onClose()
     }
     window.addEventListener('keydown', onKey)
     return () => {
-      document.body.style.overflow = prev
       window.removeEventListener('keydown', onKey)
     }
   }, [open, onClose])
 
-  useEffect(() => {
-    if (!open) return
-    const section = sectionForActive(active)
-    setOpenSections(section ? new Set([section]) : new Set())
-  }, [open, active])
-
   function go(target: MenuTarget) {
     onNavigate(target)
-    onClose()
   }
 
   function toggleSection(id: MenuSectionId) {
@@ -127,6 +141,7 @@ export function SlideMenu({
       const next = new Set(prev)
       if (next.has(id)) next.delete(id)
       else next.add(id)
+      saveOpenSections(next)
       return next
     })
   }
@@ -139,27 +154,56 @@ export function SlideMenu({
     active.name === 'ship-materials'
   const recordsActive =
     active.name === 'discoveries' || active.name === 'quests'
+  const characterActive =
+    active.name === 'skills' ||
+    active.name === 'jobs' ||
+    active.name === 'refine'
+  const worldActive = active.name === 'ports'
   const manageActive = active.name === 'users'
+
+  const sectionHasActive: Record<MenuSectionId, boolean> = {
+    community: communityActive,
+    ships: shipsActive,
+    records: recordsActive,
+    character: characterActive,
+    world: worldActive,
+    manage: manageActive,
+  }
+
+  // 현재 활성 페이지가 속하지 않은 열린 섹션은 닫기
+  useEffect(() => {
+    setOpenSections((prev) => {
+      let changed = false
+      const next = new Set(prev)
+      for (const id of prev) {
+        if (!sectionHasActive[id]) {
+          next.delete(id)
+          changed = true
+        }
+      }
+      if (!changed) return prev
+      saveOpenSections(next)
+      return next
+    })
+  }, [
+    communityActive,
+    shipsActive,
+    recordsActive,
+    characterActive,
+    worldActive,
+    manageActive,
+  ])
+
   return (
     <div
       className={`slide-menu ${open ? 'open' : ''}`}
       aria-hidden={!open}
       inert={!open ? true : undefined}
     >
-      <button
-        type="button"
-        className="slide-menu-backdrop"
-        aria-label="메뉴 닫기"
-        tabIndex={open ? 0 : -1}
-        onClick={onClose}
-      />
-
       <aside
         className="slide-menu-panel"
-        role="dialog"
-        aria-modal={open ? true : undefined}
+        role="navigation"
         aria-label="사이트 메뉴"
-        onClick={(event) => event.stopPropagation()}
       >
         <header className="slide-menu-head">
           <div>
@@ -170,8 +214,13 @@ export function SlideMenu({
               Lv.{user.level} · {user.nickname}
             </p>
           </div>
-          <button type="button" className="slide-menu-close" onClick={onClose}>
-            닫기
+          <button
+            type="button"
+            className="slide-menu-close"
+            aria-label="메뉴 접기"
+            onClick={onClose}
+          >
+            접기
           </button>
         </header>
 
@@ -264,6 +313,52 @@ export function SlideMenu({
               onClick={() => go({ name: 'quests' })}
             >
               퀘스트
+            </button>
+          </MenuSection>
+
+          <MenuSection
+            id="character"
+            title="캐릭터"
+            open={openSections.has('character')}
+            active={characterActive}
+            onToggle={toggleSection}
+          >
+            <button
+              type="button"
+              className={active.name === 'skills' ? 'active' : ''}
+              onClick={() => go({ name: 'skills' })}
+            >
+              스킬
+            </button>
+            <button
+              type="button"
+              className={active.name === 'jobs' ? 'active' : ''}
+              onClick={() => go({ name: 'jobs' })}
+            >
+              직업
+            </button>
+            <button
+              type="button"
+              className={active.name === 'refine' ? 'active' : ''}
+              onClick={() => go({ name: 'refine' })}
+            >
+              연성
+            </button>
+          </MenuSection>
+
+          <MenuSection
+            id="world"
+            title="월드"
+            open={openSections.has('world')}
+            active={worldActive}
+            onToggle={toggleSection}
+          >
+            <button
+              type="button"
+              className={active.name === 'ports' ? 'active' : ''}
+              onClick={() => go({ name: 'ports' })}
+            >
+              도시
             </button>
           </MenuSection>
 

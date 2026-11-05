@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { updateTreasureMap } from '../lib/api'
 import type { TreasureMapDetail } from '../types'
 import {
   DetailSectionActions,
   DetailSectionHead,
 } from './DetailSectionHead'
+import { DiscoveryChips } from './modules/DiscoveryChips'
 
 type TreasureMapDetailViewProps = {
   map: TreasureMapDetail
@@ -21,24 +22,20 @@ function Row({
   hideEmpty,
 }: {
   label: string
-  value: string | null
+  value: ReactNode
   hideEmpty?: boolean
 }) {
-  if (hideEmpty && !value?.trim()) return null
+  const empty =
+    value == null ||
+    value === '' ||
+    (typeof value === 'string' && !value.trim())
+  if (hideEmpty && empty) return null
   return (
     <div>
       <span>{label}</span>
-      <strong style={{ whiteSpace: 'pre-wrap' }}>
-        {value?.trim() ? value : '-'}
-      </strong>
+      <strong style={{ whiteSpace: 'pre-wrap' }}>{empty ? '-' : value}</strong>
     </div>
   )
-}
-
-function discoveryLabel(row: TreasureMapDetail['discoveries'][number]) {
-  const cat = row.category ? `[${row.category}]` : ''
-  const rank = row.rank != null ? String(row.rank) : ''
-  return [cat, rank, row.name].filter(Boolean).join(' ')
 }
 
 function skillLabel(row: TreasureMapDetail['skillReqs'][number]) {
@@ -259,17 +256,26 @@ export function TreasureMapDetailView({
               value={destinationLabel(map)}
               hideEmpty={!canEdit}
             />
-            <Row
-              label="발견물"
-              value={
-                map.discoveries.length
-                  ? map.discoveries.map(discoveryLabel).join('\n')
-                  : null
-              }
-              hideEmpty={!canEdit}
-            />
           </div>
         )}
+        {!editing && (map.discoveries.length > 0 || canEdit) ? (
+          <div className="skill-module-rows">
+            <div className="skill-module-row">
+              <span className="skill-module-row-label">발견물</span>
+              {map.discoveries.length > 0 ? (
+                <DiscoveryChips
+                  items={map.discoveries.map((d) => ({
+                    name: d.name,
+                    category: d.category,
+                    rank: d.rank,
+                  }))}
+                />
+              ) : (
+                <strong>-</strong>
+              )}
+            </div>
+          </div>
+        ) : null}
       </section>
 
       {showNeed && (

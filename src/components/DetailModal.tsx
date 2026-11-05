@@ -5,6 +5,8 @@ type DetailModalProps = {
   label: string
   onClose: () => void
   children: ReactNode
+  /** 닫기 버튼 왼쪽에 붙는 액션 (모드 토글 등) */
+  headerActions?: ReactNode
   /** 중첩 모달일 때 위로 쌓음 (1 = 한 단계 위) */
   stack?: number
 }
@@ -17,6 +19,7 @@ export function DetailModal({
   label,
   onClose,
   children,
+  headerActions,
   stack = 0,
 }: DetailModalProps) {
   useEffect(() => {
@@ -60,9 +63,12 @@ export function DetailModal({
       <div className="admin-modal-panel">
         <header className="admin-modal-head">
           <p>{title}</p>
-          <button type="button" className="admin-btn" onClick={onClose}>
-            닫기
-          </button>
+          <div className="admin-modal-head-actions">
+            {headerActions}
+            <button type="button" className="admin-btn" onClick={onClose}>
+              닫기
+            </button>
+          </div>
         </header>
         <div className="admin-modal-body">{children}</div>
       </div>

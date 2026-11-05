@@ -15,6 +15,8 @@ import type {
   EntryPermitDetail,
   MemorialAlbumDetail,
   TitleDetail,
+  JobDetail,
+  RefineDetail,
   TreasureMapDetail,
   QuestDetail,
   Session,
@@ -281,6 +283,8 @@ export function fetchQuests(
     offset?: number
     sort?: string | null
     dir?: 'asc' | 'desc'
+    /** all | done | open — 유저 완료 여부 필터 */
+    completion?: 'all' | 'done' | 'open'
   },
 ) {
   const params = new URLSearchParams()
@@ -289,6 +293,9 @@ export function fetchQuests(
   if (opts?.offset != null) params.set('offset', String(opts.offset))
   if (opts?.sort) params.set('sort', opts.sort)
   if (opts?.dir) params.set('dir', opts.dir)
+  if (opts?.completion && opts.completion !== 'all') {
+    params.set('completion', opts.completion)
+  }
   const query = params.toString()
   return request<{
     quests: QuestDetail[]
@@ -688,6 +695,42 @@ export function updateTreasureMap(
   )
 }
 
+export function fetchJobs(token: string) {
+  return request<{ jobs: JobDetail[] }>('/api/jobs', { token })
+}
+
+export function importJobText(token: string, text: string) {
+  return request<{ job: JobDetail }>('/api/jobs/import-text', {
+    token,
+    body: { text },
+  })
+}
+
+export function deleteJob(token: string, jobId: number) {
+  return request<{ ok: boolean }>(
+    `/api/jobs/${encodeURIComponent(String(jobId))}`,
+    { method: 'DELETE', token },
+  )
+}
+
+export function fetchRefines(token: string) {
+  return request<{ refines: RefineDetail[] }>('/api/refines', { token })
+}
+
+export function importRefineText(token: string, text: string) {
+  return request<{ refine: RefineDetail }>('/api/refines/import-text', {
+    token,
+    body: { text },
+  })
+}
+
+export function deleteRefine(token: string, refineId: number) {
+  return request<{ ok: boolean }>(
+    `/api/refines/${encodeURIComponent(String(refineId))}`,
+    { method: 'DELETE', token },
+  )
+}
+
 export function fetchTitles(token: string) {
   return request<{ titles: TitleDetail[] }>('/api/titles', { token })
 }
@@ -725,6 +768,25 @@ export function fetchDiscoveries(token: string) {
   return request<{ discoveries: DiscoveryDetail[] }>('/api/discoveries', {
     token,
   })
+}
+
+export function setDiscoveryCompletion(
+  token: string,
+  discoveryId: number,
+  completed: boolean,
+) {
+  return request<{
+    discoveryId: number
+    completed: boolean
+    completedAt: string | null
+  }>(
+    `/api/discoveries/${encodeURIComponent(String(discoveryId))}/completion`,
+    {
+      method: 'PUT',
+      token,
+      body: { completed },
+    },
+  )
 }
 
 export function fetchDiscovery(token: string, slug: string) {
@@ -848,6 +910,8 @@ export function fetchAdminStats(token: string) {
       memorialAlbums: number
       titles: number
       treasureMaps: number
+      jobs: number
+      refines: number
       featureRequests: number
     }
   }>('/api/admin/stats', { token })

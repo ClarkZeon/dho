@@ -1,4 +1,4 @@
-/** 발견물 등급: "3성" → ★3 */
+/** 발견물 등급: 다이아몬드 이미지 + 숫자 */
 export function DiscoveryRankMark({
   rank,
 }: {
@@ -7,10 +7,16 @@ export function DiscoveryRankMark({
   if (rank == null || !Number.isFinite(Number(rank))) return null
   const n = Math.floor(Number(rank))
   return (
-    <span className="discovery-rank-mark" aria-label={`${n}성`}>
-      <span className="discovery-rank-mark-star" aria-hidden="true">
-        ★
-      </span>
+    <span className="discovery-rank-mark" aria-label={`${n}등급`}>
+      <img
+        className="discovery-rank-mark-gem"
+        src="/icons/discovery-rank-gem.svg"
+        alt=""
+        aria-hidden="true"
+        width={14}
+        height={14}
+        draggable={false}
+      />
       <span className="discovery-rank-mark-num">{n}</span>
     </span>
   )
@@ -23,7 +29,7 @@ type DiscoveryFields = {
   discoveryRef?: { id: number; slug: string; name: string } | null
 }
 
-/** 퀘스트 발견물: [분류] ★n 이름 (DB 매칭 시 링크) */
+/** 퀘스트 발견물: [분류] ◆n 이름 (DB 매칭 시 링크) */
 export function QuestDiscoveryLabel({
   quest,
   empty = '-',

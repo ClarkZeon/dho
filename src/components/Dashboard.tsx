@@ -14,6 +14,10 @@ import { ShipInfo } from './ShipInfo'
 import { ShipMaterialCatalog } from './ShipMaterialCatalog'
 import { DiscoveryCatalog } from './DiscoveryCatalog'
 import { QuestCatalog } from './QuestCatalog'
+import { SkillCatalog } from './SkillCatalog'
+import { JobCatalog } from './JobCatalog'
+import { RefineCatalog } from './RefineCatalog'
+import { PortCatalog } from './PortCatalog'
 import { UserManage } from './UserManage'
 import { BrandMark } from './BrandMark'
 import { SlideMenu, type MenuTarget } from './SlideMenu'
@@ -28,6 +32,10 @@ type View =
   | { name: 'ship-materials' }
   | { name: 'discoveries' }
   | { name: 'quests' }
+  | { name: 'skills' }
+  | { name: 'jobs' }
+  | { name: 'refine' }
+  | { name: 'ports' }
   | { name: 'users' }
 
 type DashboardProps = {
@@ -54,6 +62,14 @@ function viewToHash(view: View): string {
       return '#/discoveries'
     case 'quests':
       return '#/quests'
+    case 'skills':
+      return '#/skills'
+    case 'jobs':
+      return '#/jobs'
+    case 'refine':
+      return '#/refine'
+    case 'ports':
+      return '#/ports'
     case 'users':
       return '#/users'
     case 'board':
@@ -91,6 +107,10 @@ function hashToView(hash: string, isAdmin: boolean): View {
   if (parts[0] === 'ship-materials') return { name: 'ship-materials' }
   if (parts[0] === 'discoveries') return { name: 'discoveries' }
   if (parts[0] === 'quests') return { name: 'quests' }
+  if (parts[0] === 'skills') return { name: 'skills' }
+  if (parts[0] === 'jobs') return { name: 'jobs' }
+  if (parts[0] === 'refine') return { name: 'refine' }
+  if (parts[0] === 'ports' || parts[0] === 'cities') return { name: 'ports' }
   if (parts[0] === 'users') {
     return isAdmin ? { name: 'users' } : { name: 'home' }
   }
@@ -177,6 +197,10 @@ function toMenuTarget(view: View): MenuTarget {
   if (view.name === 'ship-materials') return { name: 'ship-materials' }
   if (view.name === 'discoveries') return { name: 'discoveries' }
   if (view.name === 'quests') return { name: 'quests' }
+  if (view.name === 'skills') return { name: 'skills' }
+  if (view.name === 'jobs') return { name: 'jobs' }
+  if (view.name === 'refine') return { name: 'refine' }
+  if (view.name === 'ports') return { name: 'ports' }
   if (view.name === 'users') return { name: 'users' }
   return { name: 'home' }
 }
@@ -186,7 +210,22 @@ export function Dashboard({ user, token, onLogout, onToast }: DashboardProps) {
   const [view, setView] = useState<View>(() =>
     hashToView(window.location.hash, user.role === 'admin'),
   )
-  const [menuOpen, setMenuOpen] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(() => {
+    try {
+      // 기본 열림. 접어 둔 경우만 '0'
+      return localStorage.getItem('dho.slideMenu.open') !== '0'
+    } catch {
+      return true
+    }
+  })
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('dho.slideMenu.open', menuOpen ? '1' : '0')
+    } catch {
+      // ignore
+    }
+  }, [menuOpen])
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const userMenuRef = useRef<HTMLDivElement>(null)
   const [unread, setUnread] = useState(0)
@@ -333,6 +372,22 @@ export function Dashboard({ user, token, onLogout, onToast }: DashboardProps) {
       go({ name: 'quests' })
       return
     }
+    if (target.name === 'skills') {
+      go({ name: 'skills' })
+      return
+    }
+    if (target.name === 'jobs') {
+      go({ name: 'jobs' })
+      return
+    }
+    if (target.name === 'refine') {
+      go({ name: 'refine' })
+      return
+    }
+    if (target.name === 'ports') {
+      go({ name: 'ports' })
+      return
+    }
     if (target.name === 'users') {
       if (isAdmin) go({ name: 'users' })
       return
@@ -341,7 +396,7 @@ export function Dashboard({ user, token, onLogout, onToast }: DashboardProps) {
   }
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell${menuOpen ? ' menu-open' : ''}`}>
       <header className="topbar">
         <div className="topbar-left">
           <button
@@ -543,6 +598,50 @@ export function Dashboard({ user, token, onLogout, onToast }: DashboardProps) {
                   </div>
                 </div>
 
+                <div className="dash-link-group">
+                  <h3>캐릭터</h3>
+                  <div className="dash-links">
+                    <button
+                      type="button"
+                      className="dash-link"
+                      onClick={() => go({ name: 'skills' })}
+                    >
+                      <strong>스킬</strong>
+                      <span>스킬 목록·상세</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="dash-link"
+                      onClick={() => go({ name: 'jobs' })}
+                    >
+                      <strong>직업</strong>
+                      <span>직업 목록·상세</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="dash-link"
+                      onClick={() => go({ name: 'refine' })}
+                    >
+                      <strong>연성</strong>
+                      <span>연성 목록·상세</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="dash-link-group">
+                  <h3>월드</h3>
+                  <div className="dash-links">
+                    <button
+                      type="button"
+                      className="dash-link"
+                      onClick={() => go({ name: 'ports' })}
+                    >
+                      <strong>도시</strong>
+                      <span>도시·항구 목록·상세</span>
+                    </button>
+                  </div>
+                </div>
+
                 {isAdmin && (
                   <div className="dash-link-group">
                     <h3>관리</h3>
@@ -640,6 +739,22 @@ export function Dashboard({ user, token, onLogout, onToast }: DashboardProps) {
 
         {view.name === 'quests' && (
           <QuestCatalog token={token} isAdmin={isAdmin} onToast={onToast} />
+        )}
+
+        {view.name === 'skills' && (
+          <SkillCatalog token={token} isAdmin={isAdmin} onToast={onToast} />
+        )}
+
+        {view.name === 'jobs' && (
+          <JobCatalog token={token} isAdmin={isAdmin} onToast={onToast} />
+        )}
+
+        {view.name === 'refine' && (
+          <RefineCatalog token={token} isAdmin={isAdmin} onToast={onToast} />
+        )}
+
+        {view.name === 'ports' && (
+          <PortCatalog token={token} isAdmin={isAdmin} onToast={onToast} />
         )}
 
         {view.name === 'users' && isAdmin && (
