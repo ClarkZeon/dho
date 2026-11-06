@@ -8,6 +8,7 @@ export async function ensureSeaAreaStore() {
   if (!hasDatabaseUrl()) throw new Error('DATABASE_URL 이 없습니다.')
   await runSqlFile('sql/024_sea_areas.sql')
   await runSqlFile('sql/025_sea_area_detail.sql')
+  await runSqlFile('sql/048_sea_areas_drop_alt_name.sql')
 }
 
 function normalizeName(name) {
@@ -94,7 +95,6 @@ function decorateSeaArea(row) {
     id: Number(row.id),
     slug: String(row.slug),
     name: String(row.name),
-    altName: row.alt_name == null ? null : String(row.alt_name),
     description:
       row.description == null ? null : String(row.description),
     category: row.category == null ? null : String(row.category),
@@ -199,12 +199,6 @@ export async function updateSeaAreaFields(id, patch) {
     const name = normalizeName(patch.name)
     if (!name) throw new Error('해역 이름이 필요합니다.')
     next.name = name
-  }
-  if ('altName' in patch) {
-    next.altName =
-      patch.altName == null || String(patch.altName).trim() === ''
-        ? null
-        : String(patch.altName).trim()
   }
   if ('description' in patch) {
     next.description =
@@ -322,7 +316,6 @@ export async function updateSeaAreaFields(id, patch) {
   await sql`
     UPDATE sea_areas SET
       name = ${next.name},
-      alt_name = ${next.altName},
       description = ${next.description},
       category = ${next.category},
       region = ${next.region},
@@ -397,7 +390,6 @@ export async function upsertSeaAreaFromParsed(parsed) {
     await sql`
       UPDATE sea_areas SET
         name = ${name},
-        alt_name = ${parsed.altName ?? null},
         description = ${parsed.description ?? null},
         category = ${parsed.category},
         region = ${region},
@@ -445,13 +437,13 @@ export async function upsertSeaAreaFromParsed(parsed) {
 
   await sql`
     INSERT INTO sea_areas (
-      id, slug, name, alt_name, description, category, region, regions,
+      id, slug, name, description, category, region, regions,
       bound_north, bound_west, bound_south, bound_east,
       wave, current, max_speed_bonus,
       places, collect_items, destinations, sea_npcs,
       enabled, sort_order
     ) VALUES (
-      ${id}, ${slug}, ${name}, ${parsed.altName ?? null},
+      ${id}, ${slug}, ${name},
       ${parsed.description ?? null}, ${parsed.category}, ${region},
       ${regionsJson},
       ${parsed.boundNorth}, ${parsed.boundWest}, ${parsed.boundSouth},

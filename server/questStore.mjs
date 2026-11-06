@@ -436,7 +436,11 @@ export async function updateQuestFields(id, patch) {
     next.difficulty = difficulty
   }
   if ('discoveryRank' in patch) {
-    next.discoveryRank = asOptionalInt(patch.discoveryRank, '발견물 난이도')
+    const rank = asOptionalInt(patch.discoveryRank, '발견물 난이도')
+    if (rank != null && (rank < 1 || rank > 5)) {
+      throw new Error('발견물 난이도는 1~5 정수여야 합니다.')
+    }
+    next.discoveryRank = rank
   }
   for (const key of [
     'rewardDucat',

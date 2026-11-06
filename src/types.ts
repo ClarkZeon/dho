@@ -571,8 +571,6 @@ export type SeaAreaDetail = {
   id: number
   slug: string
   name: string
-  /** 추가 이름 */
-  altName: string | null
   description: string | null
   category: string | null
   /** 대표 지역 (regions[0]) */

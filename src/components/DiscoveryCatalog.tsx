@@ -80,20 +80,30 @@ function acquirePlaces(discovery: DiscoveryDetail) {
   return splitAcquireLabel(acquireLabel(discovery)).places
 }
 
-/** 분류: `생물 » 대형생물` — 대괄호 없이 앞은 작게, 뒤는 강조 */
+/** 분류: `지리·천문 » 지리` — 그룹은 작게, 리프는 강조 */
 function DiscoveryCategoryCell({
   category,
+  categoryGroup,
 }: {
   category: string | null | undefined
+  categoryGroup?: string | null
 }) {
-  const raw = String(category || '').trim()
-  if (!raw) return '-'
+  const leaf = String(category || '').trim()
+  if (!leaf) return '-'
+  const group = String(categoryGroup || '').trim()
+  if (group && group !== leaf) {
+    return (
+      <span className="quest-cat-label">
+        <em className="quest-cat-bracket">{group}</em>
+        <span className="quest-cat-type">{leaf}</span>
+      </span>
+    )
+  }
 
-  const parts = raw
+  const parts = leaf
     .split(/\s*[»›>]\s*/)
     .map((s) => s.trim())
     .filter(Boolean)
-
   if (parts.length >= 2) {
     return (
       <span className="quest-cat-label">
@@ -103,7 +113,7 @@ function DiscoveryCategoryCell({
     )
   }
 
-  return <span className="quest-cat-type">{raw}</span>
+  return <span className="quest-cat-type">{leaf}</span>
 }
 
 /** `[퀘스트] 모험` */
@@ -310,7 +320,7 @@ export function DiscoveryCatalog({
 
   async function handleRankChange(discovery: DiscoveryDetail, value: string) {
     const rank = value === '' ? null : Number(value)
-    if (rank !== null && (!Number.isInteger(rank) || rank < 0 || rank > 10)) {
+    if (rank !== null && (!Number.isInteger(rank) || rank < 1 || rank > 5)) {
       return
     }
     if (rank === discovery.rank) return
@@ -567,7 +577,10 @@ export function DiscoveryCatalog({
                 >
                   <td>{item.name}</td>
                   <td className="col-desk">
-                    <DiscoveryCategoryCell category={item.category} />
+                    <DiscoveryCategoryCell
+                      category={item.category}
+                      categoryGroup={item.categoryGroup}
+                    />
                   </td>
                   <td
                     className={`col-desk${isAdmin ? ' admin-cell-control col-diff' : ''}`}
@@ -587,7 +600,7 @@ export function DiscoveryCatalog({
                         }
                       >
                         <option value="">-</option>
-                        {Array.from({ length: 11 }, (_, n) => (
+                        {Array.from({ length: 5 }, (_, i) => i + 1).map((n) => (
                           <option key={n} value={n}>
                             {n}
                           </option>

@@ -1,11 +1,10 @@
 import { formatDiscoveryAcquire } from '../../lib/discoveryAcquire'
-import { skillDisplayLevel } from '../../lib/questSkills'
+import { formatQuestSkillLabel } from '../../lib/questSkills'
 import type {
   DiscoveryDetail,
   DiscoveryQuestRef,
   QuestSkillReq,
 } from '../../types'
-import { SkillEdgeLabel } from '../SkillEdgeLabel'
 
 export type QuestJumpTarget = {
   name: string
@@ -18,9 +17,7 @@ type QuestModuleProps = {
   canEdit?: boolean
   /** 카탈로그 점프 */
   onOpenQuest?: (target: QuestJumpTarget) => void
-  onOpenSkill?: (name: string) => void
   discoveryBusy?: boolean
-  skillBusy?: boolean
 }
 
 type QuestEntry = {
@@ -122,82 +119,38 @@ function categoryLabel(
   return raw
 }
 
+/** 발견 방법 카드형이면 퀘스트 */
+function looksLikeQuestAcquireLabel(label: string) {
+  const raw = String(label || '').trim()
+  if (!raw) return false
+  if (/[\[［](?:보물)?지도[\]］]/u.test(raw)) return false
+  if (/[\[［]퀘스트[\]］]/u.test(raw)) return true
+  return /\|/.test(raw) && /\([⭐★*]?\s*\d+/.test(raw)
+}
+
 function resolveLinkKind(
   tag: string | null | undefined,
   label: string,
+  hasQuestRef = false,
 ): 'quest' | 'map' {
   const t = String(tag || '').trim()
   if (/^퀘스트$/u.test(t)) return 'quest'
   if (/보물지도|지도/u.test(t)) return 'map'
   if (/[\[［]퀘스트[\]］]/u.test(label)) return 'quest'
   if (/[\[［](?:보물)?지도[\]］]/u.test(label)) return 'map'
+  if (hasQuestRef || looksLikeQuestAcquireLabel(label)) return 'quest'
   if (t) return 'quest'
   return 'map'
-}
-
-function SkillLine({
-  skills,
-  onOpen,
-  busy = false,
-}: {
-  skills: QuestSkillReq[] | null | undefined
-  onOpen?: (name: string) => void
-  busy?: boolean
-}) {
-  const list = (skills || []).filter((s) => s.name?.trim())
-  if (list.length === 0) return null
-
-  return (
-    <ul className="quest-skill-chips quest-chain-skill-chips">
-      {list.map((skill, idx) => {
-        const name = skill.name.trim()
-        if (!name) return null
-        const level = skillDisplayLevel(skill)
-        const canOpen = Boolean(onOpen && name)
-        return (
-          <li
-            key={`${skill.name}-${skill.level}-${idx}`}
-            className="is-skill-chip"
-          >
-            <SkillEdgeLabel />
-            {canOpen ? (
-              <button
-                type="button"
-                className="quest-skill-chip-btn"
-                disabled={busy}
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onOpen?.(name)
-                }}
-              >
-                <span>{name}</span>
-                {level != null ? <em>Lv.{level}</em> : null}
-              </button>
-            ) : (
-              <>
-                <span>{name}</span>
-                {level != null ? <em>Lv.{level}</em> : null}
-              </>
-            )}
-          </li>
-        )
-      })}
-    </ul>
-  )
 }
 
 function QuestEntryCard({
   item,
   onOpenQuest,
-  onOpenSkill,
   busy = false,
-  skillBusy = false,
 }: {
   item: QuestEntry
   onOpenQuest?: (target: QuestJumpTarget) => void
-  onOpenSkill?: (name: string) => void
   busy?: boolean
-  skillBusy?: boolean
 }) {
   const parsed = splitAcquireLabel(item.label)
   const quest = item.quest
@@ -221,6 +174,13 @@ function QuestEntryCard({
   ]
     .filter(Boolean)
     .join(' · ')
+  const skillsLine =
+    skills.length > 0
+      ? skills
+          .map((s) => formatQuestSkillLabel(s))
+          .filter(Boolean)
+          .join(', ')
+      : ''
 
   const body = (
     <>
@@ -236,7 +196,9 @@ function QuestEntryCard({
         ) : null}
       </div>
       {meta ? <p>{meta}</p> : null}
-      <SkillLine skills={skills} onOpen={onOpenSkill} busy={skillBusy} />
+      {skillsLine ? (
+        <p className="quest-chain-skills">{skillsLine}</p>
+      ) : null}
     </>
   )
 
@@ -267,15 +229,11 @@ function QuestEntryCard({
 function QuestEntryList({
   entries,
   onOpenQuest,
-  onOpenSkill,
   busy = false,
-  skillBusy = false,
 }: {
   entries: QuestEntry[]
   onOpenQuest?: (target: QuestJumpTarget) => void
-  onOpenSkill?: (name: string) => void
   busy?: boolean
-  skillBusy?: boolean
 }) {
   return (
     <ul className="quest-chain is-linked">
@@ -284,9 +242,7 @@ function QuestEntryList({
           key={item.key}
           item={item}
           onOpenQuest={onOpenQuest}
-          onOpenSkill={onOpenSkill}
           busy={busy}
-          skillBusy={skillBusy}
         />
       ))}
     </ul>
@@ -301,9 +257,7 @@ export function QuestModule({
   discovery,
   canEdit = false,
   onOpenQuest,
-  onOpenSkill,
   discoveryBusy = false,
-  skillBusy = false,
 }: QuestModuleProps) {
   const acquireEntries = collectAcquireEntries(discovery)
   const linkedEntries = collectLinkedEntries(discovery)
@@ -322,9 +276,7 @@ export function QuestModule({
             <QuestEntryList
               entries={acquireEntries}
               onOpenQuest={onOpenQuest}
-              onOpenSkill={onOpenSkill}
               busy={discoveryBusy}
-              skillBusy={skillBusy}
             />
           ) : (
             <p className="quest-muted">없음</p>
@@ -339,9 +291,7 @@ export function QuestModule({
             <QuestEntryList
               entries={linkedEntries}
               onOpenQuest={onOpenQuest}
-              onOpenSkill={onOpenSkill}
               busy={discoveryBusy}
-              skillBusy={skillBusy}
             />
           ) : (
             <p className="quest-muted">없음</p>
@@ -355,13 +305,21 @@ export function QuestModule({
 function collectAcquireEntries(discovery: DiscoveryDetail): QuestEntry[] {
   const acquireLabel = formatDiscoveryAcquire(discovery)?.trim()
   if (!discovery.acquireQuest && !acquireLabel) return []
+  const label = acquireLabel || discovery.acquireQuest?.name || '-'
+  const tag =
+    discovery.acquireType?.trim() ||
+    (discovery.acquireQuest || looksLikeQuestAcquireLabel(label)
+      ? '퀘스트'
+      : null)
   return [
     {
       key: discovery.acquireQuest
         ? `acquire:${discovery.acquireQuest.id}`
         : `acquire:${acquireLabel}`,
-      label: acquireLabel || discovery.acquireQuest?.name || '-',
+      label,
       quest: discovery.acquireQuest,
+      tag,
+      linkKind: resolveLinkKind(tag, label, Boolean(discovery.acquireQuest)),
     },
   ]
 }
@@ -390,7 +348,7 @@ function collectLinkedEntries(discovery: DiscoveryDetail): QuestEntry[] {
       label,
       quest: item.quest,
       tag: item.tag,
-      linkKind: resolveLinkKind(item.tag, label),
+      linkKind: resolveLinkKind(item.tag, label, Boolean(item.quest)),
     })
   }
 

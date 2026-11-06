@@ -1,16 +1,29 @@
-import { useEffect, useState } from 'react'
-import { updateSeaArea } from '../lib/api'
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
+import { fetchRegionByKey, updateSeaArea } from '../lib/api'
 import type {
+  RegionDetail,
   SeaAreaCollectItem,
   SeaAreaDetail,
   SeaAreaDestination,
   SeaAreaNpc,
   SeaAreaPlace,
 } from '../types'
+import { ConfirmLayer } from './ConfirmLayer'
+import { DetailModal } from './DetailModal'
+import { LoadingOverlay } from './LoadingOverlay'
 import { DiscoveryChips } from './modules/DiscoveryChips'
+import { RegionEdgeLabel } from './RegionEdgeLabel'
+
+/** RegionDetailView ↔ SeaAreaDetailView 순환 import 방지 */
+const RegionDetailViewLazy = lazy(() =>
+  import('./RegionDetailView').then((m) => ({ default: m.RegionDetailView })),
+)
 
 type SeaAreaDetailViewProps = {
   seaArea: SeaAreaDetail
+  /** 카탈로그 점프용 (없으면 edit.token) */
+  token?: string
+  isAdmin?: boolean
   /** 관리자: 섹션별 연필로 수정 */
   edit?: {
     token: string
@@ -40,6 +53,15 @@ const SEA_CATEGORIES = [
   '극동',
   '기타',
 ]
+
+const DEST_SOURCES = ['발견물', '보물지도', '퀘스트', '침몰선']
+
+function destColumnLabel(tab: string) {
+  if (tab === '퀘스트') return '퀘스트'
+  if (tab === '보물지도') return '보물지도'
+  if (tab === '침몰선') return '침몰선'
+  return '발견물'
+}
 
 function emptyCollect(source: string): SeaAreaCollectItem {
   return {
@@ -245,20 +267,79 @@ function ReadCollectTable({
   )
 }
 
-export function SeaAreaDetailView({ seaArea, edit }: SeaAreaDetailViewProps) {
+export function SeaAreaDetailView({
+  seaArea,
+  token,
+  isAdmin = false,
+  edit,
+}: SeaAreaDetailViewProps) {
+  const authToken = token || edit?.token || ''
   const canEdit = Boolean(edit)
   const [editing, setEditing] = useState<EditSection | null>(null)
   const [draft, setDraft] = useState(() => cloneDetail(seaArea))
   const [regionDraft, setRegionDraft] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [regionDetail, setRegionDetail] = useState<RegionDetail | null>(null)
+  const [regionLoading, setRegionLoading] = useState(false)
+  const [regionMissName, setRegionMissName] = useState('')
+  const [regionError, setRegionError] = useState('')
+  const [destTab, setDestTab] = useState(DEST_SOURCES[0])
+
+  const regionNames = useMemo(() => {
+    if (seaArea.regions?.length) {
+      return seaArea.regions.map((r) => r.trim()).filter(Boolean)
+    }
+    const single = seaArea.region?.trim()
+    return single ? [single] : []
+  }, [seaArea.regions, seaArea.region])
 
   useEffect(() => {
     setDraft(cloneDetail(seaArea))
     setRegionDraft('')
     setEditing(null)
     setError('')
+    setRegionDetail(null)
+    setRegionMissName('')
+    setRegionError('')
+    const firstDest = DEST_SOURCES.find((s) =>
+      (seaArea.destinations || []).some((d) => d.source === s),
+    )
+    const extras = (seaArea.destinations || [])
+      .map((d) => d.source)
+      .filter((s): s is string => Boolean(s) && !DEST_SOURCES.includes(s))
+    setDestTab(firstDest || extras[0] || DEST_SOURCES[0])
   }, [seaArea])
+
+  async function openMatchedRegion(name: string) {
+    if (!authToken) return
+    const key = name.trim()
+    if (!key) return
+    setRegionLoading(true)
+    setRegionMissName('')
+    setRegionError('')
+    try {
+      const res = await fetchRegionByKey(authToken, key)
+      setRegionDetail(res.region)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : ''
+      if (/찾을 수 없|없습니다/i.test(message)) {
+        setRegionMissName(key)
+      } else {
+        setRegionError(message || '지역 상세를 불러오지 못했습니다.')
+      }
+    } finally {
+      setRegionLoading(false)
+    }
+  }
+
+  function openRegionsAddTab(regionName: string) {
+    const params = new URLSearchParams()
+    params.set('q', regionName)
+    params.set('add', '1')
+    const url = `${window.location.pathname}${window.location.search}#/regions?${params.toString()}`
+    window.open(url, '_blank', 'noopener,noreferrer')
+  }
 
   function startEdit(section: EditSection) {
     setDraft(cloneDetail(seaArea))
@@ -302,7 +383,6 @@ export function SeaAreaDetailView({ seaArea, edit }: SeaAreaDetailViewProps) {
         if (!draft.name.trim()) throw new Error('해역 이름이 필요합니다.')
         patch = {
           name: draft.name,
-          altName: draft.altName,
           category: draft.category,
           regions: draft.regions,
           boundNorth: draft.boundNorth,
@@ -375,23 +455,50 @@ export function SeaAreaDetailView({ seaArea, edit }: SeaAreaDetailViewProps) {
   const otherCollect = seaArea.collectItems.filter(
     (i) => !['낚시', '채집', '애완동물'].includes(i.source),
   )
-  const destBySource = seaArea.destinations.reduce<
-    Record<string, typeof seaArea.destinations>
-  >((acc, item) => {
-    const key = item.source || '보물지도'
-    if (!acc[key]) acc[key] = []
-    acc[key].push(item)
-    return acc
-  }, {})
+  const destinations = seaArea.destinations || []
+  const destTabs = useMemo(() => {
+    const extras = Array.from(
+      new Set(
+        destinations
+          .map((d) => d.source)
+          .filter((s): s is string => Boolean(s) && !DEST_SOURCES.includes(s)),
+      ),
+    )
+    const all = [...DEST_SOURCES, ...extras]
+    if (canEdit || editing === 'destinations') return all
+    return all.filter((s) => destinations.some((d) => d.source === s))
+  }, [canEdit, editing, destinations])
+
+  const viewDestRows = destinations.filter((d) => d.source === destTab)
+  const draftDestRows = draft.destinations
+    .map((item, index) => ({ item, index }))
+    .filter(({ item }) => item.source === destTab)
+
+  useEffect(() => {
+    if (destTabs.length && !destTabs.includes(destTab)) {
+      setDestTab(destTabs[0])
+    }
+  }, [destTabs, destTab])
 
   const showPlaces = canEdit || seaArea.places.length > 0
   const showFishing = canEdit || fishing.length > 0
   const showGathering = canEdit || gathering.length > 0
   const showPets = canEdit || pets.length > 0
   const showOtherCollect = canEdit || otherCollect.length > 0
-  const showDestinations = canEdit || seaArea.destinations.length > 0
+  const showDestinations = canEdit || destinations.length > 0
   const showNpcs = canEdit || seaArea.seaNpcs.length > 0
   const showDescription = canEdit || Boolean(seaArea.description)
+
+  function setDestination(
+    idx: number,
+    partial: Partial<SeaAreaDestination>,
+  ) {
+    patchDraft({
+      destinations: draft.destinations.map((d, i) =>
+        i === idx ? { ...d, ...partial } : d,
+      ),
+    })
+  }
 
   return (
     <div className="quest-detail sea-area-edit">
@@ -402,7 +509,6 @@ export function SeaAreaDetailView({ seaArea, edit }: SeaAreaDetailViewProps) {
           </span>
         </div>
         <h2>{seaArea.name}</h2>
-        {seaArea.altName ? <p>{seaArea.altName}</p> : null}
         {!canEdit && seaArea.description ? (
           <p>{seaArea.description}</p>
         ) : null}
@@ -446,21 +552,11 @@ export function SeaAreaDetailView({ seaArea, edit }: SeaAreaDetailViewProps) {
                 </select>
               </label>
               <label className="field">
-                <span>해역</span>
+                <span>이름</span>
                 <input
                   value={draft.name}
                   onChange={(e) => patchDraft({ name: e.target.value })}
                   required
-                  disabled={saving}
-                />
-              </label>
-              <label className="field">
-                <span>추가 이름</span>
-                <input
-                  value={draft.altName || ''}
-                  onChange={(e) =>
-                    patchDraft({ altName: e.target.value || null })
-                  }
                   disabled={saving}
                 />
               </label>
@@ -606,16 +702,39 @@ export function SeaAreaDetailView({ seaArea, edit }: SeaAreaDetailViewProps) {
         ) : (
           <div className="quest-kv-grid">
             <Row label="분류" value={seaArea.category} />
-            <Row label="해역" value={seaArea.name} />
-            <Row label="추가 이름" value={seaArea.altName} />
-            <Row
-              label="지역"
-              value={
-                seaArea.regions?.length
-                  ? seaArea.regions.join(', ')
-                  : seaArea.region
-              }
-            />
+            {canEdit || regionNames.length > 0 ? (
+              <div>
+                <span>지역</span>
+                {regionNames.length > 0 ? (
+                  <ul className="quest-skill-chips">
+                    {regionNames.map((name) => (
+                      <li key={name} className="is-region-chip">
+                        {authToken ? (
+                          <button
+                            type="button"
+                            className="quest-skill-chip-btn"
+                            disabled={regionLoading}
+                            onClick={() => void openMatchedRegion(name)}
+                          >
+                            <span className="chip-edge-inner">
+                              <RegionEdgeLabel />
+                              <span>{name}</span>
+                            </span>
+                          </button>
+                        ) : (
+                          <span className="chip-edge-inner">
+                            <RegionEdgeLabel />
+                            <span>{name}</span>
+                          </span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <strong>-</strong>
+                )}
+              </div>
+            ) : null}
             <Row label="경계" value={formatBounds(seaArea)} />
             <Row label="파도" value={seaArea.wave} />
             <Row label="조류" value={seaArea.current} />
@@ -776,51 +895,137 @@ export function SeaAreaDetailView({ seaArea, edit }: SeaAreaDetailViewProps) {
             editing={editing === 'destinations'}
             onEdit={() => startEdit('destinations')}
           />
+          {destTabs.length > 0 ? (
+            <div className="port-subtabs" role="tablist" aria-label="목적지">
+              {destTabs.map((tab) => (
+                <button
+                  key={tab}
+                  type="button"
+                  role="tab"
+                  className={tab === destTab ? 'active' : ''}
+                  aria-selected={tab === destTab}
+                  onClick={() => setDestTab(tab)}
+                >
+                  {tab}
+                </button>
+              ))}
+            </div>
+          ) : null}
           {editing === 'destinations' ? (
             <>
-              <EditDestinations
-                destinations={draft.destinations}
-                onChange={(destinations) => patchDraft({ destinations })}
+              <div className="admin-table-wrap">
+                <table className="admin-table">
+                  <thead>
+                    <tr>
+                      <th>{destColumnLabel(destTab)}</th>
+                      <th>내용</th>
+                      <th className="col-action">삭제</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {draftDestRows.map(({ item, index }) => (
+                      <tr key={`dest-${index}`}>
+                        <td>
+                          <input
+                            value={item.discovery}
+                            disabled={saving}
+                            onChange={(e) =>
+                              setDestination(index, {
+                                discovery: e.target.value,
+                              })
+                            }
+                          />
+                        </td>
+                        <td>
+                          <input
+                            value={item.content}
+                            disabled={saving}
+                            onChange={(e) =>
+                              setDestination(index, {
+                                content: e.target.value,
+                              })
+                            }
+                          />
+                        </td>
+                        <td className="col-action">
+                          <button
+                            type="button"
+                            className="admin-danger-btn"
+                            disabled={saving}
+                            onClick={() =>
+                              patchDraft({
+                                destinations: draft.destinations.filter(
+                                  (_, i) => i !== index,
+                                ),
+                              })
+                            }
+                          >
+                            삭제
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <button
+                type="button"
+                className="admin-btn"
                 disabled={saving}
-              />
+                onClick={() =>
+                  patchDraft({
+                    destinations: [
+                      ...draft.destinations,
+                      {
+                        source: destTab,
+                        discovery: '',
+                        content: '',
+                      },
+                    ],
+                  })
+                }
+              >
+                {destTab} 추가
+              </button>
               <SectionActions
                 busy={saving}
                 onCancel={cancelEdit}
                 onSave={() => void saveSection()}
               />
             </>
-          ) : seaArea.destinations.length > 0 ? (
-            Object.entries(destBySource).map(([source, items]) => (
-              <div key={source} style={{ marginBottom: '0.85rem' }}>
-                <p className="quest-badge" style={{ display: 'inline-block' }}>
-                  {source}
-                </p>
-                <div className="admin-table-wrap">
-                  <table className="admin-table">
-                    <thead>
-                      <tr>
-                        <th>발견물</th>
-                        <th>내용</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {items.map((item, idx) => (
-                        <tr key={`${source}-${item.discovery}-${idx}`}>
-                          <td>
-                            {item.discovery?.trim() ? (
-                              <DiscoveryChips items={[item.discovery]} />
-                            ) : (
-                              '-'
-                            )}
-                          </td>
-                          <td>{item.content || '-'}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            ))
+          ) : viewDestRows.length > 0 ? (
+            <div className="admin-table-wrap">
+              <table className="admin-table field-dest-table">
+                <thead>
+                  <tr>
+                    <th className="field-dest-col-item">
+                      {destColumnLabel(destTab)}
+                    </th>
+                    <th className="field-dest-col-content">내용</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {viewDestRows.map((item, idx) => (
+                    <tr key={`${destTab}-${item.discovery}-${idx}`}>
+                      <td className="field-dest-col-item">
+                        {item.discovery?.trim() ? (
+                          destTab === '발견물' ? (
+                            <DiscoveryChips items={[item.discovery]} />
+                          ) : (
+                            item.discovery
+                          )
+                        ) : (
+                          '-'
+                        )}
+                      </td>
+                      <td className="field-dest-col-content">
+                        {item.content || '-'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           ) : (
             <p className="form-note">등록된 목적지가 없습니다.</p>
           )}
@@ -907,6 +1112,70 @@ export function SeaAreaDetailView({ seaArea, edit }: SeaAreaDetailViewProps) {
           )}
         </section>
       )}
+
+      {regionLoading ? <LoadingOverlay label="지역 불러오는 중…" /> : null}
+
+      {regionMissName ? (
+        <ConfirmLayer
+          message={`「${regionMissName}」 지역이(가) 없습니다.`}
+          onCancel={() => setRegionMissName('')}
+          confirmLabel={isAdmin ? '등록하러 이동하기' : undefined}
+          onConfirm={
+            isAdmin
+              ? () => {
+                  openRegionsAddTab(regionMissName)
+                  setRegionMissName('')
+                }
+              : undefined
+          }
+          stack={1}
+        />
+      ) : null}
+
+      {regionError ? (
+        <ConfirmLayer
+          message={regionError}
+          onCancel={() => setRegionError('')}
+          stack={1}
+        />
+      ) : null}
+
+      {regionDetail ? (
+        <DetailModal
+          title="지역 상세"
+          label={`${regionDetail.name} 상세`}
+          onClose={() => {
+            setRegionDetail(null)
+            setRegionError('')
+          }}
+          stack={1}
+          headerActions={
+            isAdmin ? (
+              <button
+                type="button"
+                className="admin-btn"
+                onClick={() => {
+                  const params = new URLSearchParams()
+                  params.set('q', regionDetail.name)
+                  params.set('open', regionDetail.slug || regionDetail.name)
+                  const url = `${window.location.pathname}${window.location.search}#/regions?${params.toString()}`
+                  window.open(url, '_blank', 'noopener,noreferrer')
+                }}
+              >
+                지역 메뉴로 이동
+              </button>
+            ) : undefined
+          }
+        >
+          <Suspense fallback={null}>
+            <RegionDetailViewLazy
+              region={regionDetail}
+              token={authToken}
+              isAdmin={isAdmin}
+            />
+          </Suspense>
+        </DetailModal>
+      ) : null}
     </div>
   )
 }
@@ -1119,106 +1388,6 @@ function EditPlaces({
         className="admin-btn"
         disabled={disabled}
         onClick={() => onChange([...places, { kind: '', name: '' }])}
-      >
-        추가
-      </button>
-    </>
-  )
-}
-
-function EditDestinations({
-  destinations,
-  onChange,
-  disabled,
-}: {
-  destinations: SeaAreaDestination[]
-  onChange: (destinations: SeaAreaDestination[]) => void
-  disabled?: boolean
-}) {
-  return (
-    <>
-      <div className="admin-table-wrap">
-        <table className="admin-table">
-          <thead>
-            <tr>
-              <th>구분</th>
-              <th>발견물</th>
-              <th>내용</th>
-              <th className="col-action">삭제</th>
-            </tr>
-          </thead>
-          <tbody>
-            {destinations.map((item, idx) => (
-              <tr key={`dest-${idx}`}>
-                <td>
-                  <select
-                    value={item.source}
-                    disabled={disabled}
-                    onChange={(e) =>
-                      onChange(
-                        destinations.map((d, i) =>
-                          i === idx ? { ...d, source: e.target.value } : d,
-                        ),
-                      )
-                    }
-                  >
-                    <option value="보물지도">보물지도</option>
-                    <option value="퀘스트">퀘스트</option>
-                  </select>
-                </td>
-                <td>
-                  <input
-                    value={item.discovery}
-                    disabled={disabled}
-                    onChange={(e) =>
-                      onChange(
-                        destinations.map((d, i) =>
-                          i === idx ? { ...d, discovery: e.target.value } : d,
-                        ),
-                      )
-                    }
-                  />
-                </td>
-                <td>
-                  <input
-                    value={item.content}
-                    disabled={disabled}
-                    onChange={(e) =>
-                      onChange(
-                        destinations.map((d, i) =>
-                          i === idx ? { ...d, content: e.target.value } : d,
-                        ),
-                      )
-                    }
-                  />
-                </td>
-                <td className="col-action">
-                  <button
-                    type="button"
-                    className="admin-danger-btn"
-                    disabled={disabled}
-                    onClick={() =>
-                      onChange(destinations.filter((_, i) => i !== idx))
-                    }
-                  >
-                    삭제
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <button
-        type="button"
-        className="admin-btn"
-        disabled={disabled}
-        onClick={() =>
-          onChange([
-            ...destinations,
-            { source: '보물지도', discovery: '', content: '' },
-          ])
-        }
       >
         추가
       </button>

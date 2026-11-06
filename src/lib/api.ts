@@ -429,6 +429,14 @@ export function fetchRegions(token: string) {
   return request<{ regions: RegionDetail[] }>('/api/regions', { token })
 }
 
+/** id · slug · 이름 중 하나로 지역 상세 (카탈로그 점프) */
+export function fetchRegionByKey(token: string, key: string) {
+  return request<{ region: RegionDetail }>(
+    `/api/regions/${encodeURIComponent(key)}`,
+    { token },
+  )
+}
+
 export function importRegionText(token: string, text: string) {
   return request<{ region: RegionDetail }>('/api/regions/import-text', {
     token,
@@ -582,6 +590,14 @@ export function fetchConsumables(token: string) {
   return request<{ consumables: ConsumableDetail[] }>('/api/consumables', {
     token,
   })
+}
+
+/** id · slug · 이름 중 하나로 소비품 상세 */
+export function fetchConsumable(token: string, key: string) {
+  return request<{ consumable: ConsumableDetail }>(
+    `/api/consumables/${encodeURIComponent(key)}`,
+    { token },
+  )
 }
 
 export function importConsumableText(token: string, text: string) {

@@ -40,9 +40,9 @@ type View =
   | { name: 'skills'; q?: string; open?: string; add?: boolean }
   | { name: 'jobs' }
   | { name: 'refine' }
-  | { name: 'consumables' }
+  | { name: 'consumables'; q?: string; open?: string; add?: boolean }
   | { name: 'ports'; q?: string; open?: string; add?: boolean }
-  | { name: 'regions' }
+  | { name: 'regions'; q?: string; open?: string; add?: boolean }
   | { name: 'sea-areas'; q?: string; open?: string; add?: boolean }
   | { name: 'fields'; q?: string; open?: string; add?: boolean }
   | { name: 'treasure-maps'; q?: string; open?: string; add?: boolean }
@@ -96,8 +96,14 @@ function viewToHash(view: View): string {
       return '#/jobs'
     case 'refine':
       return '#/refine'
-    case 'consumables':
-      return '#/consumables'
+    case 'consumables': {
+      const params = new URLSearchParams()
+      if (view.q?.trim()) params.set('q', view.q.trim())
+      if (view.open?.trim()) params.set('open', view.open.trim())
+      if (view.add) params.set('add', '1')
+      const qs = params.toString()
+      return qs ? `#/consumables?${qs}` : '#/consumables'
+    }
     case 'ports': {
       const params = new URLSearchParams()
       if (view.q?.trim()) params.set('q', view.q.trim())
@@ -106,8 +112,14 @@ function viewToHash(view: View): string {
       const qs = params.toString()
       return qs ? `#/ports?${qs}` : '#/ports'
     }
-    case 'regions':
-      return '#/regions'
+    case 'regions': {
+      const params = new URLSearchParams()
+      if (view.q?.trim()) params.set('q', view.q.trim())
+      if (view.open?.trim()) params.set('open', view.open.trim())
+      if (view.add) params.set('add', '1')
+      const qs = params.toString()
+      return qs ? `#/regions?${qs}` : '#/regions'
+    }
     case 'sea-areas': {
       const params = new URLSearchParams()
       if (view.q?.trim()) params.set('q', view.q.trim())
@@ -194,7 +206,12 @@ function hashToView(hash: string, isAdmin: boolean): View {
   }
   if (parts[0] === 'jobs') return { name: 'jobs' }
   if (parts[0] === 'refine') return { name: 'refine' }
-  if (parts[0] === 'consumables') return { name: 'consumables' }
+  if (parts[0] === 'consumables') {
+    const q = params.get('q')?.trim() || undefined
+    const open = params.get('open')?.trim() || undefined
+    const add = isAdmin && params.get('add') === '1'
+    return { name: 'consumables', q, open, add: add || undefined }
+  }
   if (parts[0] === 'ports' || parts[0] === 'cities') {
     const q = params.get('q')?.trim() || undefined
     const open = params.get('open')?.trim() || undefined
@@ -202,7 +219,12 @@ function hashToView(hash: string, isAdmin: boolean): View {
     const add = isAdmin && params.get('add') === '1'
     return { name: 'ports', q, open, add: add || undefined }
   }
-  if (parts[0] === 'regions') return { name: 'regions' }
+  if (parts[0] === 'regions') {
+    const q = params.get('q')?.trim() || undefined
+    const open = params.get('open')?.trim() || undefined
+    const add = isAdmin && params.get('add') === '1'
+    return { name: 'regions', q, open, add: add || undefined }
+  }
   if (parts[0] === 'sea-areas' || parts[0] === 'seas') {
     const q = params.get('q')?.trim() || undefined
     const open = params.get('open')?.trim() || undefined
@@ -278,6 +300,13 @@ function viewsEqual(a: View, b: View): boolean {
       Boolean(a.add) === Boolean(b.add)
     )
   }
+  if (a.name === 'regions' && b.name === 'regions') {
+    return (
+      (a.q || '') === (b.q || '') &&
+      (a.open || '') === (b.open || '') &&
+      Boolean(a.add) === Boolean(b.add)
+    )
+  }
   if (a.name === 'sea-areas' && b.name === 'sea-areas') {
     return (
       (a.q || '') === (b.q || '') &&
@@ -286,6 +315,13 @@ function viewsEqual(a: View, b: View): boolean {
     )
   }
   if (a.name === 'treasure-maps' && b.name === 'treasure-maps') {
+    return (
+      (a.q || '') === (b.q || '') &&
+      (a.open || '') === (b.open || '') &&
+      Boolean(a.add) === Boolean(b.add)
+    )
+  }
+  if (a.name === 'consumables' && b.name === 'consumables') {
     return (
       (a.q || '') === (b.q || '') &&
       (a.open || '') === (b.open || '') &&
@@ -996,6 +1032,9 @@ export function Dashboard({ user, token, onLogout, onToast }: DashboardProps) {
             token={token}
             isAdmin={isAdmin}
             onToast={onToast}
+            initialQuery={view.q || ''}
+            openKey={view.open || ''}
+            initialAdd={isAdmin && Boolean(view.add)}
           />
         )}
 
@@ -1015,6 +1054,9 @@ export function Dashboard({ user, token, onLogout, onToast }: DashboardProps) {
             token={token}
             isAdmin={isAdmin}
             onToast={onToast}
+            initialQuery={view.q || ''}
+            openKey={view.open || ''}
+            initialAdd={isAdmin && Boolean(view.add)}
           />
         )}
 

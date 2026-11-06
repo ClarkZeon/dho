@@ -462,6 +462,8 @@ export function FieldCatalog({
         >
           <FieldDetailView
             field={detail}
+            token={token}
+            isAdmin={isAdmin}
             edit={
               isAdmin && detailEditMode
                 ? {

@@ -135,7 +135,7 @@ function parseBounds(text) {
 }
 
 const COLLECT_TABS = ['낚시', '채집', '애완동물']
-const DEST_TABS = ['보물지도', '퀘스트']
+const DEST_TABS = ['발견물', '보물지도', '퀘스트', '침몰선']
 
 /** 탭이 뭉개진 "낚시채집애완동물" / 정상 탭 분리 모두 처리 */
 function matchTabHeader(line, tabs) {
@@ -350,7 +350,6 @@ export function parseSeaAreaText(text) {
   return {
     name,
     slug: slugify(name),
-    altName: null,
     description: null,
     category: meta.category,
     region: regions[0] || meta.region,

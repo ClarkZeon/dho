@@ -75,6 +75,9 @@ import { parsePortText } from './portTextParse.mjs'
 import {
   deleteRegion,
   ensureRegionStore,
+  getRegionById,
+  getRegionByName,
+  getRegionBySlug,
   listRegions,
   updateRegionFields,
   upsertRegionFromParsed,
@@ -115,6 +118,8 @@ import {
   ensureConsumableStore,
   applyConsumableReadBody,
   getConsumableById,
+  getConsumableByName,
+  getConsumableBySlug,
   listConsumables,
   updateConsumableFields,
   upsertConsumableFromParsed,
@@ -1364,6 +1369,28 @@ export async function handleRequest(req, res) {
     }
 
     const regionMatch = pathname.match(/^\/api\/regions\/([^/]+)$/)
+    if (regionMatch && req.method === 'GET') {
+      const authUser = await getAuthUser(req)
+      if (!authUser) {
+        sendJson(res, 401, { error: '로그인이 필요합니다.' })
+        return
+      }
+      const key = decodeURIComponent(regionMatch[1]).trim()
+      const asId = Number(key)
+      let region =
+        Number.isFinite(asId) && String(asId) === key
+          ? await getRegionById(asId)
+          : null
+      if (!region) region = await getRegionBySlug(key)
+      if (!region) region = await getRegionByName(key)
+      if (!region) {
+        sendJson(res, 404, { error: '지역을 찾을 수 없습니다.' })
+        return
+      }
+      sendJson(res, 200, { region })
+      return
+    }
+
     if (regionMatch && req.method === 'PATCH') {
       const authUser = await getAuthUser(req)
       if (!authUser) {
@@ -1700,6 +1727,27 @@ export async function handleRequest(req, res) {
     }
 
     const consumableMatch = pathname.match(/^\/api\/consumables\/([^/]+)$/)
+    if (consumableMatch && req.method === 'GET') {
+      const authUser = await getAuthUser(req)
+      if (!authUser) {
+        sendJson(res, 401, { error: '로그인이 필요합니다.' })
+        return
+      }
+      const key = decodeURIComponent(consumableMatch[1]).trim()
+      const asId = Number(key)
+      let consumable =
+        Number.isFinite(asId) && String(asId) === key
+          ? await getConsumableById(asId)
+          : null
+      if (!consumable) consumable = await getConsumableBySlug(key)
+      if (!consumable) consumable = await getConsumableByName(key)
+      if (!consumable) {
+        sendJson(res, 404, { error: '소비품을 찾을 수 없습니다.' })
+        return
+      }
+      sendJson(res, 200, { consumable })
+      return
+    }
     if (consumableMatch && req.method === 'PATCH') {
       const authUser = await getAuthUser(req)
       if (!authUser) {

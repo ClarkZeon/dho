@@ -1,12 +1,22 @@
 import type { QuestChainItem } from '../types'
 
 const QUEST_TAG_RE = /[\[［]퀘스트[\]］]/
+const MAP_TAG_RE = /[\[［](?:보물)?지도[\]］]/
 const LINKED_HEADING_RE = /연결\s*지도/
 
 type ChainItemRaw = QuestChainItem & { relation?: string }
 
 function itemText(item: ChainItemRaw) {
   return [item.raw, item.name, item.category].filter(Boolean).join(' ')
+}
+
+/** 발견 방법 카드형이면 퀘스트 (`모험 | 이름 (난이도 스킬) - 장소`) */
+function looksLikeQuestCard(item: ChainItemRaw) {
+  if (QUEST_TAG_RE.test(itemText(item))) return true
+  if (MAP_TAG_RE.test(itemText(item))) return false
+  if (item.difficulty != null && Boolean(item.name?.trim())) return true
+  const raw = String(item.raw || '').trim()
+  return /\|/.test(raw) && /\([⭐★*]?\s*\d+/.test(raw)
 }
 
 function isLinkedHeading(item: ChainItemRaw) {
@@ -36,14 +46,16 @@ function stripTag(
   item: ChainItemRaw,
   fallback: 'quest' | 'map',
 ): QuestChainItem {
-  const fromTag = QUEST_TAG_RE.test(itemText(item))
+  const text = itemText(item)
   const category = item.category?.replace(QUEST_TAG_RE, '').trim()
-  // [퀘스트] 태그가 보이면 무조건 퀘스트. 애매하면 퀘스트(기본).
-  const linkKind = fromTag
-    ? 'quest'
-    : item.linkKind === 'quest' || item.linkKind === 'map'
-      ? item.linkKind
-      : fallback
+  let linkKind: 'quest' | 'map'
+  if (MAP_TAG_RE.test(text)) linkKind = 'map'
+  else if (QUEST_TAG_RE.test(text) || looksLikeQuestCard(item)) linkKind = 'quest'
+  else if (item.linkKind === 'quest' || item.linkKind === 'map') {
+    linkKind = item.linkKind
+  } else {
+    linkKind = fallback
+  }
   const { relation: _relation, ...rest } = item
   return {
     ...rest,
@@ -52,11 +64,16 @@ function stripTag(
   }
 }
 
-/** 연결 지도/퀘스트 구분. [퀘스트]·linkKind 없으면 퀘스트로 본다. */
+/**
+ * 연결 지도/퀘스트 구분.
+ * 발견 방법 카드형(종류·난이도·장소·스킬)이면 퀘스트.
+ */
 export function resolveLinkedKind(
   item: QuestChainItem,
 ): 'quest' | 'map' {
-  if (QUEST_TAG_RE.test(itemText(item))) return 'quest'
+  const text = itemText(item)
+  if (MAP_TAG_RE.test(text)) return 'map'
+  if (QUEST_TAG_RE.test(text) || looksLikeQuestCard(item)) return 'quest'
   if (item.linkKind === 'map') return 'map'
   if (item.linkKind === 'quest') return 'quest'
   return 'quest'

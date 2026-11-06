@@ -547,8 +547,8 @@ export async function updateDiscoveryFields(id, patch) {
       rank = null
     } else {
       const n = Number(patch.rank)
-      if (!Number.isInteger(n) || n < 0 || n > 10) {
-        throw new Error('난이도는 0~10 정수여야 합니다.')
+      if (!Number.isInteger(n) || n < 1 || n > 5) {
+        throw new Error('난이도는 1~5 정수여야 합니다.')
       }
       rank = n
     }

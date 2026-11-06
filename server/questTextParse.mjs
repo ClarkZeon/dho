@@ -318,13 +318,25 @@ function parseChainLine(line) {
   }
 }
 
-/** 연결 지도/퀘스트 줄 — [퀘스트] 있으면 quest, 없으면 map. raw에 태그 보존 */
+/**
+ * 연결 지도/퀘스트 줄.
+ * - [지도]/[보물지도] → map
+ * - [퀘스트] 또는 발견 방법형(`모험 | 이름 (난이도 스킬) - 장소`) → quest
+ * - 그 외(이름만 등) → map
+ */
 function parseLinkedChainLine(line) {
   const raw = String(line || '').trim()
-  const linkKind = QUEST_TAG_RE.test(raw) ? 'quest' : 'map'
-  return { ...parseChainLine(raw), linkKind, raw }
+  const parsed = parseChainLine(raw)
+  let linkKind = 'map'
+  if (/[\[［](?:보물)?지도[\]］]/.test(raw)) {
+    linkKind = 'map'
+  } else if (QUEST_TAG_RE.test(raw) || looksLikeChainEntry(raw)) {
+    linkKind = 'quest'
+  }
+  return { ...parsed, linkKind, raw }
 }
 
+/** 발견 방법 카드형: `모험 | 이름 (9 스킬…) - 장소` */
 function looksLikeChainEntry(line) {
   return /\|/.test(line) && /\([⭐★*]?\s*\d+/.test(line)
 }
@@ -516,11 +528,17 @@ function isLinkedQuestItem(item) {
 
 function stripLinkedMeta(item, fallback = 'quest') {
   const next = { ...item }
-  const fromTag = QUEST_TAG_RE.test(itemText(item))
-  // [퀘스트] 태그가 raw 등에 남아 있으면 무조건 퀘스트
+  const text = itemText(item)
+  // 발견 방법형·[퀘스트] → 퀘스트, [지도] → map
   let linkKind
-  if (fromTag) linkKind = 'quest'
-  else if (next.linkKind === 'quest' || next.linkKind === 'map') {
+  if (/[\[［](?:보물)?지도[\]］]/.test(text)) linkKind = 'map'
+  else if (
+    QUEST_TAG_RE.test(text) ||
+    looksLikeChainEntry(text) ||
+    (next.difficulty != null && next.name)
+  ) {
+    linkKind = 'quest'
+  } else if (next.linkKind === 'quest' || next.linkKind === 'map') {
     linkKind = next.linkKind
   } else {
     linkKind = fallback

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { updateField } from '../lib/api'
+import { fetchRegionByKey, updateField } from '../lib/api'
 import type {
   FieldCollectItem,
   FieldDestination,
@@ -9,10 +9,16 @@ import type {
   FieldLinkedPlace,
   FieldResurveyReward,
   FieldSurveyTask,
+  RegionDetail,
 } from '../types'
+import { ConfirmLayer } from './ConfirmLayer'
 import { DetailSectionActions, DetailSectionHead } from './DetailSectionHead'
+import { DetailModal } from './DetailModal'
 import { FieldDestContent } from './FieldDestContent'
+import { LoadingOverlay } from './LoadingOverlay'
 import { DiscoveryChips } from './modules/DiscoveryChips'
+import { RegionDetailView } from './RegionDetailView'
+import { RegionEdgeLabel } from './RegionEdgeLabel'
 
 type FieldEditConfig = {
   token: string
@@ -22,6 +28,9 @@ type FieldEditConfig = {
 
 type FieldDetailViewProps = {
   field: FieldDetail
+  /** 카탈로그 점프용 (없으면 edit.token) */
+  token?: string
+  isAdmin?: boolean
   /** 관리자: 섹션별 연필로 수정 */
   edit?: FieldEditConfig
   /** edit 의 하위 호환 별칭 */
@@ -181,10 +190,13 @@ function ReadCollectTable({
 
 export function FieldDetailView({
   field,
+  token,
+  isAdmin = false,
   edit,
   requiredEdit,
 }: FieldDetailViewProps) {
   const editConfig = edit || requiredEdit
+  const authToken = token || editConfig?.token || ''
   const canEdit = Boolean(editConfig)
   const [editing, setEditing] = useState<EditSection | null>(null)
   const [draft, setDraft] = useState(() => cloneField(field))
@@ -192,11 +204,18 @@ export function FieldDetailView({
   const [destTab, setDestTab] = useState(DEST_SOURCES[0])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [regionDetail, setRegionDetail] = useState<RegionDetail | null>(null)
+  const [regionLoading, setRegionLoading] = useState(false)
+  const [regionMissName, setRegionMissName] = useState('')
+  const [regionError, setRegionError] = useState('')
 
   useEffect(() => {
     setDraft(cloneField(field))
     setEditing(null)
     setError('')
+    setRegionDetail(null)
+    setRegionMissName('')
+    setRegionError('')
     const firstCollect = COLLECT_SOURCES.find((s) =>
       (field.collectItems || []).some((i) => i.source === s),
     )
@@ -221,6 +240,36 @@ export function FieldDetailView({
 
   function patchDraft(partial: Partial<FieldDetail>) {
     setDraft((prev) => ({ ...prev, ...partial }))
+  }
+
+  async function openMatchedRegion(name: string) {
+    if (!authToken) return
+    const key = name.trim()
+    if (!key) return
+    setRegionLoading(true)
+    setRegionMissName('')
+    setRegionError('')
+    try {
+      const res = await fetchRegionByKey(authToken, key)
+      setRegionDetail(res.region)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : ''
+      if (/찾을 수 없|없습니다/i.test(message)) {
+        setRegionMissName(key)
+      } else {
+        setRegionError(message || '지역 상세를 불러오지 못했습니다.')
+      }
+    } finally {
+      setRegionLoading(false)
+    }
+  }
+
+  function openRegionsAddTab(regionName: string) {
+    const params = new URLSearchParams()
+    params.set('q', regionName)
+    params.set('add', '1')
+    const url = `${window.location.pathname}${window.location.search}#/regions?${params.toString()}`
+    window.open(url, '_blank', 'noopener,noreferrer')
   }
 
   async function saveSection() {
@@ -551,7 +600,39 @@ export function FieldDetailView({
         ) : (
           <div className="quest-kv-grid">
             <Row label="필드 종류" value={field.fieldKind} />
-            <Row label="지역" value={field.region} />
+            {canEdit || field.region?.trim() ? (
+              <div>
+                <span>지역</span>
+                {field.region?.trim() ? (
+                  <ul className="quest-skill-chips">
+                    <li className="is-region-chip">
+                      {authToken ? (
+                        <button
+                          type="button"
+                          className="quest-skill-chip-btn"
+                          disabled={regionLoading}
+                          onClick={() =>
+                            void openMatchedRegion(field.region!.trim())
+                          }
+                        >
+                          <span className="chip-edge-inner">
+                            <RegionEdgeLabel />
+                            <span>{field.region.trim()}</span>
+                          </span>
+                        </button>
+                      ) : (
+                        <span className="chip-edge-inner">
+                          <RegionEdgeLabel />
+                          <span>{field.region.trim()}</span>
+                        </span>
+                      )}
+                    </li>
+                  </ul>
+                ) : (
+                  <strong>-</strong>
+                )}
+              </div>
+            ) : null}
             <Row label="해역" value={field.seaArea} />
             <Row label="좌표" value={coords} />
           </div>
@@ -1492,6 +1573,68 @@ export function FieldDetailView({
           )}
         </section>
       )}
+
+      {regionLoading ? <LoadingOverlay label="지역 불러오는 중…" /> : null}
+
+      {regionMissName ? (
+        <ConfirmLayer
+          message={`「${regionMissName}」 지역이(가) 없습니다.`}
+          onCancel={() => setRegionMissName('')}
+          confirmLabel={isAdmin ? '등록하러 이동하기' : undefined}
+          onConfirm={
+            isAdmin
+              ? () => {
+                  openRegionsAddTab(regionMissName)
+                  setRegionMissName('')
+                }
+              : undefined
+          }
+          stack={1}
+        />
+      ) : null}
+
+      {regionError ? (
+        <ConfirmLayer
+          message={regionError}
+          onCancel={() => setRegionError('')}
+          stack={1}
+        />
+      ) : null}
+
+      {regionDetail ? (
+        <DetailModal
+          title="지역 상세"
+          label={`${regionDetail.name} 상세`}
+          onClose={() => {
+            setRegionDetail(null)
+            setRegionError('')
+          }}
+          stack={1}
+          headerActions={
+            isAdmin ? (
+              <button
+                type="button"
+                className="admin-btn"
+                onClick={() => {
+                  const params = new URLSearchParams()
+                  params.set('q', regionDetail.name)
+                  params.set('open', regionDetail.slug || regionDetail.name)
+                  const url = `${window.location.pathname}${window.location.search}#/regions?${params.toString()}`
+                  window.open(url, '_blank', 'noopener,noreferrer')
+                }}
+              >
+                지역 메뉴로 이동
+              </button>
+            ) : undefined
+          }
+        >
+          <RegionDetailView
+            region={regionDetail}
+            token={authToken}
+            isAdmin={isAdmin}
+          />
+        </DetailModal>
+      ) : null}
     </div>
   )
 }

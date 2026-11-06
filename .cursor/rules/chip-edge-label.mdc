@@ -29,6 +29,7 @@ alwaysApply: true
 | 도시 | `CityEdgeLabel` | `.is-city-chip` | 붉 `#b03a3a` / `#8f2f2f` |
 | 육지 | `LandEdgeLabel` | `.is-land-chip` | 녹갈 `#5a7a32` / `#4d6a28` |
 | 해역 | `SeaAreaEdgeLabel` | `.is-sea-chip` | 남청 `#245a8c` / `#1c4870` |
+| 지역 | `RegionEdgeLabel` | `.is-region-chip` | 보라 `#6b4f8a` / `#574072` |
 | 발견물 | `DiscoveryEdgeLabel` | `.is-discovery-chip` | 파랑 `var(--is-blue)` |
 | 스킬 | `SkillEdgeLabel` | `.is-skill-chip` | 청록 `#0c7c8c` / `#0a6a72` (레벨 `em`만 금색) |
 | 소비품 | `ConsumableEdgeLabel` | `.is-consumable-chip` | 주황 `#c45f12` / `#9a4a0e` (수량 `em` 금색) |

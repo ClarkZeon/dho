@@ -276,6 +276,8 @@ export function RegionDetailView({
         >
           <SeaAreaDetailView
             seaArea={seaDetail}
+            token={authToken}
+            isAdmin={isAdmin}
             edit={
               isAdmin && authToken
                 ? {

@@ -98,6 +98,19 @@ export async function getRegionById(id) {
   return rows[0] ? decorateRegion(rows[0]) : null
 }
 
+export async function getRegionByName(name) {
+  const sql = getSql()
+  const key = normalizeName(name)
+  if (!key) return null
+  const rows = await sql`
+    SELECT * FROM regions
+    WHERE enabled = TRUE
+      AND TRIM(BOTH FROM regexp_replace(name, '\\s+', ' ', 'g')) = ${key}
+    LIMIT 1
+  `
+  return rows[0] ? decorateRegion(rows[0]) : null
+}
+
 /** @param {number} id */
 export async function updateRegionFields(id, patch) {
   const sql = getSql()

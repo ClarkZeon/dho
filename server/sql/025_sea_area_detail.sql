@@ -1,6 +1,6 @@
--- 해역: 추가 이름·설명·지역(복수) — 수집 항목은 collect_items JSON 구조 확장
+-- 해역: 설명·지역(복수) — 수집 항목은 collect_items JSON 구조 확장
+-- alt_name 은 048_sea_areas_drop_alt_name.sql 에서 제거
 
-ALTER TABLE sea_areas ADD COLUMN IF NOT EXISTS alt_name TEXT;
 ALTER TABLE sea_areas ADD COLUMN IF NOT EXISTS description TEXT;
 ALTER TABLE sea_areas ADD COLUMN IF NOT EXISTS regions JSONB;
 

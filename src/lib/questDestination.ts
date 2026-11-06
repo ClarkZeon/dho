@@ -188,14 +188,26 @@ const DEST_SEP_CHAR = /(?:»|>>|›|→|➜|➔|⟶|⇒|->)/
 
 /**
  * 구분자 없이 토큰이 2개 이상 붙어 있으면 단계 확인이 필요.
- * (`남미 남동쪽 해안 파라과이 강 상류` 등)
+ * (`남미 남동쪽 해안 파라과이 강 상류` — 카탈로그에 없을 때)
+ * 단, 전체가 도시·육지 이름과 일치하거나(`테라 노바 북쪽 해안`),
+ * 카탈로그로 2단 이상 자동 복원되면 확인하지 않는다.
  */
 export function isAmbiguousQuestDestination(
   raw: string | null | undefined,
+  options: SplitQuestDestinationOptions = {},
 ): boolean {
   const text = normName(raw || '')
   if (!text) return false
   if (DEST_SEP_CHAR.test(text)) return false
+
+  const known = new Set(
+    uniqueNames([...(options.cityNames || []), ...(options.landNames || [])]),
+  )
+  if (known.has(text)) return false
+
+  const { steps } = splitQuestDestination(text, options)
+  if (steps.length >= 2) return false
+
   return text.split(' ').filter(Boolean).length >= 2
 }
 

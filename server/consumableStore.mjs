@@ -181,6 +181,19 @@ export async function getConsumableById(id) {
   return rows[0] ? decorateConsumable(rows[0]) : null
 }
 
+export async function getConsumableByName(name) {
+  const key = normalizeName(name)
+  if (!key) return null
+  const sql = getSql()
+  const rows = await sql`
+    SELECT * FROM consumables
+    WHERE enabled = TRUE
+      AND TRIM(BOTH FROM regexp_replace(name, '\\s+', ' ', 'g')) = ${key}
+    LIMIT 1
+  `
+  return rows[0] ? decorateConsumable(rows[0]) : null
+}
+
 function asNullableText(value) {
   const t = value == null ? '' : String(value).trim()
   return t || null

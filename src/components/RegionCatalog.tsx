@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useRef,
   useState,
   type FormEvent,
   type KeyboardEvent,
@@ -13,6 +14,7 @@ import {
 import { matchesRegionQuery } from '../lib/regionSearch'
 import { compareIdDesc, useTableSort } from '../lib/tableSort'
 import type { RegionDetail } from '../types'
+import { ConfirmLayer } from './ConfirmLayer'
 import { DetailModal } from './DetailModal'
 import { RegionDetailView } from './RegionDetailView'
 import { SortableTh } from './SortableTh'
@@ -21,6 +23,12 @@ type RegionCatalogProps = {
   token: string
   isAdmin?: boolean
   onToast?: (message: string) => void
+  /** 해시 `#/regions?q=` */
+  initialQuery?: string
+  /** 해시 `#/regions?open=` — 목록 로드 후 1회 상세 오픈 */
+  openKey?: string
+  /** 해시 `#/regions?add=1` — 관리자 지역 추가 폼 오픈 */
+  initialAdd?: boolean
 }
 
 type RegionSortKey = 'name'
@@ -37,6 +45,9 @@ export function RegionCatalog({
   token,
   isAdmin = false,
   onToast,
+  initialQuery = '',
+  openKey = '',
+  initialAdd = false,
 }: RegionCatalogProps) {
   const canAdd = isAdmin
   const [regions, setRegions] = useState<RegionDetail[]>([])
@@ -44,12 +55,16 @@ export function RegionCatalog({
   const [error, setError] = useState('')
   const [detail, setDetail] = useState<RegionDetail | null>(null)
   const [detailEditMode, setDetailEditMode] = useState(false)
-  const [query, setQuery] = useState('')
-  const [showImport, setShowImport] = useState(false)
+  const [query, setQuery] = useState(initialQuery)
+  const [showImport, setShowImport] = useState(
+    () => Boolean(canAdd && initialAdd),
+  )
   const [importText, setImportText] = useState('')
   const [importing, setImporting] = useState(false)
   const [importNote, setImportNote] = useState('')
   const [deletingId, setDeletingId] = useState<number | null>(null)
+  const [openMiss, setOpenMiss] = useState('')
+  const openedKeyRef = useRef('')
   const { sortKey, sortDir, toggleSort, sortRows } =
     useTableSort<RegionSortKey>()
 
@@ -75,8 +90,41 @@ export function RegionCatalog({
   }, [loadRegions])
 
   useEffect(() => {
-    if (!canAdd) setShowImport(false)
-  }, [canAdd])
+    if (initialQuery.trim()) setQuery(initialQuery)
+  }, [initialQuery])
+
+  useEffect(() => {
+    if (!canAdd) {
+      setShowImport(false)
+      return
+    }
+    if (initialAdd) setShowImport(true)
+  }, [canAdd, initialAdd])
+
+  useEffect(() => {
+    const key = openKey.trim()
+    if (!key || loading) return
+    if (openedKeyRef.current === key) return
+    openedKeyRef.current = key
+    const lower = key.toLowerCase()
+    const found = regions.find(
+      (r) =>
+        r.slug === key ||
+        r.name.trim().toLowerCase() === lower ||
+        r.name.trim() === key ||
+        String(r.id) === key,
+    )
+    const label = initialQuery.trim() || key
+    if (initialQuery.trim()) setQuery(initialQuery.trim())
+    if (!found) {
+      setOpenMiss(label)
+      return
+    }
+    setOpenMiss('')
+    setQuery(initialQuery.trim() || found.name)
+    setDetailEditMode(false)
+    setDetail(found)
+  }, [openKey, loading, regions, initialQuery])
 
   async function handleImport(e: FormEvent) {
     e.preventDefault()
@@ -295,6 +343,23 @@ export function RegionCatalog({
           </table>
         </div>
       )}
+
+      {openMiss ? (
+        <ConfirmLayer
+          message={`「${openMiss}」 지역이(가) 없습니다.`}
+          onCancel={() => setOpenMiss('')}
+          confirmLabel={canAdd ? '등록하러 이동하기' : undefined}
+          onConfirm={
+            canAdd
+              ? () => {
+                  setOpenMiss('')
+                  setQuery(openMiss)
+                  setShowImport(true)
+                }
+              : undefined
+          }
+        />
+      ) : null}
 
       {detail && (
         <DetailModal

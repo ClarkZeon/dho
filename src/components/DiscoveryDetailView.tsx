@@ -1,17 +1,13 @@
 import { useEffect, useState } from 'react'
-import {
-  fetchQuestByKey,
-  fetchSkill,
-  setQuestCompletion,
-} from '../lib/api'
-import type { DiscoveryDetail, QuestDetail, SkillDetail } from '../types'
+import { fetchQuestByKey, setQuestCompletion } from '../lib/api'
+import type { DiscoveryDetail, QuestDetail } from '../types'
 import { ConfirmLayer } from './ConfirmLayer'
 import { DetailModal } from './DetailModal'
+import { formatDiscoveryCategoryLabel } from '../lib/discoveryCategory'
 import { getModuleDef } from '../lib/detailModules'
 import { DiscoveryRankMark } from './DiscoveryRankMark'
 import { LoadingOverlay } from './LoadingOverlay'
 import { QuestDetailView } from './QuestDetailView'
-import { SkillDetailView } from './SkillDetailView'
 import { QuestModule } from './modules/QuestModule'
 
 type DiscoveryDetailViewProps = {
@@ -45,6 +41,29 @@ function formatNum(n: number | null) {
   return n.toLocaleString('ko-KR')
 }
 
+function DiscoveryCategoryValue({
+  category,
+  categoryGroup,
+}: {
+  category: string | null
+  categoryGroup: string | null
+}) {
+  const leaf = category?.trim() || ''
+  const group = categoryGroup?.trim() || ''
+  if (!leaf && !group) return <strong>-</strong>
+  if (group && leaf && group !== leaf) {
+    return (
+      <strong className="quest-cat-label">
+        <em className="quest-cat-bracket">{group}</em>
+        <span className="quest-cat-type">{leaf}</span>
+      </strong>
+    )
+  }
+  return (
+    <strong>{formatDiscoveryCategoryLabel(leaf || group, null)}</strong>
+  )
+}
+
 export function DiscoveryDetailView({
   discovery,
   token,
@@ -53,7 +72,8 @@ export function DiscoveryDetailView({
   onToggleCompleted,
 }: DiscoveryDetailViewProps) {
   const authToken = token || ''
-  const canEdit = isAdmin
+  // 발견물 상세는 필드 수정 UI가 없음 → 관리자여도 빈 카드 숨김 (detail-empty-cards)
+  const canEdit = false
   const [jumpQuestDetail, setJumpQuestDetail] = useState<QuestDetail | null>(
     null,
   )
@@ -61,10 +81,6 @@ export function DiscoveryDetailView({
   const [jumpQuestMissName, setJumpQuestMissName] = useState('')
   const [jumpQuestError, setJumpQuestError] = useState('')
   const [jumpQuestBusy, setJumpQuestBusy] = useState(false)
-  const [skillDetail, setSkillDetail] = useState<SkillDetail | null>(null)
-  const [skillLoading, setSkillLoading] = useState(false)
-  const [skillMissName, setSkillMissName] = useState('')
-  const [skillError, setSkillError] = useState('')
 
   const debate = discovery.debateCombo
   const hasDebate = Boolean(
@@ -80,9 +96,6 @@ export function DiscoveryDetailView({
     setJumpQuestDetail(null)
     setJumpQuestMissName('')
     setJumpQuestError('')
-    setSkillDetail(null)
-    setSkillMissName('')
-    setSkillError('')
   }, [discovery.id])
 
   async function openMatchedQuest(target: {
@@ -117,36 +130,6 @@ export function DiscoveryDetailView({
     params.set('q', questName)
     params.set('add', '1')
     const url = `${window.location.pathname}${window.location.search}#/quests?${params.toString()}`
-    window.open(url, '_blank', 'noopener,noreferrer')
-  }
-
-  async function openMatchedSkill(name: string) {
-    if (!authToken) return
-    const key = name.trim()
-    if (!key) return
-    setSkillLoading(true)
-    setSkillMissName('')
-    setSkillError('')
-    try {
-      const res = await fetchSkill(authToken, key)
-      setSkillDetail(res.skill)
-    } catch (err) {
-      const message = err instanceof Error ? err.message : ''
-      if (/찾을 수 없|없습니다/i.test(message)) {
-        setSkillMissName(key)
-      } else {
-        setSkillError(message || '스킬 상세를 불러오지 못했습니다.')
-      }
-    } finally {
-      setSkillLoading(false)
-    }
-  }
-
-  function openSkillsAddTab(skillName: string) {
-    const params = new URLSearchParams()
-    params.set('q', skillName)
-    params.set('add', '1')
-    const url = `${window.location.pathname}${window.location.search}#/skills?${params.toString()}`
     window.open(url, '_blank', 'noopener,noreferrer')
   }
 
@@ -202,11 +185,17 @@ export function DiscoveryDetailView({
       <section className="quest-detail-section">
         <h3>기본 정보</h3>
         <div className="quest-kv-grid">
-          <Row
-            label="분류"
-            value={discovery.category}
-            hideEmpty={!canEdit}
-          />
+          {canEdit ||
+          discovery.category?.trim() ||
+          discovery.categoryGroup?.trim() ? (
+            <div>
+              <span>분류</span>
+              <DiscoveryCategoryValue
+                category={discovery.category}
+                categoryGroup={discovery.categoryGroup}
+              />
+            </div>
+          ) : null}
           {canEdit || discovery.rank != null ? (
             <div>
               <span>난이도</span>
@@ -254,14 +243,10 @@ export function DiscoveryDetailView({
         discovery={discovery}
         canEdit={canEdit}
         discoveryBusy={jumpQuestLoading}
-        skillBusy={skillLoading}
         onOpenQuest={
           authToken
             ? (target) => void openMatchedQuest(target)
             : undefined
-        }
-        onOpenSkill={
-          authToken ? (name) => void openMatchedSkill(name) : undefined
         }
       />
 
@@ -360,7 +345,6 @@ export function DiscoveryDetailView({
       {jumpQuestLoading ? (
         <LoadingOverlay label="퀘스트 불러오는 중…" />
       ) : null}
-      {skillLoading ? <LoadingOverlay label="스킬 불러오는 중…" /> : null}
 
       {jumpQuestMissName ? (
         <ConfirmLayer
@@ -380,24 +364,6 @@ export function DiscoveryDetailView({
         />
       ) : null}
 
-      {skillMissName ? (
-        <ConfirmLayer
-          title="확인"
-          message={`「${skillMissName}」 스킬이 없습니다.`}
-          stack={1}
-          onCancel={() => setSkillMissName('')}
-          confirmLabel={isAdmin ? '등록하러 이동하기' : undefined}
-          onConfirm={
-            isAdmin
-              ? () => {
-                  openSkillsAddTab(skillMissName)
-                  setSkillMissName('')
-                }
-              : undefined
-          }
-        />
-      ) : null}
-
       {jumpQuestError ? (
         <ConfirmLayer
           title="확인"
@@ -405,50 +371,6 @@ export function DiscoveryDetailView({
           stack={1}
           onCancel={() => setJumpQuestError('')}
         />
-      ) : null}
-
-      {skillError ? (
-        <ConfirmLayer
-          title="확인"
-          message={skillError}
-          stack={1}
-          onCancel={() => setSkillError('')}
-        />
-      ) : null}
-
-      {skillDetail ? (
-        <DetailModal
-          title="스킬 상세"
-          label={`${skillDetail.name} 상세`}
-          onClose={() => {
-            setSkillDetail(null)
-            setSkillError('')
-          }}
-          stack={1}
-          headerActions={
-            isAdmin ? (
-              <button
-                type="button"
-                className="admin-btn"
-                onClick={() => {
-                  const params = new URLSearchParams()
-                  params.set('q', skillDetail.name)
-                  params.set('open', skillDetail.slug || skillDetail.name)
-                  const url = `${window.location.pathname}${window.location.search}#/skills?${params.toString()}`
-                  window.open(url, '_blank', 'noopener,noreferrer')
-                }}
-              >
-                스킬 메뉴로 이동
-              </button>
-            ) : undefined
-          }
-        >
-          <SkillDetailView
-            skill={skillDetail}
-            token={authToken}
-            isAdmin={isAdmin}
-          />
-        </DetailModal>
       ) : null}
 
       {jumpQuestDetail ? (

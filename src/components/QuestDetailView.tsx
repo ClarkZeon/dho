@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useState } from 'react'
 import {
+  fetchConsumable,
   fetchDiscovery,
   fetchFieldByKey,
   fetchFields,
@@ -27,6 +28,7 @@ import { LandEdgeLabel } from './LandEdgeLabel'
 import { ConsumableEdgeLabel } from './ConsumableEdgeLabel'
 import { SkillEdgeLabel } from './SkillEdgeLabel'
 import type {
+  ConsumableDetail,
   DiscoveryDetail,
   FieldDetail,
   PortDetail,
@@ -44,6 +46,7 @@ import {
   DetailSectionHead,
 } from './DetailSectionHead'
 import { getModuleDef } from '../lib/detailModules'
+import { ConsumableDetailView } from './ConsumableDetailView'
 import { DiscoveryDetailView } from './DiscoveryDetailView'
 import { ConfirmLayer } from './ConfirmLayer'
 import { LoadingOverlay } from './LoadingOverlay'
@@ -274,7 +277,44 @@ function expandWalkthroughFlow(steps: string[]): WalkthroughFlowItem[] {
       ).trim(),
     })
   }
-  return items
+  return foldTrailingParenNotesIntoLastStep(items)
+}
+
+/**
+ * 맨 끝 `(…)` 단독 줄 = 마지막 단계 상세 설명.
+ * 스킬 칩 다음(hint)으로 붙이고 별도 노트 칸은 없앤다.
+ */
+function foldTrailingParenNotesIntoLastStep(
+  items: WalkthroughFlowItem[],
+): WalkthroughFlowItem[] {
+  if (items.length < 2) return items
+  const out = [...items]
+  while (out.length >= 2) {
+    const last = out[out.length - 1]
+    if (last.type !== 'note') break
+    const m = String(last.body || '')
+      .trim()
+      .match(/^[（(]\s*([^）)]+?)\s*[）)]\s*$/)
+    if (!m) break
+    let stepIdx = -1
+    for (let i = out.length - 2; i >= 0; i -= 1) {
+      if (out[i].type === 'step') {
+        stepIdx = i
+        break
+      }
+    }
+    if (stepIdx < 0) break
+    const step = out[stepIdx]
+    if (step.type !== 'step') break
+    const detail = normalizeWalkthroughFractions(m[1]).trim()
+    out.pop()
+    if (!detail) continue
+    out[stepIdx] = {
+      ...step,
+      hint: step.hint ? `${step.hint} · ${detail}` : detail,
+    }
+  }
+  return out
 }
 
 function escapeRegExp(value: string) {
@@ -993,6 +1033,11 @@ export function QuestDetailView({
   /** 없는 스킬 이름 — 컨펌 레이어용 */
   const [skillMissName, setSkillMissName] = useState('')
   const [skillError, setSkillError] = useState('')
+  const [consumableDetail, setConsumableDetail] =
+    useState<ConsumableDetail | null>(null)
+  const [consumableLoading, setConsumableLoading] = useState(false)
+  const [consumableMissName, setConsumableMissName] = useState('')
+  const [consumableError, setConsumableError] = useState('')
   const [jumpQuestDetail, setJumpQuestDetail] = useState<QuestDetail | null>(
     null,
   )
@@ -1157,6 +1202,36 @@ export function QuestDetailView({
     params.set('q', skillName)
     params.set('add', '1')
     const url = `${window.location.pathname}${window.location.search}#/skills?${params.toString()}`
+    window.open(url, '_blank', 'noopener,noreferrer')
+  }
+
+  async function openMatchedConsumable(name: string) {
+    if (!authToken) return
+    const key = name.trim()
+    if (!key) return
+    setConsumableLoading(true)
+    setConsumableMissName('')
+    setConsumableError('')
+    try {
+      const res = await fetchConsumable(authToken, key)
+      setConsumableDetail(res.consumable)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : ''
+      if (/찾을 수 없|없습니다/i.test(message)) {
+        setConsumableMissName(key)
+      } else {
+        setConsumableError(message || '소비품 상세를 불러오지 못했습니다.')
+      }
+    } finally {
+      setConsumableLoading(false)
+    }
+  }
+
+  function openConsumablesAddTab(consumableName: string) {
+    const params = new URLSearchParams()
+    params.set('q', consumableName)
+    params.set('add', '1')
+    const url = `${window.location.pathname}${window.location.search}#/consumables?${params.toString()}`
     window.open(url, '_blank', 'noopener,noreferrer')
   }
 
@@ -1684,8 +1759,7 @@ export function QuestDetailView({
               </label>
               <label className="field">
                 <span>발견물 난이도 (선택)</span>
-                <input
-                  inputMode="numeric"
+                <select
                   value={numOrEmpty(draft.discoveryRank)}
                   onChange={(e) =>
                     patchDraft({
@@ -1693,7 +1767,15 @@ export function QuestDetailView({
                     })
                   }
                   disabled={saving}
-                />
+                  aria-label="발견물 난이도"
+                >
+                  <option value="">-</option>
+                  {Array.from({ length: 5 }, (_, i) => i + 1).map((n) => (
+                    <option key={n} value={n}>
+                      {n}
+                    </option>
+                  ))}
+                </select>
               </label>
             </div>
             {sectionActions}
@@ -2080,16 +2162,35 @@ export function QuestDetailView({
                   <p>아이템</p>
                   {quest.rewardItems.length ? (
                     <ul className="quest-skill-chips">
-                      {quest.rewardItems.map((item, idx) => (
-                        <li
-                          key={`${item.name}-${item.qty}-${idx}`}
-                          className="is-consumable-chip"
-                        >
-                          <ConsumableEdgeLabel />
-                          <span>{item.name}</span>
-                          {item.qty != null && <em>×{item.qty}</em>}
-                        </li>
-                      ))}
+                      {quest.rewardItems.map((item, idx) => {
+                        const canOpen = Boolean(authToken && item.name.trim())
+                        return (
+                          <li
+                            key={`${item.name}-${item.qty}-${idx}`}
+                            className="is-consumable-chip"
+                          >
+                            <ConsumableEdgeLabel />
+                            {canOpen ? (
+                              <button
+                                type="button"
+                                className="quest-skill-chip-btn"
+                                disabled={consumableLoading}
+                                onClick={() =>
+                                  void openMatchedConsumable(item.name)
+                                }
+                              >
+                                <span>{item.name}</span>
+                                {item.qty != null ? <em>×{item.qty}</em> : null}
+                              </button>
+                            ) : (
+                              <>
+                                <span>{item.name}</span>
+                                {item.qty != null ? <em>×{item.qty}</em> : null}
+                              </>
+                            )}
+                          </li>
+                        )
+                      })}
                     </ul>
                   ) : (
                     <p className="quest-muted">없음</p>
@@ -2234,21 +2335,46 @@ export function QuestDetailView({
                           <ul className="quest-skill-chips quest-step-skill-chips">
                             {lastSkills.skills.map((skill, skillIdx) => {
                               const level = skillDisplayLevel(skill)
+                              const canOpen = Boolean(
+                                authToken && skill.name.trim(),
+                              )
                               return (
                                 <li
                                   key={`${skill.name}-${skill.level}-${skillIdx}`}
                                   className="is-skill-chip"
                                 >
                                   <SkillEdgeLabel />
-                                  <span>{skill.name}</span>
-                                  {level != null && <em>Lv.{level}</em>}
+                                  {canOpen ? (
+                                    <button
+                                      type="button"
+                                      className="quest-skill-chip-btn"
+                                      disabled={skillLoading}
+                                      onClick={() =>
+                                        void openMatchedSkill(skill.name)
+                                      }
+                                    >
+                                      <span>{skill.name}</span>
+                                      {level != null ? (
+                                        <em>Lv.{level}</em>
+                                      ) : null}
+                                    </button>
+                                  ) : (
+                                    <>
+                                      <span>{skill.name}</span>
+                                      {level != null ? (
+                                        <em>Lv.{level}</em>
+                                      ) : null}
+                                    </>
+                                  )}
                                 </li>
                               )
                             })}
                           </ul>
                         ) : null}
                         {item.hint ? (
-                          <span className="quest-step-hint">{item.hint}</span>
+                          <span className="quest-step-hint">
+                            ({item.hint})
+                          </span>
                         ) : null}
                       </div>
                     </div>
@@ -2348,6 +2474,9 @@ export function QuestDetailView({
         <LoadingOverlay label="발견물 불러오는 중…" />
       ) : null}
       {skillLoading ? <LoadingOverlay label="스킬 불러오는 중…" /> : null}
+      {consumableLoading ? (
+        <LoadingOverlay label="소비품 불러오는 중…" />
+      ) : null}
       {jumpQuestLoading ? (
         <LoadingOverlay label="퀘스트 불러오는 중…" />
       ) : null}
@@ -2397,6 +2526,33 @@ export function QuestDetailView({
                 }
               : undefined
           }
+        />
+      ) : null}
+
+      {consumableMissName ? (
+        <ConfirmLayer
+          title="확인"
+          message={`「${consumableMissName}」 소비품이 없습니다.`}
+          stack={1}
+          onCancel={() => setConsumableMissName('')}
+          confirmLabel={isAdmin ? '등록하러 이동하기' : undefined}
+          onConfirm={
+            isAdmin
+              ? () => {
+                  openConsumablesAddTab(consumableMissName)
+                  setConsumableMissName('')
+                }
+              : undefined
+          }
+        />
+      ) : null}
+
+      {consumableError ? (
+        <ConfirmLayer
+          title="확인"
+          message={consumableError}
+          stack={1}
+          onCancel={() => setConsumableError('')}
         />
       ) : null}
 
@@ -2594,6 +2750,40 @@ export function QuestDetailView({
         </DetailModal>
       ) : null}
 
+      {consumableDetail ? (
+        <DetailModal
+          title="소비품 상세"
+          label={`${consumableDetail.name} 상세`}
+          onClose={() => {
+            setConsumableDetail(null)
+            setConsumableError('')
+          }}
+          stack={1}
+          headerActions={
+            isAdmin ? (
+              <button
+                type="button"
+                className="admin-btn"
+                onClick={() => {
+                  const params = new URLSearchParams()
+                  params.set('q', consumableDetail.name)
+                  params.set(
+                    'open',
+                    consumableDetail.slug || consumableDetail.name,
+                  )
+                  const url = `${window.location.pathname}${window.location.search}#/consumables?${params.toString()}`
+                  window.open(url, '_blank', 'noopener,noreferrer')
+                }}
+              >
+                소비품 메뉴로 이동
+              </button>
+            ) : undefined
+          }
+        >
+          <ConsumableDetailView consumable={consumableDetail} />
+        </DetailModal>
+      ) : null}
+
       {jumpQuestDetail ? (
         <DetailModal
           title="퀘스트 상세"
@@ -2700,6 +2890,8 @@ export function QuestDetailView({
         >
           <FieldDetailView
             field={fieldDetail}
+            token={authToken}
+            isAdmin={isAdmin}
             edit={
               isAdmin && authToken
                 ? {

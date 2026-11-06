@@ -333,7 +333,13 @@ export function QuestCatalog({
       return
     }
     const rawDest = extractDestinationFromQuestText(importText)
-    if (rawDest && isAmbiguousQuestDestination(rawDest)) {
+    if (
+      rawDest &&
+      isAmbiguousQuestDestination(rawDest, {
+        cityNames: destCityNames,
+        landNames: destLandNames,
+      })
+    ) {
       setDestConfirm({ raw: rawDest, text: importText })
       return
     }

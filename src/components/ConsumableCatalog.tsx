@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useRef,
   useState,
   type FormEvent,
   type KeyboardEvent,
@@ -12,6 +13,7 @@ import {
 } from '../lib/api'
 import { compareIdDesc, useTableSort } from '../lib/tableSort'
 import type { ConsumableDetail } from '../types'
+import { ConfirmLayer } from './ConfirmLayer'
 import { ConsumableDetailView } from './ConsumableDetailView'
 import { DetailModal } from './DetailModal'
 import { SortableTh } from './SortableTh'
@@ -22,6 +24,9 @@ type ConsumableCatalogProps = {
   token: string
   isAdmin?: boolean
   onToast?: (message: string) => void
+  initialQuery?: string
+  openKey?: string
+  initialAdd?: boolean
 }
 
 type SortKey = 'name' | 'category' | 'useEffect'
@@ -30,20 +35,27 @@ export function ConsumableCatalog({
   token,
   isAdmin = false,
   onToast,
+  initialQuery = '',
+  openKey = '',
+  initialAdd = false,
 }: ConsumableCatalogProps) {
   const [consumables, setConsumables] = useState<ConsumableDetail[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [detail, setDetail] = useState<ConsumableDetail | null>(null)
   const [detailEditMode, setDetailEditMode] = useState(false)
-  const [query, setQuery] = useState('')
+  const [query, setQuery] = useState(initialQuery)
   const [page, setPage] = useState(0)
   const canAdd = isAdmin
-  const [showImport, setShowImport] = useState(false)
+  const [showImport, setShowImport] = useState(
+    () => Boolean(canAdd && initialAdd),
+  )
   const [importText, setImportText] = useState('')
   const [importing, setImporting] = useState(false)
   const [importNote, setImportNote] = useState('')
   const [deletingId, setDeletingId] = useState<number | null>(null)
+  const [openMiss, setOpenMiss] = useState('')
+  const openedKeyRef = useRef('')
   const { sortKey, sortDir, toggleSort, sortRows } = useTableSort<SortKey>()
 
   const loadConsumables = useCallback(async () => {
@@ -67,6 +79,43 @@ export function ConsumableCatalog({
   useEffect(() => {
     void loadConsumables()
   }, [loadConsumables])
+
+  useEffect(() => {
+    if (initialQuery.trim()) setQuery(initialQuery)
+  }, [initialQuery])
+
+  useEffect(() => {
+    if (!canAdd) {
+      setShowImport(false)
+      return
+    }
+    if (initialAdd) setShowImport(true)
+  }, [canAdd, initialAdd])
+
+  useEffect(() => {
+    const key = openKey.trim()
+    if (!key || loading) return
+    if (openedKeyRef.current === key) return
+    openedKeyRef.current = key
+    const lower = key.toLowerCase()
+    const found = consumables.find(
+      (c) =>
+        c.slug === key ||
+        c.name.trim().toLowerCase() === lower ||
+        c.name.trim() === key,
+    )
+    const label = initialQuery.trim() || key
+    if (initialQuery.trim()) setQuery(initialQuery.trim())
+    if (!found) {
+      setOpenMiss(label)
+      return
+    }
+    setOpenMiss('')
+    setQuery(initialQuery.trim() || found.name)
+    setPage(0)
+    setDetailEditMode(false)
+    setDetail(found)
+  }, [openKey, loading, consumables, initialQuery])
 
   useEffect(() => {
     setPage(0)
@@ -410,6 +459,24 @@ export function ConsumableCatalog({
           />
         </DetailModal>
       )}
+
+      {openMiss ? (
+        <ConfirmLayer
+          title="확인"
+          message={`「${openMiss}」 소비품이 없습니다.`}
+          onCancel={() => setOpenMiss('')}
+          confirmLabel={canAdd ? '등록하러 이동하기' : undefined}
+          onConfirm={
+            canAdd
+              ? () => {
+                  setQuery(openMiss)
+                  setShowImport(true)
+                  setOpenMiss('')
+                }
+              : undefined
+          }
+        />
+      ) : null}
     </section>
   )
 }

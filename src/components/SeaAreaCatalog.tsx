@@ -434,6 +434,8 @@ export function SeaAreaCatalog({
         >
           <SeaAreaDetailView
             seaArea={detail}
+            token={token}
+            isAdmin={isAdmin}
             edit={
               isAdmin && detailEditMode
                 ? {

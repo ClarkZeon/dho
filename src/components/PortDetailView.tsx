@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type CSSProperties } from 'react'
-import { fetchSkill, updatePort } from '../lib/api'
+import { fetchFieldByKey, fetchSkill, updatePort } from '../lib/api'
 import type {
+  FieldDetail,
   PortCharacter,
   PortCollectItem,
   PortDestination,
@@ -27,11 +28,17 @@ import {
   isNationPortCategory,
 } from '../lib/portCategories'
 import { DucatAmount, DucatMark } from './DucatAmount'
+import { FieldDetailView } from './FieldDetailView'
+import { LandEdgeLabel } from './LandEdgeLabel'
 import { LoadingOverlay } from './LoadingOverlay'
 import { DiscoveryChips } from './modules/DiscoveryChips'
 import { PortCategoryBadge } from './PortCategoryBadge'
 import { SkillDetailView } from './SkillDetailView'
 import { SkillEdgeLabel } from './SkillEdgeLabel'
+
+function isCityOutskirtsKind(kind: string | null | undefined) {
+  return String(kind || '').trim() === '도시 외곽'
+}
 
 function formatRewardAmount(amount: string | null | undefined) {
   const text = String(amount || '').trim()
@@ -417,6 +424,10 @@ export function PortDetailView({
   const [skillLoading, setSkillLoading] = useState(false)
   const [skillMissName, setSkillMissName] = useState('')
   const [skillError, setSkillError] = useState('')
+  const [fieldDetail, setFieldDetail] = useState<FieldDetail | null>(null)
+  const [fieldLoading, setFieldLoading] = useState(false)
+  const [fieldMissName, setFieldMissName] = useState('')
+  const [fieldError, setFieldError] = useState('')
 
   useEffect(() => {
     setDraft(clonePort(port))
@@ -425,6 +436,9 @@ export function PortDetailView({
     setSkillDetail(null)
     setSkillMissName('')
     setSkillError('')
+    setFieldDetail(null)
+    setFieldMissName('')
+    setFieldError('')
   }, [port])
 
   useEffect(() => {
@@ -515,6 +529,36 @@ export function PortDetailView({
     params.set('q', skillName)
     params.set('add', '1')
     const url = `${window.location.pathname}${window.location.search}#/skills?${params.toString()}`
+    window.open(url, '_blank', 'noopener,noreferrer')
+  }
+
+  async function openMatchedField(name: string) {
+    if (!authToken) return
+    const key = name.trim()
+    if (!key) return
+    setFieldLoading(true)
+    setFieldMissName('')
+    setFieldError('')
+    try {
+      const res = await fetchFieldByKey(authToken, key)
+      setFieldDetail(res.field)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : ''
+      if (/찾을 수 없|없습니다/i.test(message)) {
+        setFieldMissName(key)
+      } else {
+        setFieldError(message || '육지 상세를 불러오지 못했습니다.')
+      }
+    } finally {
+      setFieldLoading(false)
+    }
+  }
+
+  function openFieldsAddTab(fieldName: string) {
+    const params = new URLSearchParams()
+    params.set('q', fieldName)
+    params.set('add', '1')
+    const url = `${window.location.pathname}${window.location.search}#/fields?${params.toString()}`
     window.open(url, '_blank', 'noopener,noreferrer')
   }
 
@@ -1015,17 +1059,43 @@ export function PortDetailView({
                 <tbody>
                   {(port.linkedPlaces || []).map((row, idx) => {
                     const chips = placeContentChips(row.content, port.name)
+                    const isOutskirts = isCityOutskirtsKind(row.kind)
                     return (
                       <tr key={`${row.kind}-${idx}`}>
                         <td className="port-place-kind">{row.kind}</td>
                         <td>
                           {chips.length > 0 ? (
                             <ul className="quest-skill-chips">
-                              {chips.map((item) => (
-                                <li key={item}>
-                                  <span>{item}</span>
-                                </li>
-                              ))}
+                              {chips.map((item) =>
+                                isOutskirts ? (
+                                  <li key={item} className="is-land-chip">
+                                    {authToken ? (
+                                      <button
+                                        type="button"
+                                        className="quest-skill-chip-btn"
+                                        disabled={fieldLoading}
+                                        onClick={() =>
+                                          void openMatchedField(item)
+                                        }
+                                      >
+                                        <span className="chip-edge-inner">
+                                          <LandEdgeLabel />
+                                          <span>{item}</span>
+                                        </span>
+                                      </button>
+                                    ) : (
+                                      <span className="chip-edge-inner">
+                                        <LandEdgeLabel />
+                                        <span>{item}</span>
+                                      </span>
+                                    )}
+                                  </li>
+                                ) : (
+                                  <li key={item}>
+                                    <span>{item}</span>
+                                  </li>
+                                ),
+                              )}
                             </ul>
                           ) : (
                             '-'
@@ -1609,6 +1679,7 @@ export function PortDetailView({
       )}
 
       {skillLoading ? <LoadingOverlay label="스킬 불러오는 중…" /> : null}
+      {fieldLoading ? <LoadingOverlay label="육지 불러오는 중…" /> : null}
 
       {skillMissName ? (
         <ConfirmLayer
@@ -1628,12 +1699,39 @@ export function PortDetailView({
         />
       ) : null}
 
+      {fieldMissName ? (
+        <ConfirmLayer
+          title="확인"
+          message={`「${fieldMissName}」 육지가 없습니다.`}
+          stack={1}
+          onCancel={() => setFieldMissName('')}
+          confirmLabel={isAdmin ? '등록하러 이동하기' : undefined}
+          onConfirm={
+            isAdmin
+              ? () => {
+                  openFieldsAddTab(fieldMissName)
+                  setFieldMissName('')
+                }
+              : undefined
+          }
+        />
+      ) : null}
+
       {skillError ? (
         <ConfirmLayer
           title="확인"
           message={skillError}
           stack={1}
           onCancel={() => setSkillError('')}
+        />
+      ) : null}
+
+      {fieldError ? (
+        <ConfirmLayer
+          title="확인"
+          message={fieldError}
+          stack={1}
+          onCancel={() => setFieldError('')}
         />
       ) : null}
 
@@ -1668,6 +1766,49 @@ export function PortDetailView({
             skill={skillDetail}
             token={authToken}
             isAdmin={isAdmin}
+          />
+        </DetailModal>
+      ) : null}
+
+      {fieldDetail ? (
+        <DetailModal
+          title="육지 상세"
+          label={`${fieldDetail.name} 상세`}
+          onClose={() => {
+            setFieldDetail(null)
+            setFieldError('')
+          }}
+          stack={1}
+          headerActions={
+            isAdmin ? (
+              <button
+                type="button"
+                className="admin-btn"
+                onClick={() => {
+                  const params = new URLSearchParams()
+                  params.set('q', fieldDetail.name)
+                  params.set('open', fieldDetail.slug || fieldDetail.name)
+                  const url = `${window.location.pathname}${window.location.search}#/fields?${params.toString()}`
+                  window.open(url, '_blank', 'noopener,noreferrer')
+                }}
+              >
+                육지 메뉴로 이동
+              </button>
+            ) : undefined
+          }
+        >
+          <FieldDetailView
+            field={fieldDetail}
+            token={authToken}
+            isAdmin={isAdmin}
+            edit={
+              isAdmin && authToken
+                ? {
+                    token: authToken,
+                    onSaved: (field) => setFieldDetail(field),
+                  }
+                : undefined
+            }
           />
         </DetailModal>
       ) : null}
