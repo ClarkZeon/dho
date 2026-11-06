@@ -512,6 +512,14 @@ export function fetchSeaAreas(token: string) {
   return request<{ seaAreas: SeaAreaDetail[] }>('/api/sea-areas', { token })
 }
 
+/** id · slug · 이름 중 하나로 해역 상세 (카탈로그 점프) */
+export function fetchSeaAreaByKey(token: string, key: string) {
+  return request<{ seaArea: SeaAreaDetail }>(
+    `/api/sea-areas/${encodeURIComponent(key)}`,
+    { token },
+  )
+}
+
 export function importSeaAreaText(token: string, text: string) {
   return request<{ seaArea: SeaAreaDetail }>('/api/sea-areas/import-text', {
     token,

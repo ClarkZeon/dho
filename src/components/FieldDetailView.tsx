@@ -475,22 +475,12 @@ export function FieldDetailView({
           <>
             <div className="sea-area-edit-grid">
               <label className="field">
-                <span>필드</span>
+                <span>이름</span>
                 <input
                   value={draft.name}
                   required
                   disabled={saving}
                   onChange={(e) => patchDraft({ name: e.target.value })}
-                />
-              </label>
-              <label className="field">
-                <span>추가 이름</span>
-                <input
-                  value={draft.altName || ''}
-                  disabled={saving}
-                  onChange={(e) =>
-                    patchDraft({ altName: e.target.value || null })
-                  }
                 />
               </label>
               <label className="field">
@@ -561,8 +551,6 @@ export function FieldDetailView({
         ) : (
           <div className="quest-kv-grid">
             <Row label="필드 종류" value={field.fieldKind} />
-            <Row label="필드" value={field.name} />
-            <Row label="추가 이름" value={field.altName} />
             <Row label="지역" value={field.region} />
             <Row label="해역" value={field.seaArea} />
             <Row label="좌표" value={coords} />

@@ -318,6 +318,8 @@ export function RegionCatalog({
         >
           <RegionDetailView
             region={detail}
+            token={token}
+            isAdmin={isAdmin}
             edit={
               isAdmin && detailEditMode
                 ? {

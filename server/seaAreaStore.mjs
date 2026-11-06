@@ -167,6 +167,19 @@ export async function getSeaAreaById(id) {
   return rows[0] ? decorateSeaArea(rows[0]) : null
 }
 
+export async function getSeaAreaByName(name) {
+  const sql = getSql()
+  const key = normalizeName(name)
+  if (!key) return null
+  const rows = await sql`
+    SELECT * FROM sea_areas
+    WHERE enabled = TRUE
+      AND TRIM(BOTH FROM regexp_replace(name, '\\s+', ' ', 'g')) = ${key}
+    LIMIT 1
+  `
+  return rows[0] ? decorateSeaArea(rows[0]) : null
+}
+
 /**
  * 해역 필드 부분/전체 갱신 (상세 폼 저장)
  * @param {number} id

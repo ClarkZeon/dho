@@ -18,6 +18,7 @@ export type MenuTarget =
   | { name: 'consumables' }
   | { name: 'ports' }
   | { name: 'regions' }
+  | { name: 'sea-areas' }
   | { name: 'fields' }
   | { name: 'users' }
 
@@ -167,6 +168,7 @@ export function SlideMenu({
   const worldActive =
     active.name === 'ports' ||
     active.name === 'regions' ||
+    active.name === 'sea-areas' ||
     active.name === 'fields'
   const manageActive = active.name === 'users'
 
@@ -393,6 +395,13 @@ export function SlideMenu({
               onClick={() => go({ name: 'regions' })}
             >
               지역
+            </button>
+            <button
+              type="button"
+              className={active.name === 'sea-areas' ? 'active' : ''}
+              onClick={() => go({ name: 'sea-areas' })}
+            >
+              해역
             </button>
             <button
               type="button"

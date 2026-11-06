@@ -182,7 +182,7 @@ type WalkthroughFlowItem =
       num: string
       /** 도시/장소 (쉼표 앞) */
       place: string | null
-      /** 대상/행동. `생선 파는 남자x2` → 생선 파는 남자 */
+      /** 대상/행동. `생선 파는 남자x2` / `…2회` → 반복 시 본체만 */
       action: string
       /** `(대장장이와 조선소 사이)` — 반복 첫 칸만 */
       hint: string | null
@@ -191,7 +191,8 @@ type WalkthroughFlowItem =
 
 /**
  * `마르세이유, 생선 파는 남자x2 (대장장이와 조선소 사이)`
- * → 장소 유지 + 대상만 x2 반복, 괄호 힌트는 첫 칸만.
+ * `마르세이유, 생선 파는 남자 2회 (…)` — `2회` = `x2`
+ * → 장소 유지 + 대상만 N회 반복, 괄호 힌트는 첫 칸만.
  */
 /** `2/3 지점` → `3분의 2지점` (슬래시가 파서를 깨지 않게) */
 function normalizeWalkthroughFractions(text: string) {
@@ -217,11 +218,22 @@ function parseWalkthroughStepBody(raw: string): {
   }
 
   let times = 1
-  // 괄호 제거 후 끝의 xN — `남자x2` / `남자 x2` (숫자만 있는 끝은 무시)
+  // xN — `남자x2` / `남자 x2`
   const multX = body.match(/^(.*?)[x×Ｘｘ]\s*(\d+)\s*$/i)
-  if (multX) {
+  if (multX && multX[1].trim()) {
     times = Math.min(20, Math.max(1, Number(multX[2]) || 1))
     body = multX[1].trim()
+  } else {
+    // N회 — 끝(`남자 2회`) 또는 중간(`은행장과 2회 대화` → `은행장과 대화`)
+    const multHoe = body.match(/^(.*?)(?:\s*)(\d+)\s*회(?:\s+(.*))?$/)
+    if (multHoe) {
+      const left = (multHoe[1] || '').trim()
+      const right = (multHoe[3] || '').trim()
+      if (left || right) {
+        times = Math.min(20, Math.max(1, Number(multHoe[2]) || 1))
+        body = [left, right].filter(Boolean).join(' ')
+      }
+    }
   }
 
   const comma = body.match(/^([^,，]+)[,，]\s*(.+)$/)

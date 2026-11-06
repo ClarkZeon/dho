@@ -4272,6 +4272,10 @@
   color: #4d6a28;
 }
 
+.quest-kv-grid .quest-skill-chips li.is-sea-chip {
+  color: #1c4870;
+}
+
 .quest-kv-grid .quest-skill-chips li.is-consumable-chip {
   color: #9a4a0e;
 }
@@ -4353,6 +4357,7 @@
 
 .quest-skill-chips li.is-city-chip,
 .quest-skill-chips li.is-land-chip,
+.quest-skill-chips li.is-sea-chip,
 .quest-skill-chips li.is-discovery-chip,
 .quest-skill-chips li.is-skill-chip,
 .quest-skill-chips li.is-consumable-chip {
@@ -4370,6 +4375,12 @@
   border-color: rgba(90, 118, 52, 0.36);
   background: color-mix(in srgb, #6b8f3a 8%, var(--is-white));
   color: #4d6a28;
+}
+
+.quest-skill-chips li.is-sea-chip {
+  border-color: rgba(36, 90, 140, 0.38);
+  background: color-mix(in srgb, #245a8c 9%, var(--is-white));
+  color: #1c4870;
 }
 
 .quest-skill-chips li.is-discovery-chip {
@@ -4433,6 +4444,12 @@
   color: #5a7a32;
   background: var(--is-white);
   box-shadow: 0 0 0 1px color-mix(in srgb, #5a7a32 24%, transparent);
+}
+
+.chip-edge-label.is-sea {
+  color: #245a8c;
+  background: var(--is-white);
+  box-shadow: 0 0 0 1px color-mix(in srgb, #245a8c 26%, transparent);
 }
 
 .chip-edge-label.is-discovery {

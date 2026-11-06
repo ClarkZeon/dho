@@ -103,6 +103,8 @@ import {
   deleteSeaArea,
   ensureSeaAreaStore,
   getSeaAreaById,
+  getSeaAreaByName,
+  getSeaAreaBySlug,
   listSeaAreas,
   updateSeaAreaFields,
   upsertSeaAreaFromParsed,
@@ -1553,6 +1555,28 @@ export async function handleRequest(req, res) {
     }
 
     const seaAreaMatch = pathname.match(/^\/api\/sea-areas\/([^/]+)$/)
+    if (seaAreaMatch && req.method === 'GET') {
+      const authUser = await getAuthUser(req)
+      if (!authUser) {
+        sendJson(res, 401, { error: '로그인이 필요합니다.' })
+        return
+      }
+      const key = decodeURIComponent(seaAreaMatch[1]).trim()
+      const asId = Number(key)
+      let seaArea =
+        Number.isFinite(asId) && String(asId) === key
+          ? await getSeaAreaById(asId)
+          : null
+      if (!seaArea) seaArea = await getSeaAreaBySlug(key)
+      if (!seaArea) seaArea = await getSeaAreaByName(key)
+      if (!seaArea) {
+        sendJson(res, 404, { error: '해역을 찾을 수 없습니다.' })
+        return
+      }
+      sendJson(res, 200, { seaArea })
+      return
+    }
+
     if (seaAreaMatch && req.method === 'PATCH') {
       const authUser = await getAuthUser(req)
       if (!authUser) {

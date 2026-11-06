@@ -20,6 +20,7 @@ import { RefineCatalog } from './RefineCatalog'
 import { ConsumableCatalog } from './ConsumableCatalog'
 import { PortCatalog } from './PortCatalog'
 import { RegionCatalog } from './RegionCatalog'
+import { SeaAreaCatalog } from './SeaAreaCatalog'
 import { FieldCatalog } from './FieldCatalog'
 import { TreasureMapCatalog } from './TreasureMapCatalog'
 import { UserManage } from './UserManage'
@@ -42,6 +43,7 @@ type View =
   | { name: 'consumables' }
   | { name: 'ports'; q?: string; open?: string; add?: boolean }
   | { name: 'regions' }
+  | { name: 'sea-areas'; q?: string; open?: string; add?: boolean }
   | { name: 'fields'; q?: string; open?: string; add?: boolean }
   | { name: 'treasure-maps'; q?: string; open?: string; add?: boolean }
   | { name: 'users' }
@@ -106,6 +108,14 @@ function viewToHash(view: View): string {
     }
     case 'regions':
       return '#/regions'
+    case 'sea-areas': {
+      const params = new URLSearchParams()
+      if (view.q?.trim()) params.set('q', view.q.trim())
+      if (view.open?.trim()) params.set('open', view.open.trim())
+      if (view.add) params.set('add', '1')
+      const qs = params.toString()
+      return qs ? `#/sea-areas?${qs}` : '#/sea-areas'
+    }
     case 'fields': {
       const params = new URLSearchParams()
       if (view.q?.trim()) params.set('q', view.q.trim())
@@ -193,6 +203,12 @@ function hashToView(hash: string, isAdmin: boolean): View {
     return { name: 'ports', q, open, add: add || undefined }
   }
   if (parts[0] === 'regions') return { name: 'regions' }
+  if (parts[0] === 'sea-areas' || parts[0] === 'seas') {
+    const q = params.get('q')?.trim() || undefined
+    const open = params.get('open')?.trim() || undefined
+    const add = isAdmin && params.get('add') === '1'
+    return { name: 'sea-areas', q, open, add: add || undefined }
+  }
   if (parts[0] === 'fields' || parts[0] === 'lands') {
     const q = params.get('q')?.trim() || undefined
     const open = params.get('open')?.trim() || undefined
@@ -256,6 +272,13 @@ function viewsEqual(a: View, b: View): boolean {
     )
   }
   if (a.name === 'fields' && b.name === 'fields') {
+    return (
+      (a.q || '') === (b.q || '') &&
+      (a.open || '') === (b.open || '') &&
+      Boolean(a.add) === Boolean(b.add)
+    )
+  }
+  if (a.name === 'sea-areas' && b.name === 'sea-areas') {
     return (
       (a.q || '') === (b.q || '') &&
       (a.open || '') === (b.open || '') &&
@@ -343,6 +366,7 @@ function toMenuTarget(view: View): MenuTarget {
   if (view.name === 'consumables') return { name: 'consumables' }
   if (view.name === 'ports') return { name: 'ports' }
   if (view.name === 'regions') return { name: 'regions' }
+  if (view.name === 'sea-areas') return { name: 'sea-areas' }
   if (view.name === 'fields') return { name: 'fields' }
   if (view.name === 'users') return { name: 'users' }
   return { name: 'home' }
@@ -537,6 +561,10 @@ export function Dashboard({ user, token, onLogout, onToast }: DashboardProps) {
     }
     if (target.name === 'regions') {
       go({ name: 'regions' })
+      return
+    }
+    if (target.name === 'sea-areas') {
+      go({ name: 'sea-areas' })
       return
     }
     if (target.name === 'fields') {
@@ -819,6 +847,14 @@ export function Dashboard({ user, token, onLogout, onToast }: DashboardProps) {
                     <button
                       type="button"
                       className="dash-link"
+                      onClick={() => go({ name: 'sea-areas' })}
+                    >
+                      <strong>해역</strong>
+                      <span>해역 목록·경계·수집·상세</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="dash-link"
                       onClick={() => go({ name: 'fields' })}
                     >
                       <strong>육지</strong>
@@ -979,6 +1015,17 @@ export function Dashboard({ user, token, onLogout, onToast }: DashboardProps) {
             token={token}
             isAdmin={isAdmin}
             onToast={onToast}
+          />
+        )}
+
+        {view.name === 'sea-areas' && (
+          <SeaAreaCatalog
+            token={token}
+            isAdmin={isAdmin}
+            onToast={onToast}
+            initialQuery={view.q || ''}
+            openKey={view.open || ''}
+            initialAdd={isAdmin && Boolean(view.add)}
           />
         )}
 
