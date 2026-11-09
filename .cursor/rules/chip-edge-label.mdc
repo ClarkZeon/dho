@@ -1,49 +1,19 @@
 ---
-description: 칩 앞 라벨 — 도시/육지/발견물/스킬/소비품 공통
+description: 칩 앞 라벨·색 — 자세한 표는 docs/chips.md. 검색하지 말고 그 문서 따를 것.
 alwaysApply: true
 ---
 
 # 칩 앞 라벨
 
-카탈로그 점프·목적지 칩에 **종류 라벨**을 붙일 때 이 패턴만 쓴다.
+**전체 설정(종류·색·마크업·점프·사용처): [docs/chips.md](docs/chips.md)**  
+에이전트는 칩을 넣을 때 코드베이스를 다시 검색하지 말고 위 문서를 연다.
 
-**카탈로그 점프를 새 칩에 넣을 때** 점프 UX와 **칩 디자인 전체**를 항상 함께 적용한다: 앞 라벨 + 종류별 외곽선 색 + 칩 배경색. (`catalog-jump.mdc` 참고)
+**카탈로그 점프를 새 칩에 넣을 때** 점프 UX와 **칩 디자인 전체**를 항상 함께 적용한다 (`catalog-jump.mdc` + `docs/chips.md`).
 
-## 기하학 기본 (`.chip-edge-label` + `.is-leading`)
+## 요약
 
-모든 종류 공통. **칩 안 앞(좌측)** 배치. 외곽선 걸침 금지.
-
-| 속성 | 값 |
-|---|---|
-| 배치 | 칩 `li` 안 첫 자식 (내용 앞) |
-| 축소 | `transform: scale(0.92)` · `transform-origin: center center` |
-| 글자 | `font-size: 0.7rem; font-weight: 800` (rem만 더 줄이지 말 것) |
-| 라벨 내부 | `padding: 0.14rem 0.22rem` — 외곽선과 글자 상·하 여백 |
-| 세로 정렬 | 라벨·소분류·난이도·아이콘·이름은 **한 flex 줄** `align-items: center` (개별 `translateY` 금지) |
-| 내용 간격 | 발견물: `.discovery-chip-inner` `gap: 0.22rem` / 기타: `li` `gap: 0.12rem` |
-
-## 종류
-
-| 종류 | 컴포넌트 | 칩 클래스 | 색 |
-|---|---|---|---|
-| 도시 | `CityEdgeLabel` | `.is-city-chip` | 붉 `#b03a3a` / `#8f2f2f` |
-| 육지 | `LandEdgeLabel` | `.is-land-chip` | 녹갈 `#5a7a32` / `#4d6a28` |
-| 해역 | `SeaAreaEdgeLabel` | `.is-sea-chip` | 남청 `#245a8c` / `#1c4870` |
-| 지역 | `RegionEdgeLabel` | `.is-region-chip` | 보라 `#6b4f8a` / `#574072` |
-| 발견물 | `DiscoveryEdgeLabel` | `.is-discovery-chip` | 파랑 `var(--is-blue)` |
-| 스킬 | `SkillEdgeLabel` | `.is-skill-chip` | 청록 `#0c7c8c` / `#0a6a72` (레벨 `em`만 금색) |
-| 소비품 | `ConsumableEdgeLabel` | `.is-consumable-chip` | 주황 `#c45f12` / `#9a4a0e` (수량 `em` 금색) |
-| 직업 | `JobEdgeLabel` | `.is-job-chip` | 남보라 `#4558a8` / `#36478a` |
-
-전문 스킬·전문 직업(`is-specialist`)은 금색 표면 유지 + 종류 라벨 병행.
-
-## 퀘스트 목적지
-
-`splitQuestDestination` → `steps[]` 각각 칩 + `»`.
-- 구분자(`»`/`→`/`›` 등) 또는 도시·육지 카탈로그 이름으로 분할
-- 도시 목록에 있으면 도시 칩, 아니면 육지 칩 (예: `남미 남동쪽 해안 » 파라과이 강 상류`)
-- 한 칩에 합치지 말 것
-
-## 새 종류
-
-앞 배치·크기·간격은 그대로, `is-{kind}` 색만 추가.
+- 앞 라벨 `.chip-edge-label.is-{kind}.is-leading` + 칩 `li.is-{kind}-chip`
+- 기하학: scale(0.92) · `font-size: 0.7rem` · padding `0.14rem 0.22rem` · flex 한 줄
+- 도시 `#b03a3a` · 육지 `#5a7a32` · 해역 `#245a8c` · 지역 `#6b4f8a` · 발견물 `var(--is-blue)` · 스킬 `#0c7c8c` · 소비품 `#c45f12` · 직업 `#4558a8`
+- 퀘스트 목적지: `splitQuestDestination` → 도시/육지 칩 분할 + `»` · 칩은 괄호 앞만, 괄호는 뒤 일반 텍스트 (`splitDestinationParenSuffix`)
+- 새 종류·배치 변경 시 **`docs/chips.md`만 갱신** (이 규칙은 요약 유지)

@@ -41,7 +41,7 @@ export function countryFlagPathFromCategory(
   return id ? `/countries/${id}.png` : null
 }
 
-/** 저장된 도시/국가 깃발이 없으면 본거지/영지 분류로 국가 깃발 추론 */
+/** 저장된 도시/국가 깃발이 없으면 본거지/영지/개척지 분류로 국가 깃발 추론 */
 export function resolvePortFlagSrc(
   flagImage: string | null | undefined,
   category: string | null | undefined,

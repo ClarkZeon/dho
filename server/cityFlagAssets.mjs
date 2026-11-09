@@ -28,14 +28,17 @@ export function countryFlagLocalPath(countryName) {
   return id ? `/countries/${id}.png` : null
 }
 
-const NATION_KINDS = ['본거지', '영지']
+const NATION_KINDS = ['개척지', '본거지', '영지']
 
-/** `포르투갈본거지` / `프랑스 » 영지` / `프랑스 본거지` → 나라명 */
+/** `포르투갈본거지` / `네덜란드 » 개척지` / `프랑스 본거지` → 나라명 */
 export function countryNameFromCategory(category) {
   const raw = String(category || '').trim()
   if (!raw) return null
   const sep = raw.split(/\s*»\s*|\s*>>\s*|\s*›\s*/)
-  if (sep.length >= 2 && sep[0].trim()) return sep[0].trim()
+  if (sep.length >= 2 && sep[0].trim()) {
+    const kind = sep.slice(1).join(' » ').trim()
+    if (NATION_KINDS.includes(kind)) return sep[0].trim()
+  }
   for (const kind of NATION_KINDS) {
     const spaced = raw.match(new RegExp(`^(.+?)\\s+${kind}$`))
     if (spaced?.[1]?.trim()) return spaced[1].trim()

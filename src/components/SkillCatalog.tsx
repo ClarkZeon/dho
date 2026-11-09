@@ -267,7 +267,7 @@ export function SkillCatalog({
   }
 
   return (
-    <section className="tool-page">
+    <section className="tool-page skill-catalog">
       <div className="messages-head">
         <div>
           <h1>스킬</h1>
@@ -411,20 +411,22 @@ export function SkillCatalog({
                     onSort={handleSort}
                   />
                   <SortableTh
-                    className="col-desk"
+                    className="col-desk col-skill-cat"
                     label="분류"
                     sortKey="category"
                     activeKey={sortKey}
                     dir={sortDir}
                     onSort={handleSort}
+                    align="center"
                   />
                   <SortableTh
-                    className="col-desk"
+                    className="col-desk col-skill-range"
                     label="범위"
                     sortKey="rangeScope"
                     activeKey={sortKey}
                     dir={sortDir}
                     onSort={handleSort}
+                    align="center"
                   />
                   <SortableTh
                     className="col-desk"
@@ -434,7 +436,9 @@ export function SkillCatalog({
                     dir={sortDir}
                     onSort={handleSort}
                   />
-                  {isAdmin && <th className="col-desk col-action">삭제</th>}
+                  {isAdmin && (
+                    <th className="col-desk col-action col-skill-delete">삭제</th>
+                  )}
                 </tr>
               </thead>
               <tbody>
@@ -456,8 +460,12 @@ export function SkillCatalog({
                     }}
                   >
                     <td>{skill.name}</td>
-                    <td className="col-desk">{skillCategory(skill)}</td>
-                    <td className="col-desk">{skill.rangeScope || '-'}</td>
+                    <td className="col-desk col-skill-cat">
+                      {skillCategory(skill)}
+                    </td>
+                    <td className="col-desk col-skill-range">
+                      {skill.rangeScope || '-'}
+                    </td>
                     <td className="col-desk">
                       {skill.learnCost != null
                         ? <DucatAmount value={skill.learnCost} />
@@ -465,7 +473,7 @@ export function SkillCatalog({
                     </td>
                     {isAdmin && (
                       <td
-                        className="col-desk col-action admin-cell-control"
+                        className="col-desk col-action col-skill-delete admin-cell-control"
                         onClick={(e) => e.stopPropagation()}
                         onKeyDown={(e) => e.stopPropagation()}
                       >

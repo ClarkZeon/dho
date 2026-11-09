@@ -1,4 +1,4 @@
-/** 육지 라벨 — 칩 안 앞. chip-edge-label.mdc */
+/** 육지 라벨 — 칩 안 앞. docs/chips.md */
 export function LandEdgeLabel() {
   return (
     <span className="chip-edge-label is-land is-leading" aria-hidden="true">

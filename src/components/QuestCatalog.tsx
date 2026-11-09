@@ -568,6 +568,7 @@ export function QuestCatalog({
                     activeKey={sortKey}
                     dir={sortDir}
                     onSort={handleSort}
+                    align="center"
                   />
                   <SortableTh
                     className="col-desk col-diff"

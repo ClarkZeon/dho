@@ -1553,8 +1553,7 @@ export function QuestDetailView({
 
   const questSkills = normalizeQuestSkills(quest.skills)
   const showSkills = canEdit || questSkills.length > 0
-  const showPrerequisites =
-    canEdit || (quest.prerequisites || []).length > 0
+  const showPrerequisites = (quest.prerequisites || []).length > 0
   const showRewards =
     canEdit ||
     quest.rewardDucat != null ||
@@ -1574,7 +1573,7 @@ export function QuestDetailView({
     quest.fameReport != null
   const showRewardItems = canEdit || quest.rewardItems.length > 0
   const showChain = canEdit || chainQuests.length > 0
-  const showLinked = canEdit || linkedQuests.length > 0
+  const showLinked = linkedQuests.length > 0
   const showWalkthrough = canEdit || walkthroughSteps.length > 0
   const showProgress = canEdit || progressBlocks.length > 0
   const showDescription = canEdit || Boolean(description)
@@ -1782,24 +1781,16 @@ export function QuestDetailView({
           </>
         ) : (
           <div className="quest-kv-grid">
-            <div>
-              <span>난이도</span>
-              <strong>
-                <QuestDifficultyStars value={quest.difficulty} />
-              </strong>
-            </div>
-            {canEdit || quest.chronoQuest?.trim() ? (
+            {quest.chronoQuest?.trim() ? (
               <div>
                 <span>크로노 퀘스트</span>
-                <strong>
-                  {quest.chronoQuest?.trim() ? quest.chronoQuest : '-'}
-                </strong>
+                <strong>{quest.chronoQuest}</strong>
               </div>
             ) : null}
-            {canEdit || quest.feature?.trim() ? (
+            {quest.feature?.trim() ? (
               <div>
                 <span>특징</span>
-                <strong>{quest.feature?.trim() ? quest.feature : '-'}</strong>
+                <strong>{quest.feature}</strong>
               </div>
             ) : null}
             <div>
@@ -1890,6 +1881,9 @@ export function QuestDetailView({
                           )}
                         </li>
                       )}
+                      {step.note ? (
+                        <li className="quest-dest-paren-note">{step.note}</li>
+                      ) : null}
                     </Fragment>
                   ))}
                 </ul>
@@ -2003,7 +1997,7 @@ export function QuestDetailView({
               />
               {sectionActions}
             </>
-          ) : (quest.prerequisites || []).length ? (
+          ) : (
             <PrerequisiteList
               items={quest.prerequisites || []}
               onOpenDiscovery={
@@ -2019,8 +2013,6 @@ export function QuestDetailView({
               discoveryBusy={discoveryLoading}
               questBusy={jumpQuestLoading}
             />
-          ) : (
-            <p className="quest-muted">없음</p>
           )}
         </section>
       )}
@@ -2261,7 +2253,7 @@ export function QuestDetailView({
               />
               {sectionActions}
             </>
-          ) : linkedQuests.length > 0 ? (
+          ) : (
             <QuestRelatedList
               items={linkedQuests}
               currentName={quest.name}
@@ -2274,8 +2266,6 @@ export function QuestDetailView({
               }
               busy={jumpQuestLoading || mapLoading}
             />
-          ) : (
-            <p className="quest-muted">없음</p>
           )}
         </section>
       )}

@@ -1,6 +1,13 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
-import { fetchRegionByKey, updateSeaArea } from '../lib/api'
+import {
+  fetchFieldByKey,
+  fetchPortByKey,
+  fetchRegionByKey,
+  updateSeaArea,
+} from '../lib/api'
 import type {
+  FieldDetail,
+  PortDetail,
   RegionDetail,
   SeaAreaCollectItem,
   SeaAreaDetail,
@@ -8,16 +15,39 @@ import type {
   SeaAreaNpc,
   SeaAreaPlace,
 } from '../types'
+import { CityEdgeLabel } from './CityEdgeLabel'
 import { ConfirmLayer } from './ConfirmLayer'
 import { DetailModal } from './DetailModal'
+import { LandEdgeLabel } from './LandEdgeLabel'
 import { LoadingOverlay } from './LoadingOverlay'
 import { DiscoveryChips } from './modules/DiscoveryChips'
 import { RegionEdgeLabel } from './RegionEdgeLabel'
+import {
+  SeaAreaRegionPickLayer,
+  splitSeaRegionCandidates,
+} from './SeaAreaRegionPickLayer'
+import { splitDestinationParenSuffix } from '../lib/questDestination'
 
-/** RegionDetailView ↔ SeaAreaDetailView 순환 import 방지 */
+/** 순환 import 방지 */
 const RegionDetailViewLazy = lazy(() =>
   import('./RegionDetailView').then((m) => ({ default: m.RegionDetailView })),
 )
+const PortDetailViewLazy = lazy(() =>
+  import('./PortDetailView').then((m) => ({ default: m.PortDetailView })),
+)
+const FieldDetailViewLazy = lazy(() =>
+  import('./FieldDetailView').then((m) => ({ default: m.FieldDetailView })),
+)
+
+const SEA_PLACE_KINDS = ['도시', '상륙지', '2차 필드'] as const
+
+function isCityPlaceKind(kind: string | null | undefined) {
+  return String(kind || '').trim() === '도시'
+}
+
+function isLandPlaceKind(kind: string | null | undefined) {
+  return /^(상륙지|2차\s*필드)$/u.test(String(kind || '').trim())
+}
 
 type SeaAreaDetailViewProps = {
   seaArea: SeaAreaDetail
@@ -75,10 +105,24 @@ function emptyCollect(source: string): SeaAreaCollectItem {
   }
 }
 
+function normalizeSeaRegions(
+  region: string | null | undefined,
+  regions: string[] | null | undefined,
+): { region: string | null; regions: string[] } {
+  const joined = (regions || [])
+    .map((r) => String(r || '').trim())
+    .filter(Boolean)
+    .join(', ')
+  const single = joined || String(region || '').trim() || null
+  return { region: single, regions: single ? [single] : [] }
+}
+
 function cloneDetail(seaArea: SeaAreaDetail): SeaAreaDetail {
+  const normalized = normalizeSeaRegions(seaArea.region, seaArea.regions)
   return {
     ...seaArea,
-    regions: [...(seaArea.regions || [])],
+    region: normalized.region,
+    regions: normalized.regions,
     places: seaArea.places.map((p) => ({ ...p })),
     collectItems: seaArea.collectItems.map((c) => ({ ...c })),
     destinations: seaArea.destinations.map((d) => ({ ...d })),
@@ -277,31 +321,45 @@ export function SeaAreaDetailView({
   const canEdit = Boolean(edit)
   const [editing, setEditing] = useState<EditSection | null>(null)
   const [draft, setDraft] = useState(() => cloneDetail(seaArea))
-  const [regionDraft, setRegionDraft] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [regionDetail, setRegionDetail] = useState<RegionDetail | null>(null)
   const [regionLoading, setRegionLoading] = useState(false)
   const [regionMissName, setRegionMissName] = useState('')
   const [regionError, setRegionError] = useState('')
+  const [regionPickRaw, setRegionPickRaw] = useState('')
+  const [portDetail, setPortDetail] = useState<PortDetail | null>(null)
+  const [portLoading, setPortLoading] = useState(false)
+  const [portMissName, setPortMissName] = useState('')
+  const [portError, setPortError] = useState('')
+  const [fieldDetail, setFieldDetail] = useState<FieldDetail | null>(null)
+  const [fieldLoading, setFieldLoading] = useState(false)
+  const [fieldMissName, setFieldMissName] = useState('')
+  const [fieldError, setFieldError] = useState('')
   const [destTab, setDestTab] = useState(DEST_SOURCES[0])
 
-  const regionNames = useMemo(() => {
+  /** 지역은 항상 1개 (`카리브, 중미` 포함) */
+  const regionName = useMemo(() => {
     if (seaArea.regions?.length) {
-      return seaArea.regions.map((r) => r.trim()).filter(Boolean)
+      return seaArea.regions.map((r) => r.trim()).filter(Boolean).join(', ')
     }
-    const single = seaArea.region?.trim()
-    return single ? [single] : []
+    return seaArea.region?.trim() || ''
   }, [seaArea.regions, seaArea.region])
 
   useEffect(() => {
     setDraft(cloneDetail(seaArea))
-    setRegionDraft('')
     setEditing(null)
     setError('')
     setRegionDetail(null)
     setRegionMissName('')
     setRegionError('')
+    setRegionPickRaw('')
+    setPortDetail(null)
+    setPortMissName('')
+    setPortError('')
+    setFieldDetail(null)
+    setFieldMissName('')
+    setFieldError('')
     const firstDest = DEST_SOURCES.find((s) =>
       (seaArea.destinations || []).some((d) => d.source === s),
     )
@@ -315,6 +373,7 @@ export function SeaAreaDetailView({
     if (!authToken) return
     const key = name.trim()
     if (!key) return
+    setRegionPickRaw('')
     setRegionLoading(true)
     setRegionMissName('')
     setRegionError('')
@@ -333,6 +392,19 @@ export function SeaAreaDetailView({
     }
   }
 
+  /** 쉼표가 있으면 하나로/1차·2차 선택 레이어, 없으면 바로 점프 */
+  function openRegionChip(raw: string) {
+    if (!authToken) return
+    const key = raw.trim()
+    if (!key) return
+    const parts = splitSeaRegionCandidates(key)
+    if (parts.length >= 2) {
+      setRegionPickRaw(key)
+      return
+    }
+    void openMatchedRegion(key)
+  }
+
   function openRegionsAddTab(regionName: string) {
     const params = new URLSearchParams()
     params.set('q', regionName)
@@ -341,16 +413,74 @@ export function SeaAreaDetailView({
     window.open(url, '_blank', 'noopener,noreferrer')
   }
 
+  async function openMatchedPort(name: string) {
+    if (!authToken) return
+    const key = name.trim()
+    if (!key) return
+    setPortLoading(true)
+    setPortMissName('')
+    setPortError('')
+    try {
+      const res = await fetchPortByKey(authToken, key)
+      setPortDetail(res.port)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : ''
+      if (/찾을 수 없|없습니다/i.test(message)) {
+        setPortMissName(key)
+      } else {
+        setPortError(message || '도시 상세를 불러오지 못했습니다.')
+      }
+    } finally {
+      setPortLoading(false)
+    }
+  }
+
+  function openPortsAddTab(portName: string) {
+    const params = new URLSearchParams()
+    params.set('q', portName)
+    params.set('add', '1')
+    const url = `${window.location.pathname}${window.location.search}#/ports?${params.toString()}`
+    window.open(url, '_blank', 'noopener,noreferrer')
+  }
+
+  async function openMatchedField(name: string) {
+    if (!authToken) return
+    const key = name.trim()
+    if (!key) return
+    setFieldLoading(true)
+    setFieldMissName('')
+    setFieldError('')
+    try {
+      const res = await fetchFieldByKey(authToken, key)
+      setFieldDetail(res.field)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : ''
+      if (/찾을 수 없|없습니다/i.test(message)) {
+        setFieldMissName(key)
+      } else {
+        setFieldError(message || '육지 상세를 불러오지 못했습니다.')
+      }
+    } finally {
+      setFieldLoading(false)
+    }
+  }
+
+  function openFieldsAddTab(fieldName: string) {
+    const params = new URLSearchParams()
+    params.set('q', fieldName)
+    params.set('add', '1')
+    const url = `${window.location.pathname}${window.location.search}#/fields?${params.toString()}`
+    window.open(url, '_blank', 'noopener,noreferrer')
+  }
+
   function startEdit(section: EditSection) {
     setDraft(cloneDetail(seaArea))
-    setRegionDraft('')
     setError('')
     setEditing(section)
   }
 
   function cancelEdit() {
     setDraft(cloneDetail(seaArea))
-    setRegionDraft('')
     setError('')
     setEditing(null)
   }
@@ -381,17 +511,21 @@ export function SeaAreaDetailView({
       let patch: Partial<SeaAreaDetail> = {}
       if (editing === 'basic') {
         if (!draft.name.trim()) throw new Error('해역 이름이 필요합니다.')
-        patch = {
-          name: draft.name,
-          category: draft.category,
-          regions: draft.regions,
-          boundNorth: draft.boundNorth,
-          boundWest: draft.boundWest,
-          boundSouth: draft.boundSouth,
-          boundEast: draft.boundEast,
-          wave: draft.wave,
-          current: draft.current,
-          maxSpeedBonus: draft.maxSpeedBonus,
+        {
+          const region = draft.region?.trim() || null
+          patch = {
+            name: draft.name,
+            category: draft.category,
+            region,
+            regions: region ? [region] : [],
+            boundNorth: draft.boundNorth,
+            boundWest: draft.boundWest,
+            boundSouth: draft.boundSouth,
+            boundEast: draft.boundEast,
+            wave: draft.wave,
+            current: draft.current,
+            maxSpeedBonus: draft.maxSpeedBonus,
+          }
         }
       } else if (editing === 'description') {
         patch = { description: draft.description }
@@ -560,53 +694,21 @@ export function SeaAreaDetailView({
                   disabled={saving}
                 />
               </label>
-              <div className="field">
+              <label className="field">
                 <span>지역</span>
-                <div className="sea-area-chip-row">
-                  {draft.regions.map((region, idx) => (
-                    <span key={`${region}-${idx}`} className="sea-area-chip">
-                      {region}
-                      <button
-                        type="button"
-                        aria-label={`${region} 삭제`}
-                        disabled={saving}
-                        onClick={() =>
-                          patchDraft({
-                            regions: draft.regions.filter((_, i) => i !== idx),
-                          })
-                        }
-                      >
-                        ×
-                      </button>
-                    </span>
-                  ))}
-                </div>
-                <div className="sea-area-inline-add">
-                  <input
-                    value={regionDraft}
-                    onChange={(e) => setRegionDraft(e.target.value)}
-                    placeholder="지역 추가"
-                    disabled={saving}
-                  />
-                  <button
-                    type="button"
-                    className="admin-btn"
-                    disabled={saving}
-                    onClick={() => {
-                      const next = regionDraft.trim()
-                      if (!next) return
-                      if (draft.regions.includes(next)) {
-                        setRegionDraft('')
-                        return
-                      }
-                      patchDraft({ regions: [...draft.regions, next] })
-                      setRegionDraft('')
-                    }}
-                  >
-                    추가
-                  </button>
-                </div>
-              </div>
+                <input
+                  value={draft.region || ''}
+                  onChange={(e) => {
+                    const next = e.target.value || null
+                    patchDraft({
+                      region: next,
+                      regions: next?.trim() ? [next.trim()] : [],
+                    })
+                  }}
+                  placeholder="예: 카리브, 중미"
+                  disabled={saving}
+                />
+              </label>
               <label className="field">
                 <span>북</span>
                 <input
@@ -701,34 +803,31 @@ export function SeaAreaDetailView({
           </>
         ) : (
           <div className="quest-kv-grid">
-            <Row label="분류" value={seaArea.category} />
-            {canEdit || regionNames.length > 0 ? (
+            {canEdit || regionName ? (
               <div>
                 <span>지역</span>
-                {regionNames.length > 0 ? (
+                {regionName ? (
                   <ul className="quest-skill-chips">
-                    {regionNames.map((name) => (
-                      <li key={name} className="is-region-chip">
-                        {authToken ? (
-                          <button
-                            type="button"
-                            className="quest-skill-chip-btn"
-                            disabled={regionLoading}
-                            onClick={() => void openMatchedRegion(name)}
-                          >
-                            <span className="chip-edge-inner">
-                              <RegionEdgeLabel />
-                              <span>{name}</span>
-                            </span>
-                          </button>
-                        ) : (
+                    <li className="is-region-chip">
+                      {authToken ? (
+                        <button
+                          type="button"
+                          className="quest-skill-chip-btn"
+                          disabled={regionLoading}
+                          onClick={() => openRegionChip(regionName)}
+                        >
                           <span className="chip-edge-inner">
                             <RegionEdgeLabel />
-                            <span>{name}</span>
+                            <span>{regionName}</span>
                           </span>
-                        )}
-                      </li>
-                    ))}
+                        </button>
+                      ) : (
+                        <span className="chip-edge-inner">
+                          <RegionEdgeLabel />
+                          <span>{regionName}</span>
+                        </span>
+                      )}
+                    </li>
                   </ul>
                 ) : (
                   <strong>-</strong>
@@ -736,8 +835,6 @@ export function SeaAreaDetailView({
               </div>
             ) : null}
             <Row label="경계" value={formatBounds(seaArea)} />
-            <Row label="파도" value={seaArea.wave} />
-            <Row label="조류" value={seaArea.current} />
             <Row label="최대 속도 증가" value={seaArea.maxSpeedBonus} />
           </div>
         )}
@@ -769,17 +866,73 @@ export function SeaAreaDetailView({
               <table className="admin-table">
                 <thead>
                   <tr>
-                    <th>종류</th>
+                    <th className="port-place-kind">종류</th>
                     <th>내용</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {seaArea.places.map((place, idx) => (
-                    <tr key={`${place.kind}-${place.name}-${idx}`}>
-                      <td>{place.kind || '-'}</td>
-                      <td>{place.name || '-'}</td>
-                    </tr>
-                  ))}
+                  {seaArea.places.map((place, idx) => {
+                    const rawName = place.name?.trim() || ''
+                    const { name, note } = splitDestinationParenSuffix(rawName)
+                    const city = isCityPlaceKind(place.kind)
+                    const land = isLandPlaceKind(place.kind)
+                    return (
+                      <tr key={`${place.kind}-${place.name}-${idx}`}>
+                        <td className="port-place-kind">
+                          {place.kind || '-'}
+                        </td>
+                        <td>
+                          {name && (city || land) ? (
+                            <ul className="quest-skill-chips">
+                              <li
+                                className={
+                                  city ? 'is-city-chip' : 'is-land-chip'
+                                }
+                              >
+                                {authToken ? (
+                                  <button
+                                    type="button"
+                                    className="quest-skill-chip-btn"
+                                    disabled={
+                                      city ? portLoading : fieldLoading
+                                    }
+                                    onClick={() =>
+                                      city
+                                        ? void openMatchedPort(name)
+                                        : void openMatchedField(name)
+                                    }
+                                  >
+                                    <span className="chip-edge-inner">
+                                      {city ? (
+                                        <CityEdgeLabel />
+                                      ) : (
+                                        <LandEdgeLabel />
+                                      )}
+                                      <span>{name}</span>
+                                    </span>
+                                  </button>
+                                ) : (
+                                  <span className="chip-edge-inner">
+                                    {city ? (
+                                      <CityEdgeLabel />
+                                    ) : (
+                                      <LandEdgeLabel />
+                                    )}
+                                    <span>{name}</span>
+                                  </span>
+                                )}
+                              </li>
+                              {note ? (
+                                <li className="quest-dest-paren-note">{note}</li>
+                              ) : null}
+                            </ul>
+                          ) : (
+                            rawName || '-'
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>
@@ -1114,6 +1267,21 @@ export function SeaAreaDetailView({
       )}
 
       {regionLoading ? <LoadingOverlay label="지역 불러오는 중…" /> : null}
+      {portLoading ? <LoadingOverlay label="도시 불러오는 중…" /> : null}
+      {fieldLoading ? <LoadingOverlay label="육지 불러오는 중…" /> : null}
+
+      {regionPickRaw ? (
+        <SeaAreaRegionPickLayer
+          rawRegion={regionPickRaw}
+          candidates={splitSeaRegionCandidates(regionPickRaw)}
+          stack={1}
+          onCancel={() => setRegionPickRaw('')}
+          onPick={(name) => {
+            setRegionPickRaw('')
+            void openMatchedRegion(name)
+          }}
+        />
+      ) : null}
 
       {regionMissName ? (
         <ConfirmLayer
@@ -1136,6 +1304,56 @@ export function SeaAreaDetailView({
         <ConfirmLayer
           message={regionError}
           onCancel={() => setRegionError('')}
+          stack={1}
+        />
+      ) : null}
+
+      {portMissName ? (
+        <ConfirmLayer
+          message={`「${portMissName}」 도시가 없습니다.`}
+          onCancel={() => setPortMissName('')}
+          confirmLabel={isAdmin ? '등록하러 이동하기' : undefined}
+          onConfirm={
+            isAdmin
+              ? () => {
+                  openPortsAddTab(portMissName)
+                  setPortMissName('')
+                }
+              : undefined
+          }
+          stack={1}
+        />
+      ) : null}
+
+      {portError ? (
+        <ConfirmLayer
+          message={portError}
+          onCancel={() => setPortError('')}
+          stack={1}
+        />
+      ) : null}
+
+      {fieldMissName ? (
+        <ConfirmLayer
+          message={`「${fieldMissName}」 육지가 없습니다.`}
+          onCancel={() => setFieldMissName('')}
+          confirmLabel={isAdmin ? '등록하러 이동하기' : undefined}
+          onConfirm={
+            isAdmin
+              ? () => {
+                  openFieldsAddTab(fieldMissName)
+                  setFieldMissName('')
+                }
+              : undefined
+          }
+          stack={1}
+        />
+      ) : null}
+
+      {fieldError ? (
+        <ConfirmLayer
+          message={fieldError}
+          onCancel={() => setFieldError('')}
           stack={1}
         />
       ) : null}
@@ -1170,6 +1388,80 @@ export function SeaAreaDetailView({
           <Suspense fallback={null}>
             <RegionDetailViewLazy
               region={regionDetail}
+              token={authToken}
+              isAdmin={isAdmin}
+            />
+          </Suspense>
+        </DetailModal>
+      ) : null}
+
+      {portDetail ? (
+        <DetailModal
+          title="도시 상세"
+          label={`${portDetail.name} 상세`}
+          onClose={() => {
+            setPortDetail(null)
+            setPortError('')
+          }}
+          stack={1}
+          headerActions={
+            isAdmin ? (
+              <button
+                type="button"
+                className="admin-btn"
+                onClick={() => {
+                  const params = new URLSearchParams()
+                  params.set('q', portDetail.name)
+                  params.set('open', portDetail.slug || portDetail.name)
+                  const url = `${window.location.pathname}${window.location.search}#/ports?${params.toString()}`
+                  window.open(url, '_blank', 'noopener,noreferrer')
+                }}
+              >
+                도시 메뉴로 이동
+              </button>
+            ) : undefined
+          }
+        >
+          <Suspense fallback={<LoadingOverlay label="도시 불러오는 중…" />}>
+            <PortDetailViewLazy
+              port={portDetail}
+              token={authToken}
+              isAdmin={isAdmin}
+            />
+          </Suspense>
+        </DetailModal>
+      ) : null}
+
+      {fieldDetail ? (
+        <DetailModal
+          title="육지 상세"
+          label={`${fieldDetail.name} 상세`}
+          onClose={() => {
+            setFieldDetail(null)
+            setFieldError('')
+          }}
+          stack={1}
+          headerActions={
+            isAdmin ? (
+              <button
+                type="button"
+                className="admin-btn"
+                onClick={() => {
+                  const params = new URLSearchParams()
+                  params.set('q', fieldDetail.name)
+                  params.set('open', fieldDetail.slug || fieldDetail.name)
+                  const url = `${window.location.pathname}${window.location.search}#/fields?${params.toString()}`
+                  window.open(url, '_blank', 'noopener,noreferrer')
+                }}
+              >
+                육지 메뉴로 이동
+              </button>
+            ) : undefined
+          }
+        >
+          <Suspense fallback={<LoadingOverlay label="육지 불러오는 중…" />}>
+            <FieldDetailViewLazy
+              field={fieldDetail}
               token={authToken}
               isAdmin={isAdmin}
             />
@@ -1341,7 +1633,7 @@ function EditPlaces({
             {places.map((place, idx) => (
               <tr key={`place-${idx}`}>
                 <td>
-                  <input
+                  <select
                     value={place.kind}
                     disabled={disabled}
                     onChange={(e) =>
@@ -1351,7 +1643,20 @@ function EditPlaces({
                         ),
                       )
                     }
-                  />
+                  >
+                    <option value="">종류</option>
+                    {SEA_PLACE_KINDS.map((kind) => (
+                      <option key={kind} value={kind}>
+                        {kind}
+                      </option>
+                    ))}
+                    {place.kind &&
+                    !(SEA_PLACE_KINDS as readonly string[]).includes(
+                      place.kind,
+                    ) ? (
+                      <option value={place.kind}>{place.kind}</option>
+                    ) : null}
+                  </select>
                 </td>
                 <td>
                   <input
@@ -1387,7 +1692,7 @@ function EditPlaces({
         type="button"
         className="admin-btn"
         disabled={disabled}
-        onClick={() => onChange([...places, { kind: '', name: '' }])}
+        onClick={() => onChange([...places, { kind: '도시', name: '' }])}
       >
         추가
       </button>

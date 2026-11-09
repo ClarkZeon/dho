@@ -1,5 +1,11 @@
 import { useEffect, useMemo, useState, type CSSProperties } from 'react'
-import { fetchFieldByKey, fetchSkill, updatePort } from '../lib/api'
+import {
+  fetchFieldByKey,
+  fetchRegionByKey,
+  fetchSeaAreaByKey,
+  fetchSkill,
+  updatePort,
+} from '../lib/api'
 import type {
   FieldDetail,
   PortCharacter,
@@ -10,6 +16,8 @@ import type {
   PortProduction,
   PortReward,
   PortSaleItem,
+  RegionDetail,
+  SeaAreaDetail,
   SkillDetail,
 } from '../types'
 import { ConfirmLayer } from './ConfirmLayer'
@@ -25,7 +33,7 @@ import {
 } from '../lib/countryFlags'
 import {
   PORT_CATEGORIES,
-  isNationPortCategory,
+  isFlagPortCategory,
 } from '../lib/portCategories'
 import { cleanQuestSkill, skillDisplayLevel } from '../lib/questSkills'
 import { DucatAmount, DucatMark } from './DucatAmount'
@@ -34,6 +42,10 @@ import { LandEdgeLabel } from './LandEdgeLabel'
 import { LoadingOverlay } from './LoadingOverlay'
 import { DiscoveryChips } from './modules/DiscoveryChips'
 import { PortCategoryBadge } from './PortCategoryBadge'
+import { RegionDetailView } from './RegionDetailView'
+import { RegionEdgeLabel } from './RegionEdgeLabel'
+import { SeaAreaDetailView } from './SeaAreaDetailView'
+import { SeaAreaEdgeLabel } from './SeaAreaEdgeLabel'
 import { SkillDetailView } from './SkillDetailView'
 import { SkillEdgeLabel } from './SkillEdgeLabel'
 
@@ -429,6 +441,14 @@ export function PortDetailView({
   const [fieldLoading, setFieldLoading] = useState(false)
   const [fieldMissName, setFieldMissName] = useState('')
   const [fieldError, setFieldError] = useState('')
+  const [seaDetail, setSeaDetail] = useState<SeaAreaDetail | null>(null)
+  const [seaLoading, setSeaLoading] = useState(false)
+  const [seaMissName, setSeaMissName] = useState('')
+  const [seaError, setSeaError] = useState('')
+  const [regionDetail, setRegionDetail] = useState<RegionDetail | null>(null)
+  const [regionLoading, setRegionLoading] = useState(false)
+  const [regionMissName, setRegionMissName] = useState('')
+  const [regionError, setRegionError] = useState('')
 
   useEffect(() => {
     setDraft(clonePort(port))
@@ -440,6 +460,12 @@ export function PortDetailView({
     setFieldDetail(null)
     setFieldMissName('')
     setFieldError('')
+    setSeaDetail(null)
+    setSeaMissName('')
+    setSeaError('')
+    setRegionDetail(null)
+    setRegionMissName('')
+    setRegionError('')
   }, [port])
 
   useEffect(() => {
@@ -530,6 +556,66 @@ export function PortDetailView({
     params.set('q', skillName)
     params.set('add', '1')
     const url = `${window.location.pathname}${window.location.search}#/skills?${params.toString()}`
+    window.open(url, '_blank', 'noopener,noreferrer')
+  }
+
+  async function openMatchedSeaArea(name: string) {
+    if (!authToken) return
+    const key = name.trim()
+    if (!key) return
+    setSeaLoading(true)
+    setSeaMissName('')
+    setSeaError('')
+    try {
+      const res = await fetchSeaAreaByKey(authToken, key)
+      setSeaDetail(res.seaArea)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : ''
+      if (/찾을 수 없|없습니다/i.test(message)) {
+        setSeaMissName(key)
+      } else {
+        setSeaError(message || '해역 상세를 불러오지 못했습니다.')
+      }
+    } finally {
+      setSeaLoading(false)
+    }
+  }
+
+  function openSeaAreasAddTab(seaName: string) {
+    const params = new URLSearchParams()
+    params.set('q', seaName)
+    params.set('add', '1')
+    const url = `${window.location.pathname}${window.location.search}#/sea-areas?${params.toString()}`
+    window.open(url, '_blank', 'noopener,noreferrer')
+  }
+
+  async function openMatchedRegion(name: string) {
+    if (!authToken) return
+    const key = name.trim()
+    if (!key) return
+    setRegionLoading(true)
+    setRegionMissName('')
+    setRegionError('')
+    try {
+      const res = await fetchRegionByKey(authToken, key)
+      setRegionDetail(res.region)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : ''
+      if (/찾을 수 없|없습니다/i.test(message)) {
+        setRegionMissName(key)
+      } else {
+        setRegionError(message || '지역 상세를 불러오지 못했습니다.')
+      }
+    } finally {
+      setRegionLoading(false)
+    }
+  }
+
+  function openRegionsAddTab(regionName: string) {
+    const params = new URLSearchParams()
+    params.set('q', regionName)
+    params.set('add', '1')
+    const url = `${window.location.pathname}${window.location.search}#/regions?${params.toString()}`
     window.open(url, '_blank', 'noopener,noreferrer')
   }
 
@@ -671,18 +757,22 @@ export function PortDetailView({
     !(PORT_CATEGORIES as readonly string[]).includes(port.category)
       ? [port.category, ...PORT_CATEGORIES]
       : [...PORT_CATEGORIES]
-  const isNation = isNationPortCategory(port.category)
-  const flagCountry = isNation ? countryNameFromCategory(port.category) : null
-  // 깃발 모티브(블러 배경·타이틀 그라데이션·국가 깃발)는 본거지/영지만
-  const heroFlagSrc = isNation
+  const isFlagNation = isFlagPortCategory(port.category)
+  const flagCountry = isFlagNation
+    ? countryNameFromCategory(port.category)
+    : null
+  // 깃발 모티브(블러 배경·타이틀 그라데이션·국가 깃발)는 본거지/영지/개척지
+  const heroFlagSrc = isFlagNation
     ? resolvePortFlagSrc(port.flagImage, port.category)
     : port.flagImage?.trim() || null
-  const titleGrad = isNation ? countryTitleGradient(flagCountry) : null
+  const titleGrad = isFlagNation ? countryTitleGradient(flagCountry) : null
   const heroStyle = titleGrad
     ? ({ '--port-title-grad': titleGrad } as CSSProperties)
     : undefined
-  const showFlagMotif = Boolean(isNation && heroFlagSrc)
+  const showFlagMotif = Boolean(isFlagNation && heroFlagSrc)
   const languageChips = csvChips(port.language)
+  const regionChips = csvChips(port.region)
+  const seaAreaChips = csvChips(port.seaArea)
 
   return (
     <div className="quest-detail">
@@ -771,7 +861,7 @@ export function PortDetailView({
                 <div className="port-flag-edit">
                   <PortFlag
                     src={
-                      isNationPortCategory(draft.category)
+                      isFlagPortCategory(draft.category)
                         ? resolvePortFlagSrc(draft.flagImage, draft.category)
                         : draft.flagImage
                     }
@@ -913,9 +1003,68 @@ export function PortDetailView({
           </>
         ) : (
           <div className="quest-kv-grid">
-            <Row label="분류" value={port.category} />
-            <Row label="지역" value={port.region} />
-            <Row label="해역" value={port.seaArea} />
+            <div>
+              <span>지역</span>
+              {regionChips.length > 0 ? (
+                <ul className="quest-skill-chips">
+                  {regionChips.map((name) => (
+                    <li key={name} className="is-region-chip">
+                      {authToken ? (
+                        <button
+                          type="button"
+                          className="quest-skill-chip-btn"
+                          disabled={regionLoading}
+                          onClick={() => void openMatchedRegion(name)}
+                        >
+                          <span className="chip-edge-inner">
+                            <RegionEdgeLabel />
+                            <span>{name}</span>
+                          </span>
+                        </button>
+                      ) : (
+                        <span className="chip-edge-inner">
+                          <RegionEdgeLabel />
+                          <span>{name}</span>
+                        </span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <strong>-</strong>
+              )}
+            </div>
+            <div>
+              <span>해역</span>
+              {seaAreaChips.length > 0 ? (
+                <ul className="quest-skill-chips">
+                  {seaAreaChips.map((name) => (
+                    <li key={name} className="is-sea-chip">
+                      {authToken ? (
+                        <button
+                          type="button"
+                          className="quest-skill-chip-btn"
+                          disabled={seaLoading}
+                          onClick={() => void openMatchedSeaArea(name)}
+                        >
+                          <span className="chip-edge-inner">
+                            <SeaAreaEdgeLabel />
+                            <span>{name}</span>
+                          </span>
+                        </button>
+                      ) : (
+                        <span className="chip-edge-inner">
+                          <SeaAreaEdgeLabel />
+                          <span>{name}</span>
+                        </span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <strong>-</strong>
+              )}
+            </div>
             <Row label="좌표" value={coords} />
             <Row label="입항허가" value={port.entryPermit} />
             <Row label="문화" value={port.culture} />
@@ -1715,6 +1864,8 @@ export function PortDetailView({
 
       {skillLoading ? <LoadingOverlay label="스킬 불러오는 중…" /> : null}
       {fieldLoading ? <LoadingOverlay label="육지 불러오는 중…" /> : null}
+      {seaLoading ? <LoadingOverlay label="해역 불러오는 중…" /> : null}
+      {regionLoading ? <LoadingOverlay label="지역 불러오는 중…" /> : null}
 
       {skillMissName ? (
         <ConfirmLayer
@@ -1767,6 +1918,60 @@ export function PortDetailView({
           message={fieldError}
           stack={1}
           onCancel={() => setFieldError('')}
+        />
+      ) : null}
+
+      {seaMissName ? (
+        <ConfirmLayer
+          title="확인"
+          message={`「${seaMissName}」 해역이(가) 없습니다.`}
+          stack={1}
+          onCancel={() => setSeaMissName('')}
+          confirmLabel={isAdmin ? '등록하러 이동하기' : undefined}
+          onConfirm={
+            isAdmin
+              ? () => {
+                  openSeaAreasAddTab(seaMissName)
+                  setSeaMissName('')
+                }
+              : undefined
+          }
+        />
+      ) : null}
+
+      {seaError ? (
+        <ConfirmLayer
+          title="확인"
+          message={seaError}
+          stack={1}
+          onCancel={() => setSeaError('')}
+        />
+      ) : null}
+
+      {regionMissName ? (
+        <ConfirmLayer
+          title="확인"
+          message={`「${regionMissName}」 지역이(가) 없습니다.`}
+          stack={1}
+          onCancel={() => setRegionMissName('')}
+          confirmLabel={isAdmin ? '등록하러 이동하기' : undefined}
+          onConfirm={
+            isAdmin
+              ? () => {
+                  openRegionsAddTab(regionMissName)
+                  setRegionMissName('')
+                }
+              : undefined
+          }
+        />
+      ) : null}
+
+      {regionError ? (
+        <ConfirmLayer
+          title="확인"
+          message={regionError}
+          stack={1}
+          onCancel={() => setRegionError('')}
         />
       ) : null}
 
@@ -1844,6 +2049,76 @@ export function PortDetailView({
                   }
                 : undefined
             }
+          />
+        </DetailModal>
+      ) : null}
+
+      {seaDetail ? (
+        <DetailModal
+          title="해역 상세"
+          label={`${seaDetail.name} 상세`}
+          onClose={() => {
+            setSeaDetail(null)
+            setSeaError('')
+          }}
+          stack={1}
+          headerActions={
+            isAdmin ? (
+              <button
+                type="button"
+                className="admin-btn"
+                onClick={() => {
+                  const params = new URLSearchParams()
+                  params.set('q', seaDetail.name)
+                  params.set('open', seaDetail.slug || seaDetail.name)
+                  const url = `${window.location.pathname}${window.location.search}#/sea-areas?${params.toString()}`
+                  window.open(url, '_blank', 'noopener,noreferrer')
+                }}
+              >
+                해역 메뉴로 이동
+              </button>
+            ) : undefined
+          }
+        >
+          <SeaAreaDetailView
+            seaArea={seaDetail}
+            token={authToken}
+            isAdmin={isAdmin}
+          />
+        </DetailModal>
+      ) : null}
+
+      {regionDetail ? (
+        <DetailModal
+          title="지역 상세"
+          label={`${regionDetail.name} 상세`}
+          onClose={() => {
+            setRegionDetail(null)
+            setRegionError('')
+          }}
+          stack={1}
+          headerActions={
+            isAdmin ? (
+              <button
+                type="button"
+                className="admin-btn"
+                onClick={() => {
+                  const params = new URLSearchParams()
+                  params.set('q', regionDetail.name)
+                  params.set('open', regionDetail.slug || regionDetail.name)
+                  const url = `${window.location.pathname}${window.location.search}#/regions?${params.toString()}`
+                  window.open(url, '_blank', 'noopener,noreferrer')
+                }}
+              >
+                지역 메뉴로 이동
+              </button>
+            ) : undefined
+          }
+        >
+          <RegionDetailView
+            region={regionDetail}
+            token={authToken}
+            isAdmin={isAdmin}
           />
         </DetailModal>
       ) : null}

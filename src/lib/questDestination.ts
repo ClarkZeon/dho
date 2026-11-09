@@ -2,7 +2,10 @@ const DEST_SEP = /\s*(?:»|>>|›|→|➜|➔|⟶|⇒|->)\s*/
 
 export type DestinationStep = {
   kind: 'city' | 'land'
+  /** 칩·점프용 이름 (괄호 앞) */
   name: string
+  /** 칩 뒤 일반 텍스트 — 괄호 포함, 예: ` (14150, 1280)` */
+  note?: string | null
 }
 
 export type SplitQuestDestinationOptions = {
@@ -16,6 +19,28 @@ function normName(s: string) {
   return String(s || '')
     .trim()
     .replace(/\s+/g, ' ')
+}
+
+/**
+ * `남그린란드섬 앞바다 (14150, 1280)`
+ * → name `남그린란드섬 앞바다`, note ` (14150, 1280)` (괄호 포함)
+ */
+export function splitDestinationParenSuffix(raw: string): {
+  name: string
+  note: string | null
+} {
+  const text = normName(raw)
+  const m = text.match(/^(.*?)(\s*[（(][^）)]*[）)])\s*$/u)
+  if (!m) return { name: text, note: null }
+  const name = m[1].trim()
+  if (!name) return { name: text, note: null }
+  const paren = m[2].trim()
+  return { name, note: ` ${paren}` }
+}
+
+/** 칩·점프용 — 끝 괄호만 제거 */
+export function stripDestinationParenSuffix(name: string): string {
+  return splitDestinationParenSuffix(name).name
 }
 
 function uniqueNames(list: readonly string[] | undefined): string[] {
@@ -37,7 +62,14 @@ function fromSteps(steps: DestinationStep[]): {
   city: string | null
 } {
   const clean = steps
-    .map((s) => ({ kind: s.kind, name: normName(s.name) }))
+    .map((s) => {
+      const parts = splitDestinationParenSuffix(s.name)
+      return {
+        kind: s.kind,
+        name: parts.name,
+        note: s.note?.trim() ? s.note : parts.note,
+      }
+    })
     .filter((s) => s.name)
   const cities = clean.filter((s) => s.kind === 'city').map((s) => s.name)
   const last = clean[clean.length - 1]
@@ -160,14 +192,31 @@ export function splitQuestDestination(
     return fromSteps(classifySegments(segments, citySet))
   }
 
-  const repeated = splitLooseByRepeat(text)
+  // 끝 괄호는 매칭용으로만 떼고, 마지막 스텝 note 로 복원
+  const { name: bare, note: trailingNote } = splitDestinationParenSuffix(text)
+
+  const repeated = splitLooseByRepeat(bare)
   if (repeated) {
-    return fromSteps(classifySegments(repeated, citySet))
+    const steps = classifySegments(repeated, citySet)
+    if (trailingNote && steps.length > 0) {
+      steps[steps.length - 1] = {
+        ...steps[steps.length - 1],
+        note: trailingNote,
+      }
+    }
+    return fromSteps(steps)
   }
 
-  const byName = splitLooseByKnownNames(text, knownNames)
+  const byName = splitLooseByKnownNames(bare, knownNames)
   if (byName) {
-    return fromSteps(classifySegments(byName, citySet))
+    const steps = classifySegments(byName, citySet)
+    if (trailingNote && steps.length > 0) {
+      steps[steps.length - 1] = {
+        ...steps[steps.length - 1],
+        note: trailingNote,
+      }
+    }
+    return fromSteps(steps)
   }
 
   return fromSteps([{ kind: 'land', name: text }])
@@ -180,8 +229,10 @@ export function formatQuestDestination(
 ): string | null {
   const { steps } = splitQuestDestination(raw, options)
   if (steps.length === 0) return null
-  if (steps.length === 1) return steps[0].name
-  return steps.map((s) => s.name).join(' » ')
+  const label = (s: DestinationStep) =>
+    s.note ? `${s.name}${s.note}` : s.name
+  if (steps.length === 1) return label(steps[0])
+  return steps.map(label).join(' » ')
 }
 
 const DEST_SEP_CHAR = /(?:»|>>|›|→|➜|➔|⟶|⇒|->)/

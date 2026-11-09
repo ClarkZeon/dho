@@ -7,6 +7,8 @@ alwaysApply: true
 
 사용자가 「카탈로그 점프」라고 하면 아래 UX·구현 패턴을 의미한다. 다른 링크(발견물·퀘스트·직업 등)에 **동일 패턴**으로 확장한다.
 
+**칩 종류·색·마크업·사용처 표:** [docs/chips.md](docs/chips.md) — 검색하지 말고 그 문서를 본다.
+
 **칩 기본 규칙:** 종류 라벨이 붙은 카탈로그 칩(도시·육지·해역·지역·발견물·스킬·소비품·직업 등)은 **기본적으로 카탈로그 점프**를 붙인다. 칩만 두고 점프를 빼지 말 것.
 
 ## UX 흐름
@@ -69,7 +71,7 @@ URL 파라미터만으로 일반 유저가 추가 UI·쓰기를 열 수 없게 �
 ## UI 디테일
 
 - 칩 호버 **밑줄 없음** (클릭 가능해도 underline 금지)
-- **칩 디자인** (`chip-edge-label.mdc`) — 카탈로그 점프 칩을 넣을 때 **점프 UX와 항상 함께** 적용: 칩 **앞 라벨** + 종류별 **외곽선 색 + 칩 배경색** (도시/발견물/스킬/소비품/육지 등)
+- **칩 디자인** (`docs/chips.md` · `chip-edge-label.mdc`) — 카탈로그 점프 칩을 넣을 때 **점프 UX와 항상 함께** 적용: 칩 **앞 라벨** + 종류별 **외곽선 색 + 칩 배경색**
 - 언어 스킬 등 도메인 규칙(레벨 숨김 등)은 기존 규칙 유지
 - **없는 데이터** (`ConfirmLayer`):
   - 스피너 종료 후 `「{이름}」 {종류}이(가) 없습니다.`
@@ -81,7 +83,7 @@ URL 파라미터만으로 일반 유저가 추가 UI·쓰기를 열 수 없게 �
 
 | 역할 | 위치 |
 |---|---|
-| 칩 클릭·스피너·팝업·새 탭 버튼 | `QuestDetailView` 필요 스킬 · 보상 소비품 · 발견물 · 의뢰 장소(도시) · 목적지(육지) · 연속 퀘스트 · 연결 지도/퀘스트 · `DiscoveryDetailView` 퀘스트 · `PortDetailView` 언어 · 도시 인물 스킬 · 도시 외곽(육지) · `SkillDetailView` 직업 · 스킬 습득·사용 도시 · `JobDetailView` 우대·연구 스킬 · `RegionDetailView` 해역 · `FieldDetailView` 지역 · `SeaAreaDetailView` 지역 |
+| 칩 클릭·스피너·팝업·새 탭 버튼 | `QuestDetailView` 필요 스킬 · 보상 소비품 · 발견물 · 의뢰 장소(도시) · 목적지(육지) · 연속 퀘스트 · 연결 지도/퀘스트 · `DiscoveryDetailView` 퀘스트 · `PortDetailView` 지역 · 해역 · 언어 · 도시 인물 스킬 · 도시 외곽(육지) · `SkillDetailView` 직업 · 스킬 습득·사용 도시 · `JobDetailView` 우대·연구 스킬 · `RegionDetailView` 해역 · `FieldDetailView` 지역 · 해역 · `SeaAreaDetailView` 지역 · 해역 내 장소(도시/상륙지·2차 필드→육지) |
 | 스피너 | `LoadingOverlay` + `.app-loading-overlay` |
 | 새 탭 진입·검색·자동 상세 | `SkillCatalog` / `QuestCatalog` / `DiscoveryCatalog` / `PortCatalog` / `FieldCatalog` / `SeaAreaCatalog` / `RegionCatalog` / `TreasureMapCatalog` / `ConsumableCatalog` / `JobCatalog` (`initialQuery` / `openKey`) |
 | 해시 라우팅 | `Dashboard` `#/skills?q=&open=` · `#/quests?q=&open=` · `#/discoveries?q=&open=` · `#/ports?q=&open=` · `#/fields?q=&open=` · `#/sea-areas?q=&open=` · `#/regions?q=&open=` · `#/treasure-maps?q=&open=` · `#/consumables?q=&open=` · `#/jobs?q=&open=` |

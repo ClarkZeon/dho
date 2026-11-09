@@ -80,11 +80,13 @@ function decorateCollectItems(raw) {
   return out
 }
 
+/** 지역은 항상 1개. 과거 쉼표 분리 저장은 `카리브, 중미`로 다시 합친다. */
 function decorateRegions(row) {
   const fromJson = asJsonArray(row.regions)
     .map((v) => String(v || '').trim())
     .filter(Boolean)
-  if (fromJson.length) return fromJson
+  if (fromJson.length > 1) return [fromJson.join(', ')]
+  if (fromJson.length === 1) return fromJson
   const single = row.region == null ? '' : String(row.region).trim()
   return single ? [single] : []
 }
@@ -212,14 +214,25 @@ export async function updateSeaAreaFields(id, patch) {
         ? null
         : String(patch.category).trim()
   }
-  if ('regions' in patch) {
-    if (!Array.isArray(patch.regions)) {
+  if ('regions' in patch || 'region' in patch) {
+    let region = null
+    if ('region' in patch) {
+      region =
+        patch.region == null || String(patch.region).trim() === ''
+          ? null
+          : String(patch.region).trim()
+    } else if (Array.isArray(patch.regions)) {
+      // 지역은 항상 1개 — 잘못 분리된 배열은 쉼표로 다시 합침
+      const joined = patch.regions
+        .map((r) => String(r || '').trim())
+        .filter(Boolean)
+        .join(', ')
+      region = joined || null
+    } else if ('regions' in patch) {
       throw new Error('지역 형식이 올바르지 않습니다.')
     }
-    next.regions = patch.regions
-      .map((r) => String(r || '').trim())
-      .filter(Boolean)
-    next.region = next.regions[0] || null
+    next.region = region
+    next.regions = region ? [region] : []
   }
   for (const key of [
     'boundNorth',
@@ -374,12 +387,18 @@ export async function upsertSeaAreaFromParsed(parsed) {
   if (!name) throw new Error('해역 이름이 없습니다.')
 
   const existing = await findIdByName(sql, name)
-  const regions = Array.isArray(parsed.regions)
-    ? parsed.regions.map((r) => String(r || '').trim()).filter(Boolean)
-    : parsed.region
-      ? [String(parsed.region).trim()].filter(Boolean)
-      : []
-  const region = regions[0] || parsed.region || null
+  // 지역은 항상 1개 (`카리브, 중미` 등 쉼표 포함 가능)
+  const regionRaw =
+    parsed.region != null && String(parsed.region).trim()
+      ? String(parsed.region).trim()
+      : Array.isArray(parsed.regions)
+        ? parsed.regions
+            .map((r) => String(r || '').trim())
+            .filter(Boolean)
+            .join(', ')
+        : ''
+  const region = regionRaw || null
+  const regions = region ? [region] : []
   const placesJson = JSON.stringify(parsed.places || [])
   const collectJson = JSON.stringify(parsed.collectItems || [])
   const destJson = JSON.stringify(parsed.destinations || [])

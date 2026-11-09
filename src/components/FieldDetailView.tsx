@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { fetchRegionByKey, updateField } from '../lib/api'
+import { fetchRegionByKey, fetchSeaAreaByKey, updateField } from '../lib/api'
 import type {
   FieldCollectItem,
   FieldDestination,
@@ -10,6 +10,7 @@ import type {
   FieldResurveyReward,
   FieldSurveyTask,
   RegionDetail,
+  SeaAreaDetail,
 } from '../types'
 import { ConfirmLayer } from './ConfirmLayer'
 import { DetailSectionActions, DetailSectionHead } from './DetailSectionHead'
@@ -19,6 +20,8 @@ import { LoadingOverlay } from './LoadingOverlay'
 import { DiscoveryChips } from './modules/DiscoveryChips'
 import { RegionDetailView } from './RegionDetailView'
 import { RegionEdgeLabel } from './RegionEdgeLabel'
+import { SeaAreaDetailView } from './SeaAreaDetailView'
+import { SeaAreaEdgeLabel } from './SeaAreaEdgeLabel'
 
 type FieldEditConfig = {
   token: string
@@ -208,6 +211,10 @@ export function FieldDetailView({
   const [regionLoading, setRegionLoading] = useState(false)
   const [regionMissName, setRegionMissName] = useState('')
   const [regionError, setRegionError] = useState('')
+  const [seaDetail, setSeaDetail] = useState<SeaAreaDetail | null>(null)
+  const [seaLoading, setSeaLoading] = useState(false)
+  const [seaMissName, setSeaMissName] = useState('')
+  const [seaError, setSeaError] = useState('')
 
   useEffect(() => {
     setDraft(cloneField(field))
@@ -216,6 +223,9 @@ export function FieldDetailView({
     setRegionDetail(null)
     setRegionMissName('')
     setRegionError('')
+    setSeaDetail(null)
+    setSeaMissName('')
+    setSeaError('')
     const firstCollect = COLLECT_SOURCES.find((s) =>
       (field.collectItems || []).some((i) => i.source === s),
     )
@@ -269,6 +279,36 @@ export function FieldDetailView({
     params.set('q', regionName)
     params.set('add', '1')
     const url = `${window.location.pathname}${window.location.search}#/regions?${params.toString()}`
+    window.open(url, '_blank', 'noopener,noreferrer')
+  }
+
+  async function openMatchedSeaArea(name: string) {
+    if (!authToken) return
+    const key = name.trim()
+    if (!key) return
+    setSeaLoading(true)
+    setSeaMissName('')
+    setSeaError('')
+    try {
+      const res = await fetchSeaAreaByKey(authToken, key)
+      setSeaDetail(res.seaArea)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : ''
+      if (/찾을 수 없|없습니다/i.test(message)) {
+        setSeaMissName(key)
+      } else {
+        setSeaError(message || '해역 상세를 불러오지 못했습니다.')
+      }
+    } finally {
+      setSeaLoading(false)
+    }
+  }
+
+  function openSeaAreasAddTab(seaName: string) {
+    const params = new URLSearchParams()
+    params.set('q', seaName)
+    params.set('add', '1')
+    const url = `${window.location.pathname}${window.location.search}#/sea-areas?${params.toString()}`
     window.open(url, '_blank', 'noopener,noreferrer')
   }
 
@@ -599,7 +639,6 @@ export function FieldDetailView({
           </>
         ) : (
           <div className="quest-kv-grid">
-            <Row label="필드 종류" value={field.fieldKind} />
             {canEdit || field.region?.trim() ? (
               <div>
                 <span>지역</span>
@@ -633,7 +672,43 @@ export function FieldDetailView({
                 )}
               </div>
             ) : null}
-            <Row label="해역" value={field.seaArea} />
+            {canEdit || field.seaArea?.trim() ? (
+              <div>
+                <span>해역</span>
+                {field.seaArea?.trim() ? (
+                  <ul className="quest-skill-chips">
+                    {field.seaArea
+                      .split(/[,，]/)
+                      .map((part) => part.trim())
+                      .filter(Boolean)
+                      .map((name) => (
+                        <li key={name} className="is-sea-chip">
+                          {authToken ? (
+                            <button
+                              type="button"
+                              className="quest-skill-chip-btn"
+                              disabled={seaLoading}
+                              onClick={() => void openMatchedSeaArea(name)}
+                            >
+                              <span className="chip-edge-inner">
+                                <SeaAreaEdgeLabel />
+                                <span>{name}</span>
+                              </span>
+                            </button>
+                          ) : (
+                            <span className="chip-edge-inner">
+                              <SeaAreaEdgeLabel />
+                              <span>{name}</span>
+                            </span>
+                          )}
+                        </li>
+                      ))}
+                  </ul>
+                ) : (
+                  <strong>-</strong>
+                )}
+              </div>
+            ) : null}
             <Row label="좌표" value={coords} />
           </div>
         )}
@@ -1575,6 +1650,7 @@ export function FieldDetailView({
       )}
 
       {regionLoading ? <LoadingOverlay label="지역 불러오는 중…" /> : null}
+      {seaLoading ? <LoadingOverlay label="해역 불러오는 중…" /> : null}
 
       {regionMissName ? (
         <ConfirmLayer
@@ -1597,6 +1673,31 @@ export function FieldDetailView({
         <ConfirmLayer
           message={regionError}
           onCancel={() => setRegionError('')}
+          stack={1}
+        />
+      ) : null}
+
+      {seaMissName ? (
+        <ConfirmLayer
+          message={`「${seaMissName}」 해역이(가) 없습니다.`}
+          onCancel={() => setSeaMissName('')}
+          confirmLabel={isAdmin ? '등록하러 이동하기' : undefined}
+          onConfirm={
+            isAdmin
+              ? () => {
+                  openSeaAreasAddTab(seaMissName)
+                  setSeaMissName('')
+                }
+              : undefined
+          }
+          stack={1}
+        />
+      ) : null}
+
+      {seaError ? (
+        <ConfirmLayer
+          message={seaError}
+          onCancel={() => setSeaError('')}
           stack={1}
         />
       ) : null}
@@ -1630,6 +1731,41 @@ export function FieldDetailView({
         >
           <RegionDetailView
             region={regionDetail}
+            token={authToken}
+            isAdmin={isAdmin}
+          />
+        </DetailModal>
+      ) : null}
+
+      {seaDetail ? (
+        <DetailModal
+          title="해역 상세"
+          label={`${seaDetail.name} 상세`}
+          onClose={() => {
+            setSeaDetail(null)
+            setSeaError('')
+          }}
+          stack={1}
+          headerActions={
+            isAdmin ? (
+              <button
+                type="button"
+                className="admin-btn"
+                onClick={() => {
+                  const params = new URLSearchParams()
+                  params.set('q', seaDetail.name)
+                  params.set('open', seaDetail.slug || seaDetail.name)
+                  const url = `${window.location.pathname}${window.location.search}#/sea-areas?${params.toString()}`
+                  window.open(url, '_blank', 'noopener,noreferrer')
+                }}
+              >
+                해역 메뉴로 이동
+              </button>
+            ) : undefined
+          }
+        >
+          <SeaAreaDetailView
+            seaArea={seaDetail}
             token={authToken}
             isAdmin={isAdmin}
           />

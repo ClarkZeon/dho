@@ -191,7 +191,7 @@ export function JobCatalog({
   const colCount = isAdmin ? 4 : 3
 
   return (
-    <section className="tool-page">
+    <section className="tool-page job-catalog">
       <div className="messages-head">
         <div>
           <h1>직업</h1>
@@ -294,12 +294,13 @@ export function JobCatalog({
                     onSort={toggleSort}
                   />
                   <SortableTh
-                    className="col-desk"
+                    className="col-desk col-job-cat"
                     label="분류"
                     sortKey="category"
                     activeKey={sortKey}
                     dir={sortDir}
                     onSort={toggleSort}
+                    align="center"
                   />
                   <SortableTh
                     className="col-desk"
@@ -309,7 +310,9 @@ export function JobCatalog({
                     dir={sortDir}
                     onSort={toggleSort}
                   />
-                  {isAdmin && <th className="col-desk col-action">삭제</th>}
+                  {isAdmin && (
+                    <th className="col-desk col-action col-job-delete">삭제</th>
+                  )}
                 </tr>
               </thead>
               <tbody>
@@ -332,13 +335,15 @@ export function JobCatalog({
                         <span className="port-alt-name"> ({item.altName})</span>
                       ) : null}
                     </td>
-                    <td className="col-desk">{item.category || '-'}</td>
+                    <td className="col-desk col-job-cat">
+                      {item.category || '-'}
+                    </td>
                     <td className="col-desk">
                       {item.cost ? <DucatAmount value={item.cost} /> : '-'}
                     </td>
                     {isAdmin && (
                       <td
-                        className="col-desk col-action admin-cell-control"
+                        className="col-desk col-action col-job-delete admin-cell-control"
                         onClick={(e) => e.stopPropagation()}
                         onKeyDown={(e) => e.stopPropagation()}
                       >

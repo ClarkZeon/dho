@@ -500,6 +500,7 @@ export function DiscoveryCatalog({
             <thead>
               <tr>
                 <SortableTh
+                  className="col-discovery-name"
                   label="이름"
                   sortKey="name"
                   activeKey={sortKey}
@@ -507,7 +508,7 @@ export function DiscoveryCatalog({
                   onSort={toggleSort}
                 />
                 <SortableTh
-                  className="col-desk"
+                  className="col-desk col-discovery-cat"
                   label="분류"
                   sortKey="category"
                   activeKey={sortKey}
@@ -515,23 +516,25 @@ export function DiscoveryCatalog({
                   onSort={toggleSort}
                 />
                 <SortableTh
-                  className="col-desk"
+                  className="col-desk col-discovery-rank"
                   label={isAdmin ? '난이도' : '등급'}
                   sortKey="rank"
                   activeKey={sortKey}
                   dir={sortDir}
                   onSort={toggleSort}
+                  align="center"
                 />
                 <SortableTh
-                  className="col-desk"
+                  className="col-desk col-discovery-card"
                   label={isAdmin ? '카드P' : '카드'}
                   sortKey="cardPoints"
                   activeKey={sortKey}
                   dir={sortDir}
                   onSort={toggleSort}
+                  align="center"
                 />
                 <SortableTh
-                  className="col-desk"
+                  className="col-desk col-discovery-kind"
                   label="종류"
                   sortKey="acquireKind"
                   activeKey={sortKey}
@@ -539,7 +542,7 @@ export function DiscoveryCatalog({
                   onSort={toggleSort}
                 />
                 <SortableTh
-                  className="col-desk"
+                  className="col-desk col-discovery-acquire"
                   label={isAdmin ? '발견 방법' : '획득'}
                   sortKey="acquire"
                   activeKey={sortKey}
@@ -547,7 +550,7 @@ export function DiscoveryCatalog({
                   onSort={toggleSort}
                 />
                 <SortableTh
-                  className="col-desk"
+                  className="col-desk col-discovery-places"
                   label="의뢰 장소"
                   sortKey="acquirePlaces"
                   activeKey={sortKey}
@@ -555,7 +558,9 @@ export function DiscoveryCatalog({
                   onSort={toggleSort}
                 />
                 <th className="col-quest-done">완료</th>
-                {isAdmin && <th className="col-desk">삭제</th>}
+                {isAdmin && (
+                  <th className="col-desk col-discovery-delete">삭제</th>
+                )}
               </tr>
             </thead>
             <tbody>
@@ -575,15 +580,15 @@ export function DiscoveryCatalog({
                     }
                   }}
                 >
-                  <td>{item.name}</td>
-                  <td className="col-desk">
+                  <td className="col-discovery-name">{item.name}</td>
+                  <td className="col-desk col-discovery-cat">
                     <DiscoveryCategoryCell
                       category={item.category}
                       categoryGroup={item.categoryGroup}
                     />
                   </td>
                   <td
-                    className={`col-desk${isAdmin ? ' admin-cell-control col-diff' : ''}`}
+                    className={`col-desk col-discovery-rank${isAdmin ? ' admin-cell-control col-diff' : ''}`}
                     onClick={isAdmin ? (e) => e.stopPropagation() : undefined}
                     onKeyDown={
                       isAdmin ? (e) => e.stopPropagation() : undefined
@@ -612,14 +617,18 @@ export function DiscoveryCatalog({
                       '-'
                     )}
                   </td>
-                  <td className="col-desk">{item.cardPoints ?? '-'}</td>
-                  <td className="col-desk">
+                  <td className="col-desk col-discovery-card">
+                    {item.cardPoints ?? '-'}
+                  </td>
+                  <td className="col-desk col-discovery-kind">
                     <DiscoveryAcquireKindCell kind={acquireParts.kind} />
                   </td>
-                  <td className="col-desk">
+                  <td className="col-desk col-discovery-acquire">
                     {acquireParts.detail || '-'}
                   </td>
-                  <td className="col-desk">{places || '-'}</td>
+                  <td className="col-desk col-discovery-places">
+                    {places || '-'}
+                  </td>
                   <td className="col-quest-done">
                     {item.completed ? (
                       <span
@@ -633,7 +642,7 @@ export function DiscoveryCatalog({
                   </td>
                   {isAdmin && (
                     <td
-                      className="admin-cell-control col-desk"
+                      className="admin-cell-control col-desk col-discovery-delete"
                       onClick={(e) => e.stopPropagation()}
                       onKeyDown={(e) => e.stopPropagation()}
                     >

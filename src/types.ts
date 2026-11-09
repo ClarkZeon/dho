@@ -573,8 +573,9 @@ export type SeaAreaDetail = {
   name: string
   description: string | null
   category: string | null
-  /** 대표 지역 (regions[0]) */
+  /** 소속 지역 — 항상 1개 (`카리브, 중미`처럼 쉼표 포함 가능) */
   region: string | null
+  /** region 과 동일 내용의 1요소 배열 (하위 호환) */
   regions: string[]
   boundNorth: number | null
   boundWest: number | null

@@ -340,19 +340,16 @@ export function parseSeaAreaText(text) {
 
   const bounds = parseBounds(meta.bounds)
 
-  const regions = meta.region
-    ? String(meta.region)
-        .split(/[,，/]/)
-        .map((s) => s.trim())
-        .filter(Boolean)
-    : []
+  // 지역은 항상 1개. `카리브, 중미` 처럼 쉼표가 이름에 포함될 수 있다.
+  const region = meta.region ? String(meta.region).trim() || null : null
+  const regions = region ? [region] : []
 
   return {
     name,
     slug: slugify(name),
     description: null,
     category: meta.category,
-    region: regions[0] || meta.region,
+    region,
     regions,
     boundNorth: bounds.boundNorth,
     boundWest: bounds.boundWest,
