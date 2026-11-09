@@ -27,6 +27,7 @@ import {
   PORT_CATEGORIES,
   isNationPortCategory,
 } from '../lib/portCategories'
+import { cleanQuestSkill, skillDisplayLevel } from '../lib/questSkills'
 import { DucatAmount, DucatMark } from './DucatAmount'
 import { FieldDetailView } from './FieldDetailView'
 import { LandEdgeLabel } from './LandEdgeLabel'
@@ -1181,12 +1182,46 @@ export function PortDetailView({
                         <td>
                           {skillChips.length > 0 ? (
                             <ul className="quest-skill-chips">
-                              {skillChips.map((skill) => (
-                                <li key={skill} className="is-skill-chip">
-                                  <SkillEdgeLabel />
-                                  <span>{skill}</span>
-                                </li>
-                              ))}
+                              {skillChips.map((raw) => {
+                                const skill = cleanQuestSkill({
+                                  name: raw,
+                                  level: null,
+                                })
+                                const level = skillDisplayLevel(skill)
+                                const canOpen = Boolean(
+                                  authToken && skill.name,
+                                )
+                                return (
+                                  <li
+                                    key={raw}
+                                    className="is-skill-chip"
+                                  >
+                                    <SkillEdgeLabel />
+                                    {canOpen ? (
+                                      <button
+                                        type="button"
+                                        className="quest-skill-chip-btn"
+                                        disabled={skillLoading}
+                                        onClick={() =>
+                                          void openMatchedSkill(skill.name)
+                                        }
+                                      >
+                                        <span>{skill.name}</span>
+                                        {level != null ? (
+                                          <em>Lv.{level}</em>
+                                        ) : null}
+                                      </button>
+                                    ) : (
+                                      <>
+                                        <span>{skill.name || raw}</span>
+                                        {level != null ? (
+                                          <em>Lv.{level}</em>
+                                        ) : null}
+                                      </>
+                                    )}
+                                  </li>
+                                )
+                              })}
                             </ul>
                           ) : (
                             '-'

@@ -38,7 +38,7 @@ type View =
   | { name: 'discoveries'; q?: string; open?: string; add?: boolean }
   | { name: 'quests'; q?: string; open?: string; add?: boolean }
   | { name: 'skills'; q?: string; open?: string; add?: boolean }
-  | { name: 'jobs' }
+  | { name: 'jobs'; q?: string; open?: string; add?: boolean }
   | { name: 'refine' }
   | { name: 'consumables'; q?: string; open?: string; add?: boolean }
   | { name: 'ports'; q?: string; open?: string; add?: boolean }
@@ -92,8 +92,14 @@ function viewToHash(view: View): string {
       const qs = params.toString()
       return qs ? `#/skills?${qs}` : '#/skills'
     }
-    case 'jobs':
-      return '#/jobs'
+    case 'jobs': {
+      const params = new URLSearchParams()
+      if (view.q?.trim()) params.set('q', view.q.trim())
+      if (view.open?.trim()) params.set('open', view.open.trim())
+      if (view.add) params.set('add', '1')
+      const qs = params.toString()
+      return qs ? `#/jobs?${qs}` : '#/jobs'
+    }
     case 'refine':
       return '#/refine'
     case 'consumables': {
@@ -204,7 +210,12 @@ function hashToView(hash: string, isAdmin: boolean): View {
     const add = isAdmin && params.get('add') === '1'
     return { name: 'skills', q, open, add: add || undefined }
   }
-  if (parts[0] === 'jobs') return { name: 'jobs' }
+  if (parts[0] === 'jobs') {
+    const q = params.get('q')?.trim() || undefined
+    const open = params.get('open')?.trim() || undefined
+    const add = isAdmin && params.get('add') === '1'
+    return { name: 'jobs', q, open, add: add || undefined }
+  }
   if (parts[0] === 'refine') return { name: 'refine' }
   if (parts[0] === 'consumables') {
     const q = params.get('q')?.trim() || undefined
@@ -322,6 +333,13 @@ function viewsEqual(a: View, b: View): boolean {
     )
   }
   if (a.name === 'consumables' && b.name === 'consumables') {
+    return (
+      (a.q || '') === (b.q || '') &&
+      (a.open || '') === (b.open || '') &&
+      Boolean(a.add) === Boolean(b.add)
+    )
+  }
+  if (a.name === 'jobs' && b.name === 'jobs') {
     return (
       (a.q || '') === (b.q || '') &&
       (a.open || '') === (b.open || '') &&
@@ -1020,7 +1038,14 @@ export function Dashboard({ user, token, onLogout, onToast }: DashboardProps) {
         )}
 
         {view.name === 'jobs' && (
-          <JobCatalog token={token} isAdmin={isAdmin} onToast={onToast} />
+          <JobCatalog
+            token={token}
+            isAdmin={isAdmin}
+            onToast={onToast}
+            initialQuery={view.q || ''}
+            openKey={view.open || ''}
+            initialAdd={isAdmin && Boolean(view.add)}
+          />
         )}
 
         {view.name === 'refine' && (

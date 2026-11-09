@@ -33,8 +33,9 @@ alwaysApply: true
 | 발견물 | `DiscoveryEdgeLabel` | `.is-discovery-chip` | 파랑 `var(--is-blue)` |
 | 스킬 | `SkillEdgeLabel` | `.is-skill-chip` | 청록 `#0c7c8c` / `#0a6a72` (레벨 `em`만 금색) |
 | 소비품 | `ConsumableEdgeLabel` | `.is-consumable-chip` | 주황 `#c45f12` / `#9a4a0e` (수량 `em` 금색) |
+| 직업 | `JobEdgeLabel` | `.is-job-chip` | 남보라 `#4558a8` / `#36478a` |
 
-전문 스킬(`is-specialist`)은 금색 표면 유지 + 스킬 라벨 병행.
+전문 스킬·전문 직업(`is-specialist`)은 금색 표면 유지 + 종류 라벨 병행.
 
 ## 퀘스트 목적지
 

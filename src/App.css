@@ -4365,7 +4365,8 @@
 .quest-skill-chips li.is-region-chip,
 .quest-skill-chips li.is-discovery-chip,
 .quest-skill-chips li.is-skill-chip,
-.quest-skill-chips li.is-consumable-chip {
+.quest-skill-chips li.is-consumable-chip,
+.quest-skill-chips li.is-job-chip {
   gap: 0.12rem;
   line-height: 1;
 }
@@ -4419,6 +4420,12 @@
 
 .quest-skill-chips li.is-consumable-chip em {
   color: var(--is-gold);
+}
+
+.quest-skill-chips li.is-job-chip {
+  border-color: rgba(69, 88, 168, 0.42);
+  background: color-mix(in srgb, #4558a8 10%, var(--is-white));
+  color: #36478a;
 }
 
 /* 칩 앞 라벨 기본 디자인 — .cursor/rules/chip-edge-label.mdc */
@@ -4485,6 +4492,12 @@
   color: #c45f12;
   background: var(--is-white);
   box-shadow: 0 0 0 1px color-mix(in srgb, #c45f12 28%, transparent);
+}
+
+.chip-edge-label.is-job {
+  color: #4558a8;
+  background: var(--is-white);
+  box-shadow: 0 0 0 1px color-mix(in srgb, #4558a8 28%, transparent);
 }
 
 /* 목적지 도시 » 육지 — 분류 뱃지(프랑스 » 본거지)와 동일 구분 기호 */

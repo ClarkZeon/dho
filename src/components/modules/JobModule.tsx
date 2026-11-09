@@ -1,4 +1,5 @@
 import { getModuleDef } from '../../lib/detailModules'
+import { JobEdgeLabel } from '../JobEdgeLabel'
 
 export type JobModuleRef = {
   id?: number
@@ -20,6 +21,7 @@ type JobModuleProps = {
   /** false면 부모가 제목을 그릴 때 h3 생략 */
   showTitle?: boolean
   onOpenJob?: (job: JobModuleRef) => void
+  busy?: boolean
 }
 
 /** 위키 `사냥꾼*` → 전문 직업 */
@@ -37,9 +39,11 @@ export function parseJobMark(raw: string): {
 export function JobChips({
   jobs,
   onOpenJob,
+  busy = false,
 }: {
   jobs: Array<string | JobModuleRef | null | undefined>
   onOpenJob?: (job: JobModuleRef) => void
+  busy?: boolean
 }) {
   const items = (jobs || [])
     .map((raw): JobChip | null => {
@@ -69,13 +73,20 @@ export function JobChips({
           key={
             item.id != null ? `id:${item.id}` : `name:${item.name}-${index}`
           }
-          className={item.specialist ? 'is-specialist' : undefined}
+          className={[
+            'is-job-chip',
+            item.specialist ? 'is-specialist' : '',
+          ]
+            .filter(Boolean)
+            .join(' ')}
           title={item.specialist ? '전문 직업' : undefined}
         >
+          <JobEdgeLabel />
           {onOpenJob ? (
             <button
               type="button"
               className="quest-skill-chip-btn"
+              disabled={busy}
               onClick={() =>
                 onOpenJob({
                   id: item.id,
@@ -85,7 +96,7 @@ export function JobChips({
                 })
               }
             >
-              {item.name}
+              <span>{item.name}</span>
             </button>
           ) : (
             <span>{item.name}</span>
@@ -99,11 +110,13 @@ export function JobChips({
 function JobChipList({
   items,
   onOpenJob,
+  busy = false,
 }: {
   items: JobChip[]
   onOpenJob?: (job: JobModuleRef) => void
+  busy?: boolean
 }) {
-  return <JobChips jobs={items} onOpenJob={onOpenJob} />
+  return <JobChips jobs={items} onOpenJob={onOpenJob} busy={busy} />
 }
 
 /**
@@ -116,6 +129,7 @@ export function JobModule({
   canEdit = false,
   showTitle = true,
   onOpenJob,
+  busy = false,
 }: JobModuleProps) {
   const title = getModuleDef('job')?.title ?? '직업'
   const list: JobChip[] = (jobs || [])
@@ -140,13 +154,17 @@ export function JobModule({
         {specialist.length > 0 ? (
           <div className="skill-module-row">
             <span className="skill-module-row-label is-specialist">전문</span>
-            <JobChipList items={specialist} onOpenJob={onOpenJob} />
+            <JobChipList
+              items={specialist}
+              onOpenJob={onOpenJob}
+              busy={busy}
+            />
           </div>
         ) : null}
         {normal.length > 0 ? (
           <div className="skill-module-row">
             <span className="skill-module-row-label">우대</span>
-            <JobChipList items={normal} onOpenJob={onOpenJob} />
+            <JobChipList items={normal} onOpenJob={onOpenJob} busy={busy} />
           </div>
         ) : null}
       </div>

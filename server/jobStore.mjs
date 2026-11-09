@@ -82,6 +82,39 @@ export async function listJobs() {
   return rows.map(decorateJob)
 }
 
+export async function getJobById(id) {
+  const sql = getSql()
+  const jobId = Number(id)
+  if (!Number.isFinite(jobId)) return null
+  const rows = await sql`
+    SELECT * FROM jobs WHERE id = ${jobId} AND enabled = TRUE LIMIT 1
+  `
+  return rows[0] ? decorateJob(rows[0]) : null
+}
+
+export async function getJobBySlug(slug) {
+  const key = String(slug || '').trim()
+  if (!key) return null
+  const sql = getSql()
+  const rows = await sql`
+    SELECT * FROM jobs WHERE slug = ${key} AND enabled = TRUE LIMIT 1
+  `
+  return rows[0] ? decorateJob(rows[0]) : null
+}
+
+export async function getJobByName(name) {
+  const key = normalizeName(name)
+  if (!key) return null
+  const sql = getSql()
+  const rows = await sql`
+    SELECT * FROM jobs
+    WHERE enabled = TRUE
+      AND TRIM(BOTH FROM regexp_replace(name, '\\s+', ' ', 'g')) = ${key}
+    LIMIT 1
+  `
+  return rows[0] ? decorateJob(rows[0]) : null
+}
+
 export async function deleteJob(id) {
   const sql = getSql()
   const jobId = Number(id)

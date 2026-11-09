@@ -5,9 +5,9 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import { fetchPortByKey, updateSkill } from '../lib/api'
+import { fetchJob, fetchPortByKey, updateSkill } from '../lib/api'
 import { getModuleDef } from '../lib/detailModules'
-import type { PortDetail, SkillDetail } from '../types'
+import type { JobDetail, PortDetail, SkillDetail } from '../types'
 import { CityEdgeLabel } from './CityEdgeLabel'
 import { ConfirmLayer } from './ConfirmLayer'
 import {
@@ -16,8 +16,9 @@ import {
 } from './DetailSectionHead'
 import { DetailModal } from './DetailModal'
 import { DucatAmount, DucatMark } from './DucatAmount'
+import { JobDetailView } from './JobDetailView'
 import { LoadingOverlay } from './LoadingOverlay'
-import { JobModule } from './modules/JobModule'
+import { JobModule, type JobModuleRef } from './modules/JobModule'
 
 /** PortDetailView ↔ SkillDetailView 순환 참조 방지 */
 const PortDetailView = lazy(() =>
@@ -131,6 +132,10 @@ export function SkillDetailView({
   const [portLoading, setPortLoading] = useState(false)
   const [portMissName, setPortMissName] = useState('')
   const [portError, setPortError] = useState('')
+  const [jobDetail, setJobDetail] = useState<JobDetail | null>(null)
+  const [jobLoading, setJobLoading] = useState(false)
+  const [jobMissName, setJobMissName] = useState('')
+  const [jobError, setJobError] = useState('')
 
   useEffect(() => {
     setDraft(cloneSkill(skill))
@@ -140,6 +145,9 @@ export function SkillDetailView({
     setPortDetail(null)
     setPortMissName('')
     setPortError('')
+    setJobDetail(null)
+    setJobMissName('')
+    setJobError('')
   }, [skill])
 
   useEffect(() => {
@@ -198,6 +206,37 @@ export function SkillDetailView({
     params.set('q', portName)
     params.set('add', '1')
     const url = `${window.location.pathname}${window.location.search}#/ports?${params.toString()}`
+    window.open(url, '_blank', 'noopener,noreferrer')
+  }
+
+  async function openMatchedJob(job: JobModuleRef) {
+    if (!authToken) return
+    const key = (job.slug || job.name || '').trim()
+    if (!key) return
+    const missLabel = (job.name || key).trim()
+    setJobLoading(true)
+    setJobMissName('')
+    setJobError('')
+    try {
+      const res = await fetchJob(authToken, key)
+      setJobDetail(res.job)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : ''
+      if (/찾을 수 없|없습니다/i.test(message)) {
+        setJobMissName(missLabel)
+      } else {
+        setJobError(message || '직업 상세를 불러오지 못했습니다.')
+      }
+    } finally {
+      setJobLoading(false)
+    }
+  }
+
+  function openJobsAddTab(jobName: string) {
+    const params = new URLSearchParams()
+    params.set('q', jobName)
+    params.set('add', '1')
+    const url = `${window.location.pathname}${window.location.search}#/jobs?${params.toString()}`
     window.open(url, '_blank', 'noopener,noreferrer')
   }
 
@@ -574,6 +613,12 @@ export function SkillDetailView({
               jobs={preferredJobs.map((name) => ({ name }))}
               canEdit={canEdit}
               showTitle={false}
+              busy={jobLoading}
+              onOpenJob={
+                authToken
+                  ? (job) => void openMatchedJob(job)
+                  : undefined
+              }
             />
           )}
         </section>
@@ -801,6 +846,7 @@ export function SkillDetailView({
       )}
 
       {portLoading ? <LoadingOverlay label="도시 불러오는 중…" /> : null}
+      {jobLoading ? <LoadingOverlay label="직업 불러오는 중…" /> : null}
 
       {portMissName ? (
         <ConfirmLayer
@@ -863,6 +909,68 @@ export function SkillDetailView({
               isAdmin={isAdmin}
             />
           </Suspense>
+        </DetailModal>
+      ) : null}
+
+      {jobMissName ? (
+        <ConfirmLayer
+          title="확인"
+          message={`「${jobMissName}」 직업이 없습니다.`}
+          stack={1}
+          onCancel={() => setJobMissName('')}
+          confirmLabel={isAdmin ? '등록하러 이동하기' : undefined}
+          onConfirm={
+            isAdmin
+              ? () => {
+                  openJobsAddTab(jobMissName)
+                  setJobMissName('')
+                }
+              : undefined
+          }
+        />
+      ) : null}
+
+      {jobError ? (
+        <ConfirmLayer
+          title="확인"
+          message={jobError}
+          stack={1}
+          onCancel={() => setJobError('')}
+        />
+      ) : null}
+
+      {jobDetail ? (
+        <DetailModal
+          title="직업 상세"
+          label={`${jobDetail.name} 상세`}
+          onClose={() => {
+            setJobDetail(null)
+            setJobError('')
+          }}
+          stack={1}
+          headerActions={
+            isAdmin ? (
+              <button
+                type="button"
+                className="admin-btn"
+                onClick={() => {
+                  const params = new URLSearchParams()
+                  params.set('q', jobDetail.name)
+                  params.set('open', jobDetail.slug || jobDetail.name)
+                  const url = `${window.location.pathname}${window.location.search}#/jobs?${params.toString()}`
+                  window.open(url, '_blank', 'noopener,noreferrer')
+                }}
+              >
+                직업 메뉴로 이동
+              </button>
+            ) : undefined
+          }
+        >
+          <JobDetailView
+            job={jobDetail}
+            token={authToken}
+            isAdmin={isAdmin}
+          />
         </DetailModal>
       ) : null}
     </div>

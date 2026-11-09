@@ -7,7 +7,7 @@ alwaysApply: true
 
 사용자가 「카탈로그 점프」라고 하면 아래 UX·구현 패턴을 의미한다. 다른 링크(발견물·퀘스트·직업 등)에 **동일 패턴**으로 확장한다.
 
-**칩 기본 규칙:** 종류 라벨이 붙은 카탈로그 칩(도시·육지·해역·지역·발견물·스킬·소비품 등)은 **기본적으로 카탈로그 점프**를 붙인다. 칩만 두고 점프를 빼지 말 것.
+**칩 기본 규칙:** 종류 라벨이 붙은 카탈로그 칩(도시·육지·해역·지역·발견물·스킬·소비품·직업 등)은 **기본적으로 카탈로그 점프**를 붙인다. 칩만 두고 점프를 빼지 말 것.
 
 ## UX 흐름
 
@@ -41,6 +41,8 @@ alwaysApply: true
 #/treasure-maps?q={검색어}&add=1
 #/consumables?q={검색어}&open={slug또는이름}
 #/consumables?q={검색어}&add=1
+#/jobs?q={검색어}&open={slug또는이름}
+#/jobs?q={검색어}&add=1
 ```
 
 | 파라미터 | 역할 |
@@ -62,7 +64,7 @@ URL 파라미터만으로 일반 유저가 추가 UI·쓰기를 열 수 없게 �
 4. **제출**: `handleImport` 선두에서 `!canAdd`이면 거부
 5. **API**: `POST .../import-text` 등 쓰기는 서버 `requireAdmin` (403). UI 우회해도 저장 불가
 
-일반 유저가 `#/skills?add=1` / `#/quests?add=1` / `#/discoveries?add=1` / `#/ports?add=1` / `#/fields?add=1` / `#/sea-areas?add=1` / `#/regions?add=1` / `#/treasure-maps?add=1` / `#/consumables?add=1` 을 직접 넣어도 추가 폼이 열리지 않고, API로도 등록되지 않는다.
+일반 유저가 `#/skills?add=1` / `#/quests?add=1` / `#/discoveries?add=1` / `#/ports?add=1` / `#/fields?add=1` / `#/sea-areas?add=1` / `#/regions?add=1` / `#/treasure-maps?add=1` / `#/consumables?add=1` / `#/jobs?add=1` 을 직접 넣어도 추가 폼이 열리지 않고, API로도 등록되지 않는다.
 
 ## UI 디테일
 
@@ -79,10 +81,10 @@ URL 파라미터만으로 일반 유저가 추가 UI·쓰기를 열 수 없게 �
 
 | 역할 | 위치 |
 |---|---|
-| 칩 클릭·스피너·팝업·새 탭 버튼 | `QuestDetailView` 필요 스킬 · 보상 소비품 · 발견물 · 의뢰 장소(도시) · 목적지(육지) · 연속 퀘스트 · 연결 지도/퀘스트 · `DiscoveryDetailView` 퀘스트 · `PortDetailView` 언어 · 도시 외곽(육지) · `SkillDetailView` 스킬 습득·사용 도시 · `RegionDetailView` 해역 · `FieldDetailView` 지역 · `SeaAreaDetailView` 지역 |
+| 칩 클릭·스피너·팝업·새 탭 버튼 | `QuestDetailView` 필요 스킬 · 보상 소비품 · 발견물 · 의뢰 장소(도시) · 목적지(육지) · 연속 퀘스트 · 연결 지도/퀘스트 · `DiscoveryDetailView` 퀘스트 · `PortDetailView` 언어 · 도시 인물 스킬 · 도시 외곽(육지) · `SkillDetailView` 직업 · 스킬 습득·사용 도시 · `JobDetailView` 우대·연구 스킬 · `RegionDetailView` 해역 · `FieldDetailView` 지역 · `SeaAreaDetailView` 지역 |
 | 스피너 | `LoadingOverlay` + `.app-loading-overlay` |
-| 새 탭 진입·검색·자동 상세 | `SkillCatalog` / `QuestCatalog` / `DiscoveryCatalog` / `PortCatalog` / `FieldCatalog` / `SeaAreaCatalog` / `RegionCatalog` / `TreasureMapCatalog` / `ConsumableCatalog` (`initialQuery` / `openKey`) |
-| 해시 라우팅 | `Dashboard` `#/skills?q=&open=` · `#/quests?q=&open=` · `#/discoveries?q=&open=` · `#/ports?q=&open=` · `#/fields?q=&open=` · `#/sea-areas?q=&open=` · `#/regions?q=&open=` · `#/treasure-maps?q=&open=` · `#/consumables?q=&open=` |
-| 단건 조회 API | `GET /api/skills/:key` · `GET /api/quests/:key` · `GET /api/discoveries/:key` · `GET /api/ports/:key` · `GET /api/fields/:key` · `GET /api/sea-areas/:key` · `GET /api/regions/:key` · `GET /api/treasure-maps/:key` · `GET /api/consumables/:key` — id/slug/이름 |
+| 새 탭 진입·검색·자동 상세 | `SkillCatalog` / `QuestCatalog` / `DiscoveryCatalog` / `PortCatalog` / `FieldCatalog` / `SeaAreaCatalog` / `RegionCatalog` / `TreasureMapCatalog` / `ConsumableCatalog` / `JobCatalog` (`initialQuery` / `openKey`) |
+| 해시 라우팅 | `Dashboard` `#/skills?q=&open=` · `#/quests?q=&open=` · `#/discoveries?q=&open=` · `#/ports?q=&open=` · `#/fields?q=&open=` · `#/sea-areas?q=&open=` · `#/regions?q=&open=` · `#/treasure-maps?q=&open=` · `#/consumables?q=&open=` · `#/jobs?q=&open=` |
+| 단건 조회 API | `GET /api/skills/:key` · `GET /api/quests/:key` · `GET /api/discoveries/:key` · `GET /api/ports/:key` · `GET /api/fields/:key` · `GET /api/sea-areas/:key` · `GET /api/regions/:key` · `GET /api/treasure-maps/:key` · `GET /api/consumables/:key` · `GET /api/jobs/:key` — id/slug/이름 |
 
 다른 대상에 적용할 때: **레퍼런스 스킬과 같은 4단** (칩 → 오버레이 → 팝업+메뉴 버튼 → `#/{catalog}?q=&open=`) + **칩 외곽선 라벨**을 함께 맞춘다.

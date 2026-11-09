@@ -19,6 +19,7 @@ type SkillModuleProps = {
   skills: SkillModuleRef[]
   canEdit?: boolean
   onOpenSkill?: (skill: SkillModuleRef) => void
+  busy?: boolean
 }
 
 /** 위키 `생태 조사*` → 전문 스킬 */
@@ -96,30 +97,56 @@ export function parseSkillBonusText(
 export function SkillBonusChips({
   text,
   hostSkillName,
+  onOpenSkill,
+  busy = false,
 }: {
   text: string | null | undefined
   hostSkillName?: string | null
+  onOpenSkill?: (skill: SkillModuleRef) => void
+  busy?: boolean
 }) {
   const items = parseSkillBonusText(text, hostSkillName)
   if (items.length === 0) return null
   return (
     <ul className="quest-skill-chips">
-      {items.map((item, index) => (
-        <li
-          key={`${item.name}-${item.bonus || ''}-${index}`}
-          className={[
-            'is-skill-chip',
-            item.specialist ? 'is-specialist' : '',
-          ]
-            .filter(Boolean)
-            .join(' ')}
-          title={item.specialist ? '전문 스킬' : undefined}
-        >
-          <SkillEdgeLabel />
-          <span>{item.name}</span>
-          {item.bonus ? <em>{item.bonus}</em> : null}
-        </li>
-      ))}
+      {items.map((item, index) => {
+        const canOpen = Boolean(onOpenSkill && item.name.trim())
+        return (
+          <li
+            key={`${item.name}-${item.bonus || ''}-${index}`}
+            className={[
+              'is-skill-chip',
+              item.specialist ? 'is-specialist' : '',
+            ]
+              .filter(Boolean)
+              .join(' ')}
+            title={item.specialist ? '전문 스킬' : undefined}
+          >
+            <SkillEdgeLabel />
+            {canOpen ? (
+              <button
+                type="button"
+                className="quest-skill-chip-btn"
+                disabled={busy}
+                onClick={() =>
+                  onOpenSkill?.({
+                    name: item.name,
+                    specialist: item.specialist,
+                  })
+                }
+              >
+                <span>{item.name}</span>
+                {item.bonus ? <em>{item.bonus}</em> : null}
+              </button>
+            ) : (
+              <>
+                <span>{item.name}</span>
+                {item.bonus ? <em>{item.bonus}</em> : null}
+              </>
+            )}
+          </li>
+        )
+      })}
     </ul>
   )
 }
@@ -127,9 +154,11 @@ export function SkillBonusChips({
 function SkillChipList({
   items,
   onOpenSkill,
+  busy = false,
 }: {
   items: SkillChip[]
   onOpenSkill?: (skill: SkillModuleRef) => void
+  busy?: boolean
 }) {
   return (
     <ul className="quest-skill-chips">
@@ -151,6 +180,7 @@ function SkillChipList({
             <button
               type="button"
               className="quest-skill-chip-btn"
+              disabled={busy}
               onClick={() =>
                 onOpenSkill({
                   id: item.id,
@@ -160,7 +190,7 @@ function SkillChipList({
                 })
               }
             >
-              {item.name}
+              <span>{item.name}</span>
             </button>
           ) : (
             <span>{item.name}</span>
@@ -180,6 +210,7 @@ export function SkillModule({
   skills,
   canEdit = false,
   onOpenSkill,
+  busy = false,
 }: SkillModuleProps) {
   const title = getModuleDef('skill')?.title ?? '스킬'
   const list: SkillChip[] = (skills || [])
@@ -208,13 +239,21 @@ export function SkillModule({
               <span className="skill-module-row-label is-specialist">
                 전문
               </span>
-              <SkillChipList items={specialist} onOpenSkill={onOpenSkill} />
+              <SkillChipList
+                items={specialist}
+                onOpenSkill={onOpenSkill}
+                busy={busy}
+              />
             </div>
           ) : null}
           {normal.length > 0 ? (
             <div className="skill-module-row">
               <span className="skill-module-row-label">우대</span>
-              <SkillChipList items={normal} onOpenSkill={onOpenSkill} />
+              <SkillChipList
+                items={normal}
+                onOpenSkill={onOpenSkill}
+                busy={busy}
+              />
             </div>
           ) : null}
         </div>

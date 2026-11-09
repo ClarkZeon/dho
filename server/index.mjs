@@ -180,6 +180,9 @@ import { parseTitleText } from './titleTextParse.mjs'
 import {
   deleteJob,
   ensureJobStore,
+  getJobById,
+  getJobByName,
+  getJobBySlug,
   listJobs,
   upsertJobFromText,
 } from './jobStore.mjs'
@@ -2474,6 +2477,27 @@ export async function handleRequest(req, res) {
     }
 
     const jobMatch = pathname.match(/^\/api\/jobs\/([^/]+)$/)
+    if (jobMatch && req.method === 'GET') {
+      const authUser = await getAuthUser(req)
+      if (!authUser) {
+        sendJson(res, 401, { error: '로그인이 필요합니다.' })
+        return
+      }
+      const key = decodeURIComponent(jobMatch[1]).trim()
+      const asId = Number(key)
+      let job =
+        Number.isFinite(asId) && String(asId) === key
+          ? await getJobById(asId)
+          : null
+      if (!job) job = await getJobBySlug(key)
+      if (!job) job = await getJobByName(key)
+      if (!job) {
+        sendJson(res, 404, { error: '직업을 찾을 수 없습니다.' })
+        return
+      }
+      sendJson(res, 200, { job })
+      return
+    }
     if (jobMatch && req.method === 'DELETE') {
       const authUser = await getAuthUser(req)
       if (!authUser) {

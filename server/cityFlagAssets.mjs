@@ -19,6 +19,8 @@ const FLAG_RE =
 /** 분류 `프랑스본거지` / `프랑스 본거지` → 국가 CDN id */
 export const COUNTRY_FLAG_IDS = {
   프랑스: '68dd7eed-7343-4d0e-936b-ed98573fe492',
+  잉글랜드: 'f1cb4725-6c5e-4968-9c8f-610b0aca38ae',
+  네덜란드: 'cbf1b26a-a611-43a7-964a-0c4169310b41',
 }
 
 export function countryFlagLocalPath(countryName) {

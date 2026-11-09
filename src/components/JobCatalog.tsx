@@ -1,7 +1,15 @@
-import { useCallback, useEffect, useState, type FormEvent, type KeyboardEvent } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+  type KeyboardEvent,
+} from 'react'
 import { deleteJob, fetchJobs, importJobText } from '../lib/api'
 import { compareIdDesc, useTableSort } from '../lib/tableSort'
 import type { JobDetail } from '../types'
+import { ConfirmLayer } from './ConfirmLayer'
 import { DetailModal } from './DetailModal'
 import { DucatAmount } from './DucatAmount'
 import { JobDetailView } from './JobDetailView'
@@ -13,6 +21,9 @@ type JobCatalogProps = {
   token: string
   isAdmin?: boolean
   onToast?: (message: string) => void
+  initialQuery?: string
+  openKey?: string
+  initialAdd?: boolean
 }
 
 type SortKey = 'name' | 'category' | 'cost'
@@ -21,18 +32,26 @@ export function JobCatalog({
   token,
   isAdmin = false,
   onToast,
+  initialQuery = '',
+  openKey = '',
+  initialAdd = false,
 }: JobCatalogProps) {
   const [jobs, setJobs] = useState<JobDetail[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [detail, setDetail] = useState<JobDetail | null>(null)
-  const [query, setQuery] = useState('')
+  const [query, setQuery] = useState(initialQuery)
   const [page, setPage] = useState(0)
-  const [showImport, setShowImport] = useState(false)
+  const canAdd = isAdmin
+  const [showImport, setShowImport] = useState(
+    () => Boolean(canAdd && initialAdd),
+  )
   const [importText, setImportText] = useState('')
   const [importing, setImporting] = useState(false)
   const [importNote, setImportNote] = useState('')
   const [deletingId, setDeletingId] = useState<number | null>(null)
+  const [openMiss, setOpenMiss] = useState('')
+  const openedKeyRef = useRef('')
   const { sortKey, sortDir, toggleSort, sortRows } = useTableSort<SortKey>()
 
   const loadJobs = useCallback(async () => {
@@ -58,11 +77,51 @@ export function JobCatalog({
   }, [loadJobs])
 
   useEffect(() => {
+    if (initialQuery.trim()) setQuery(initialQuery)
+  }, [initialQuery])
+
+  useEffect(() => {
+    if (!canAdd) {
+      setShowImport(false)
+      return
+    }
+    if (initialAdd) setShowImport(true)
+  }, [canAdd, initialAdd])
+
+  useEffect(() => {
+    const key = openKey.trim()
+    if (!key || loading) return
+    if (openedKeyRef.current === key) return
+    openedKeyRef.current = key
+    const lower = key.toLowerCase()
+    const found = jobs.find(
+      (j) =>
+        j.slug === key ||
+        j.name.trim().toLowerCase() === lower ||
+        j.name.trim() === key,
+    )
+    const label = initialQuery.trim() || key
+    if (initialQuery.trim()) setQuery(initialQuery.trim())
+    if (!found) {
+      setOpenMiss(label)
+      return
+    }
+    setOpenMiss('')
+    setQuery(initialQuery.trim() || found.name)
+    setPage(0)
+    setDetail(found)
+  }, [openKey, loading, jobs, initialQuery])
+
+  useEffect(() => {
     setPage(0)
   }, [query, sortKey, sortDir])
 
   async function handleImport(e: FormEvent) {
     e.preventDefault()
+    if (!canAdd) {
+      setImportNote('관리자만 직업을 등록할 수 있습니다.')
+      return
+    }
     if (!importText.trim()) {
       setImportNote('텍스트를 붙여넣어 주세요.')
       return
@@ -142,7 +201,7 @@ export function JobCatalog({
               : '등록된 직업을 확인하고 상세를 엽니다.'}
           </p>
         </div>
-        {isAdmin && (
+        {canAdd && (
           <div className="admin-page-actions">
             <button
               type="button"
@@ -166,7 +225,7 @@ export function JobCatalog({
         )}
       </div>
 
-      {isAdmin && showImport && (
+      {canAdd && showImport && (
         <form className="admin-import-form" onSubmit={handleImport}>
           <label className="field">
             <span>직업 텍스트</span>
@@ -341,9 +400,31 @@ export function JobCatalog({
           label={`${detail.name} 상세`}
           onClose={() => setDetail(null)}
         >
-          <JobDetailView job={detail} />
+          <JobDetailView
+            job={detail}
+            token={token}
+            isAdmin={isAdmin}
+          />
         </DetailModal>
       )}
+
+      {openMiss ? (
+        <ConfirmLayer
+          title="확인"
+          message={`「${openMiss}」 직업이 없습니다.`}
+          onCancel={() => setOpenMiss('')}
+          confirmLabel={canAdd ? '등록하러 이동하기' : undefined}
+          onConfirm={
+            canAdd
+              ? () => {
+                  setQuery(openMiss)
+                  setShowImport(true)
+                  setOpenMiss('')
+                }
+              : undefined
+          }
+        />
+      ) : null}
     </section>
   )
 }

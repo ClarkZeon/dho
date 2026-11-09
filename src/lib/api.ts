@@ -773,6 +773,14 @@ export function fetchJobs(token: string) {
   return request<{ jobs: JobDetail[] }>('/api/jobs', { token })
 }
 
+/** id · slug · 이름 중 하나로 직업 상세 */
+export function fetchJob(token: string, key: string) {
+  return request<{ job: JobDetail }>(
+    `/api/jobs/${encodeURIComponent(key)}`,
+    { token },
+  )
+}
+
 export function importJobText(token: string, text: string) {
   return request<{ job: JobDetail }>('/api/jobs/import-text', {
     token,
